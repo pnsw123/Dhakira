@@ -4,6 +4,12 @@ import WebKit
 #if canImport(UIKit)
 import UIKit
 
+/// WKWebView subclass that hides the default keyboard accessory bar
+/// (the ^  v  Done row that WKWebView adds above the keyboard)
+private final class NoAccessoryWebView: WKWebView {
+    override var inputAccessoryView: UIView? { nil }
+}
+
 struct TipTapEditorView: UIViewRepresentable {
     /// Always reflects the latest HTML from TipTap (updated on every keystroke)
     @Binding var html: String
@@ -14,7 +20,7 @@ struct TipTapEditorView: UIViewRepresentable {
 
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: TipTapEditorView
-        var webView: WKWebView?
+        var webView: NoAccessoryWebView?
         private var isLoaded = false
         private var initialContentSet = false
 
@@ -75,7 +81,7 @@ struct TipTapEditorView: UIViewRepresentable {
         Coordinator(self)
     }
 
-    func makeUIView(context: Context) -> WKWebView {
+    func makeUIView(context: Context) -> NoAccessoryWebView {
         let controller = WKUserContentController()
         controller.add(context.coordinator, name: "contentChanged")
         controller.add(context.coordinator, name: "editorReady")
@@ -83,7 +89,7 @@ struct TipTapEditorView: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         config.userContentController = controller
 
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = NoAccessoryWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.scrollView.isScrollEnabled = true
         webView.isOpaque = false
@@ -103,7 +109,7 @@ struct TipTapEditorView: UIViewRepresentable {
         return webView
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {
+    func updateUIView(_ webView: NoAccessoryWebView, context: Context) {
         context.coordinator.setInitialContent()
     }
 }
