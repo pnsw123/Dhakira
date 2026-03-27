@@ -9,87 +9,70 @@ struct TaskRowView: View {
     @State private var showPriorityPicker = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Card content — single compact row
-            HStack(spacing: 10) {
-                // Checkbox
-                Button(action: onToggleComplete) {
-                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 22, weight: .light))
-                        .foregroundStyle(
-                            task.isCompleted
-                            ? Color.forPriority(task.priority)
-                            : Color.secondary.opacity(0.35)
-                        )
-                }
-                .buttonStyle(.plain)
-                .frame(width: 44, height: 44)
-
-                // Title
-                TextField("New Task", text: $task.title)
-                    .font(.system(size: 16))
-                    .foregroundStyle(task.isCompleted ? Color.secondary : Color.primary)
-                    .strikethrough(task.isCompleted)
-
-                // "..." detail button (right side, not a separate row)
-                Button(action: onTapDetail) {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.secondary.opacity(0.4))
-                }
-                .buttonStyle(.plain)
-                .frame(width: 44, height: 44)
-            }
-            .padding(.leading, 4)
-            .padding(.trailing, 2)
-
-            // Bookmark tab on the right edge — small, attached to the card
-            Button {
-                showPriorityPicker.toggle()
-            } label: {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.forPriority(task.priority))
-                    .frame(width: 6, height: 28)
+        HStack(alignment: .center, spacing: 8) {
+            // Checkbox — flush left, aligned with text baseline
+            Button(action: onToggleComplete) {
+                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 21))
+                    .foregroundStyle(
+                        task.isCompleted
+                        ? Color.forPriority(task.priority)
+                        : Color.secondary.opacity(0.3)
+                    )
             }
             .buttonStyle(.plain)
-            .frame(width: 28, height: 44)
+
+            // Title — takes remaining space
+            TextField("New Task", text: $task.title)
+                .font(.system(size: 16))
+                .foregroundStyle(task.isCompleted ? Color.secondary : Color.primary)
+                .strikethrough(task.isCompleted)
+
+            // "..." — subtle, tappable to open detail
+            Button(action: onTapDetail) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.secondary.opacity(0.3))
+            }
+            .buttonStyle(.plain)
+
+            // Color bookmark — right edge, prominent
+            Button { showPriorityPicker.toggle() } label: {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.forPriority(task.priority))
+                    .frame(width: 8, height: 32)
+            }
+            .buttonStyle(.plain)
             .popover(isPresented: $showPriorityPicker) {
                 priorityPicker
             }
         }
-        .frame(height: 48)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.secondary.opacity(0.04))
-        }
-        .opacity(task.isCompleted ? 0.4 : 1.0)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .opacity(task.isCompleted ? 0.35 : 1.0)
         .sensoryFeedback(.success, trigger: task.isCompleted)
     }
 
-    // Tiny color picker — just 3 small dots
     private var priorityPicker: some View {
-        HStack(spacing: 10) {
-            priorityDot("high", Color.priorityHigh)
-            priorityDot("medium", Color.priorityMedium)
-            priorityDot("default", Color.priorityDefault)
+        HStack(spacing: 8) {
+            dot("high", Color.priorityHigh)
+            dot("medium", Color.priorityMedium)
+            dot("default", Color.priorityDefault)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(10)
         .presentationCompactAdaptation(.popover)
     }
 
-    private func priorityDot(_ priority: String, _ color: Color) -> some View {
+    private func dot(_ key: String, _ color: Color) -> some View {
         Button {
-            task.priority = priority
+            task.priority = key
             showPriorityPicker = false
         } label: {
-            Circle()
-                .fill(color)
-                .frame(width: 20, height: 20)
+            Circle().fill(color).frame(width: 18, height: 18)
                 .overlay {
-                    if task.priority == priority {
+                    if task.priority == key {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.white)
                     }
                 }

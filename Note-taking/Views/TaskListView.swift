@@ -28,7 +28,7 @@ struct TaskListView: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 6) {
+                    LazyVStack(spacing: 2) {
                         ForEach(filteredTasks) { task in
                             TaskRowView(
                                 task: task,
@@ -52,15 +52,13 @@ struct TaskListView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 90)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 4)
+                    .padding(.bottom, 70)
                 }
                 .onChange(of: focusedTaskId) { _, newId in
                     if let id = newId {
-                        withAnimation {
-                            proxy.scrollTo(id, anchor: .bottom)
-                        }
+                        withAnimation { proxy.scrollTo(id, anchor: .bottom) }
                     }
                 }
             }
@@ -75,12 +73,13 @@ struct TaskListView: View {
                 }
             }
             .safeAreaInset(edge: .bottom, alignment: .trailing) {
+                // + button with Liquid Glass
                 Button(action: addTask) {
                     Image(systemName: "plus")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(Color.secondary)
-                        .frame(width: 44, height: 44)
-                        .background(.ultraThinMaterial, in: Circle())
+                        .foregroundStyle(Color.primary)
+                        .frame(width: 48, height: 48)
+                        .glassEffect(.regular.interactive(), in: .circle)
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, 20)
