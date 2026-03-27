@@ -13,13 +13,6 @@ struct Note_takingApp: App {
         )
         do {
             container = try ModelContainer(for: schema, configurations: [config])
-            // One-time cleanup: delete all empty test tasks
-            let context = container.mainContext
-            let allTasks = try context.fetch(FetchDescriptor<TaskItem>())
-            for task in allTasks where task.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                context.delete(task)
-            }
-            try context.save()
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
@@ -28,7 +21,31 @@ struct Note_takingApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .task {
+                    await cleanupEmptyTasks()
+                }
         }
         .modelContainer(container)
+    }
+
+    /// Deferred cleanup — runs in the background after UI is visible.
+    @MainActor
+    private func cleanupEmptyTasks() async {
+        let context = container.mainContext
+        do {
+            var descriptor = FetchDescriptor<TaskItem>()
+            descriptor.predicate = #Predicate<TaskItem> { task in
+                task.title == ""
+            }
+            let emptyTasks = try context.fetch(descriptor)
+            guard !emptyTasks.isEmpty else { return }
+            for task in emptyTasks {
+                context.delete(task)
+            }
+            try context.save()
+        } catch {
+            // Non-fatal — cleanup is best-effort
+            print("Empty-task cleanup failed: \(error)")
+        }
     }
 }

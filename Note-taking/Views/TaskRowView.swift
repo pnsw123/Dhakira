@@ -1,104 +1,111 @@
 import SwiftUI
 import SwiftData
 
+/// Pennant shape — rectangle with a V-notch at the bottom
+struct PennantShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: 0))
+        path.addLine(to: CGPoint(x: rect.width, y: 0))
+        path.addLine(to: CGPoint(x: rect.width, y: rect.height))
+        path.addLine(to: CGPoint(x: rect.width / 2, y: rect.height * 0.8))
+        path.addLine(to: CGPoint(x: 0, y: rect.height))
+        path.closeSubpath()
+        return path
+    }
+}
+
 struct TaskRowView: View {
     @Bindable var task: TaskItem
     var onToggleComplete: () -> Void = {}
     var onTapDetail: () -> Void = {}
 
-    @State private var showPriorityPicker = false
+    private let priorityCycle = ["default", "medium", "high"]
+
+    /// Three-dots: blue if task has real content (excluding title/date), black otherwise
+    private var dotsColor: Color {
+        let hasRealContent: Bool = {
+            if let bodyData = task.body,
+               let bodyText = String(data: bodyData, encoding: .utf8) {
+                let stripped = bodyText
+                    .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !stripped.isEmpty { return true }
+            }
+            if task.drawingData != nil { return true }
+            if let attachments = task.attachments, !attachments.isEmpty { return true }
+            return false
+        }()
+        return hasRealContent ? .accentColor : .primary
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            // Layer 1: Card background
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.secondary.opacity(0.04))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.secondary.opacity(0.1), lineWidth: 0.5)
-                )
+            // Row content
+            VStack(alignment: .leading, spacing: 2) {
+                // Line 1: Checkbox + Title
+                HStack(spacing: 10) {
+                    Button(action: onToggleComplete) {
+                        Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 18))
+                            .foregroundStyle(
+                                task.isCompleted
+                                ? Color.forPriority(task.priority)
+                                : Color.secondary.opacity(0.3)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
 
-            // Layer 2: Task content
-            HStack(spacing: 10) {
-                Button(action: onToggleComplete) {
-                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 22))
-                        .foregroundStyle(
-                            task.isCompleted
-                            ? Color.forPriority(task.priority)
-                            : Color.secondary.opacity(0.3)
-                        )
+                    TextField("New Task", text: $task.title)
+                        .font(.system(size: 15))
+                        .foregroundStyle(task.isCompleted ? Color.secondary : Color.primary)
+                        .strikethrough(task.isCompleted)
                 }
-                .buttonStyle(.plain)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
 
-                TextField("New Task", text: $task.title)
-                    .font(.system(size: 16))
-                    .foregroundStyle(task.isCompleted ? Color.secondary : Color.primary)
-                    .strikethrough(task.isCompleted)
-
-                Button(action: onTapDetail) {
-                    Text("···")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(Color.secondary.opacity(0.35))
+                // Line 2: Three-dots
+                HStack {
+                    Spacer().frame(width: 40)
+                    Button(action: onTapDetail) {
+                        Text("···")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(dotsColor.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .frame(height: 16)
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
+            .padding(.leading, 4)
+            .padding(.trailing, 12)
+            .padding(.vertical, 8)
 
-            // Layer 3: Bookmark tab — protrudes above card
-            bookmarkTab
-                .offset(y: -8)
-                .padding(.trailing, 16)
+            // Pennant flag — visible for non-default, invisible tap target always
+            Button { cyclePriority() } label: {
+                ZStack(alignment: .top) {
+                    Color.clear.frame(width: 44, height: 44)
+                    PennantShape()
+                        .fill(Color.forPriority(task.priority))
+                        .frame(width: 22, height: 36)
+                        .opacity(task.priority == "default" ? 0 : 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .sensoryFeedback(.selection, trigger: task.priority)
+            .offset(x: -4, y: 0)
         }
-        .padding(.top, 10)
         .opacity(task.isCompleted ? 0.35 : 1.0)
         .sensoryFeedback(.success, trigger: task.isCompleted)
     }
 
-    private var bookmarkTab: some View {
-        Button { showPriorityPicker.toggle() } label: {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 4,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: 4
-            )
-            .fill(Color.forPriority(task.priority))
-            .frame(width: 14, height: 18)
+    private func cyclePriority() {
+        guard let currentIndex = priorityCycle.firstIndex(of: task.priority) else {
+            task.priority = "medium"
+            return
         }
-        .buttonStyle(.plain)
-        .frame(width: 44, height: 44)
-        .contentShape(Rectangle())
-        .popover(isPresented: $showPriorityPicker) {
-            HStack(spacing: 8) {
-                colorDot("high", Color.priorityHigh)
-                colorDot("medium", Color.priorityMedium)
-                colorDot("default", Color.priorityDefault)
-            }
-            .padding(10)
-            .presentationCompactAdaptation(.popover)
-        }
-    }
-
-    private func colorDot(_ key: String, _ color: Color) -> some View {
-        Button {
-            task.priority = key
-            showPriorityPicker = false
-        } label: {
-            Circle().fill(color).frame(width: 18, height: 18)
-                .overlay {
-                    if task.priority == key {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                }
-        }
-        .buttonStyle(.plain)
+        let nextIndex = (currentIndex + 1) % priorityCycle.count
+        task.priority = priorityCycle[nextIndex]
     }
 }

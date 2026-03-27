@@ -7,20 +7,10 @@ enum SortOption: String, CaseIterable {
 
 struct SettingsMenuView: View {
     @Binding var sortBy: SortOption
-    @Binding var showCompleted: Bool
     var onThemeTapped: () -> Void = {}
 
     var body: some View {
         Menu {
-            Button {
-                showCompleted.toggle()
-            } label: {
-                Label(
-                    showCompleted ? "Hide Completed" : "Show Completed",
-                    systemImage: showCompleted ? "eye.slash" : "eye"
-                )
-            }
-
             Button(action: onThemeTapped) {
                 Label("Theme", systemImage: "paintbrush")
             }

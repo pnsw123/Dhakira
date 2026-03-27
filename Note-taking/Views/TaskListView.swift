@@ -8,28 +8,16 @@ struct TaskListView: View {
 
     @FocusState private var focusedTaskId: UUID?
     @State private var sortBy: SortOption = .manual
-    @State private var showCompleted = false
     @State private var selectedTask: TaskItem?
     @State private var showTheme = false
+    @State private var recentlyCompletedIds: Set<UUID> = []
 
     private var filteredTasks: [TaskItem] {
         var result = Array(allTasks)
-        if !showCompleted {
-            result = result.filter { !$0.isCompleted }
-        }
+        result = result.filter { !$0.isCompleted || recentlyCompletedIds.contains($0.id) }
         if sortBy == .creationDate {
             result.sort { $0.createdAt < $1.createdAt }
         }
-        // Auto-group by priority color (red first, orange, then gray)
-        // within the chosen sort — always
-        let priorityOrder = ["high": 0, "medium": 1, "default": 2]
-        let stable = result.enumerated().map { ($0.offset, $0.element) }
-        result = stable.sorted { a, b in
-            let pa = priorityOrder[a.1.priority] ?? 2
-            let pb = priorityOrder[b.1.priority] ?? 2
-            if pa != pb { return pa < pb }
-            return a.0 < b.0
-        }.map(\.1)
         return result
     }
 
@@ -44,9 +32,27 @@ struct TaskListView: View {
                     )
                     .focused($focusedTaskId, equals: task.id)
                     .id(task.id)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 8 + indentLevel(for: task), bottom: 4, trailing: 8))
-                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.visible, edges: .bottom)
+                    .listRowSeparatorTint(Color.black.opacity(0.06))
+                    .listRowInsets(EdgeInsets(top: 0, leading: 4 + indentLevel(for: task), bottom: 0, trailing: 4))
+                    .listRowSpacing(0)
+                    .listRowBackground(Color.white)
+                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                        Button { setPriority(task, to: "high") } label: {
+                            Label("High", systemImage: "flag.fill")
+                        }
+                        .tint(Color.priorityHighColor)
+
+                        Button { setPriority(task, to: "medium") } label: {
+                            Label("Medium", systemImage: "flag.fill")
+                        }
+                        .tint(Color.priorityMediumColor)
+
+                        Button { setPriority(task, to: "default") } label: {
+                            Label("None", systemImage: "flag.slash")
+                        }
+                        .tint(.gray)
+                    }
                 }
                 .onMove { source, destination in
                     moveTask(from: source, to: destination)
@@ -55,25 +61,34 @@ struct TaskListView: View {
                     deleteTasks(at: offsets)
                 }
             }
+            .animation(.smooth(duration: 0.35), value: filteredTasks.count)
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .navigationTitle("Tasks")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+            .background(Color.white)
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top) {
+                HStack {
+                    Text("Tasks")
+                        .font(.system(size: 34, weight: .bold))
+                    Spacer()
                     settingsButton
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+                .background(Color.white)
             }
             .safeAreaInset(edge: .bottom, alignment: .trailing) {
                 Button(action: addTask) {
                     Image(systemName: "plus")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.fabIcon)
                         .frame(width: 48, height: 48)
-                        .background(Color.indigo, in: Circle())
+                        .background(Color.fabColor, in: Circle())
                         .glassEffect(.regular.interactive(), in: .circle)
                 }
                 .buttonStyle(.plain)
-                .padding(.trailing, 20)
+                .padding(.trailing, 6)
                 .padding(.bottom, 8)
             }
             .navigationDestination(item: $selectedTask) { task in
@@ -82,11 +97,13 @@ struct TaskListView: View {
             .navigationDestination(isPresented: $showTheme) {
                 ThemeView()
             }
-            // Auto-delete empty tasks when focus leaves
-            .onChange(of: focusedTaskId) { oldId, _ in
-                if let oldId = oldId {
-                    cleanupEmptyTask(id: oldId)
+            .onChange(of: focusedTaskId) { oldValue, newValue in
+                if let old = oldValue, old != newValue {
+                    cleanupEmptyTask(id: old)
                 }
+            }
+            .onTapGesture(count: 2) {
+                addTask()
             }
         }
     }
@@ -94,7 +111,6 @@ struct TaskListView: View {
     private var settingsButton: some View {
         SettingsMenuView(
             sortBy: $sortBy,
-            showCompleted: $showCompleted,
             onThemeTapped: { showTheme = true }
         )
     }
@@ -113,15 +129,30 @@ struct TaskListView: View {
         if let task = allTasks.first(where: { $0.id == id }),
            task.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            task.body == nil {
-            modelContext.delete(task)
+            withAnimation(.smooth(duration: 0.3)) {
+                modelContext.delete(task)
+            }
         }
     }
 
     private func toggleComplete(_ task: TaskItem) {
+        let willComplete = !task.isCompleted
         withAnimation(.easeInOut(duration: 0.3)) {
-            task.isCompleted.toggle()
-            task.completedAt = task.isCompleted ? Date() : nil
+            task.isCompleted = willComplete
+            task.completedAt = willComplete ? Date() : nil
         }
+
+        if willComplete {
+            recentlyCompletedIds.insert(task.id)
+            let taskId = task.id
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                recentlyCompletedIds.remove(taskId)
+            }
+        }
+    }
+
+    private func setPriority(_ task: TaskItem, to priority: String) {
+        task.priority = priority
     }
 
     private func moveTask(from source: IndexSet, to destination: Int) {
@@ -134,8 +165,10 @@ struct TaskListView: View {
 
     private func deleteTasks(at offsets: IndexSet) {
         let tasks = filteredTasks
-        for index in offsets {
-            modelContext.delete(tasks[index])
+        withAnimation(.smooth(duration: 0.3)) {
+            for index in offsets {
+                modelContext.delete(tasks[index])
+            }
         }
     }
 
