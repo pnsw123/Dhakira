@@ -1,8 +1,8 @@
 import SwiftUI
 
 enum SortOption: String, CaseIterable {
+    case manual = "Manual"
     case creationDate = "Creation Date"
-    case priority = "Priority"
 }
 
 struct SettingsMenuView: View {
@@ -12,7 +12,24 @@ struct SettingsMenuView: View {
 
     var body: some View {
         Menu {
-            // Sort By — single row with submenu (like Apple Reminders)
+            // 1. Show Completed
+            Button {
+                showCompleted.toggle()
+            } label: {
+                Label(
+                    showCompleted ? "Hide Completed" : "Show Completed",
+                    systemImage: showCompleted ? "eye.slash" : "eye"
+                )
+            }
+
+            // 2. Theme
+            Button(action: onThemeTapped) {
+                Label("Theme", systemImage: "paintbrush")
+            }
+
+            Divider()
+
+            // 3. Sort By — inline submenu with chevron (like Apple Reminders)
             Menu {
                 ForEach(SortOption.allCases, id: \.self) { option in
                     Button {
@@ -36,23 +53,6 @@ struct SettingsMenuView: View {
                 } icon: {
                     Image(systemName: "arrow.up.arrow.down")
                 }
-            }
-
-            // Show Completed — single row
-            Button {
-                showCompleted.toggle()
-            } label: {
-                Label(
-                    showCompleted ? "Hide Completed" : "Show Completed",
-                    systemImage: showCompleted ? "eye.slash" : "eye"
-                )
-            }
-
-            Divider()
-
-            // Theme
-            Button(action: onThemeTapped) {
-                Label("Theme", systemImage: "paintbrush")
             }
         } label: {
             Image(systemName: "ellipsis.circle")

@@ -3,11 +3,11 @@ import SwiftData
 
 struct TaskListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \TaskItem.createdAt, order: .forward)
+    @Query(sort: \TaskItem.sortOrder, order: .forward)
     private var allTasks: [TaskItem]
 
     @FocusState private var focusedTaskId: UUID?
-    @State private var sortBy: SortOption = .creationDate
+    @State private var sortBy: SortOption = .manual
     @State private var showCompleted = false
     @State private var selectedTask: TaskItem?
     @State private var showTheme = false
@@ -17,63 +17,53 @@ struct TaskListView: View {
         if !showCompleted {
             result = result.filter { !$0.isCompleted }
         }
-        if sortBy == .priority {
-            let order = ["high": 0, "medium": 1, "default": 2]
-            result.sort { (order[$0.priority] ?? 2) < (order[$1.priority] ?? 2) }
+        if sortBy == .creationDate {
+            result.sort { $0.createdAt < $1.createdAt }
         }
+        // Auto-group by priority color (red first, orange, then gray)
+        // within the chosen sort — always
+        let priorityOrder = ["high": 0, "medium": 1, "default": 2]
+        let stable = result.enumerated().map { ($0.offset, $0.element) }
+        result = stable.sorted { a, b in
+            let pa = priorityOrder[a.1.priority] ?? 2
+            let pb = priorityOrder[b.1.priority] ?? 2
+            if pa != pb { return pa < pb }
+            return a.0 < b.0
+        }.map(\.1)
         return result
     }
 
     var body: some View {
         NavigationStack {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(filteredTasks) { task in
-                            TaskRowView(
-                                task: task,
-                                onToggleComplete: { toggleComplete(task) },
-                                onTapDetail: { selectedTask = task }
-                            )
-                            .focused($focusedTaskId, equals: task.id)
-                            .id(task.id)
-                            .padding(.leading, indentLevel(for: task))
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    deleteTask(task)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                                Button {
-                                    indentTask(task)
-                                } label: {
-                                    Label("Make Sub-task", systemImage: "increase.indent")
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 4)
-                    .padding(.top, 4)
-                    .padding(.bottom, 70)
+            List {
+                ForEach(filteredTasks) { task in
+                    TaskRowView(
+                        task: task,
+                        onToggleComplete: { toggleComplete(task) },
+                        onTapDetail: { selectedTask = task }
+                    )
+                    .focused($focusedTaskId, equals: task.id)
+                    .id(task.id)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 1, leading: 8 + indentLevel(for: task), bottom: 1, trailing: 8))
+                    .listRowBackground(Color.clear)
                 }
-                .onChange(of: focusedTaskId) { _, newId in
-                    if let id = newId {
-                        withAnimation { proxy.scrollTo(id, anchor: .bottom) }
-                    }
+                .onMove { source, destination in
+                    moveTask(from: source, to: destination)
+                }
+                .onDelete { offsets in
+                    deleteTasks(at: offsets)
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .navigationTitle("Tasks")
             .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    SettingsMenuView(
-                        sortBy: $sortBy,
-                        showCompleted: $showCompleted,
-                        onThemeTapped: { showTheme = true }
-                    )
+                ToolbarItem(placement: .primaryAction) {
+                    settingsButton
                 }
             }
             .safeAreaInset(edge: .bottom, alignment: .trailing) {
-                // + button with Liquid Glass
                 Button(action: addTask) {
                     Image(systemName: "plus")
                         .font(.system(size: 20, weight: .medium))
@@ -91,14 +81,38 @@ struct TaskListView: View {
             .navigationDestination(isPresented: $showTheme) {
                 ThemeView()
             }
+            // Auto-delete empty tasks when focus leaves
+            .onChange(of: focusedTaskId) { oldId, _ in
+                if let oldId = oldId {
+                    cleanupEmptyTask(id: oldId)
+                }
+            }
         }
     }
 
+    private var settingsButton: some View {
+        SettingsMenuView(
+            sortBy: $sortBy,
+            showCompleted: $showCompleted,
+            onThemeTapped: { showTheme = true }
+        )
+    }
+
     private func addTask() {
+        let maxOrder = (allTasks.map(\.sortOrder).max() ?? 0) + 1
         let newTask = TaskItem(title: "")
+        newTask.sortOrder = maxOrder
         modelContext.insert(newTask)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             focusedTaskId = newTask.id
+        }
+    }
+
+    private func cleanupEmptyTask(id: UUID) {
+        if let task = allTasks.first(where: { $0.id == id }),
+           task.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           task.body == nil {
+            modelContext.delete(task)
         }
     }
 
@@ -109,15 +123,19 @@ struct TaskListView: View {
         }
     }
 
-    private func deleteTask(_ task: TaskItem) {
-        withAnimation { modelContext.delete(task) }
+    private func moveTask(from source: IndexSet, to destination: Int) {
+        var items = filteredTasks
+        items.move(fromOffsets: source, toOffset: destination)
+        for (index, item) in items.enumerated() {
+            item.sortOrder = index
+        }
     }
 
-    private func indentTask(_ task: TaskItem) {
-        let sorted = filteredTasks
-        guard let index = sorted.firstIndex(where: { $0.id == task.id }),
-              index > 0 else { return }
-        withAnimation { task.parentTask = sorted[index - 1] }
+    private func deleteTasks(at offsets: IndexSet) {
+        let tasks = filteredTasks
+        for index in offsets {
+            modelContext.delete(tasks[index])
+        }
     }
 
     private func indentLevel(for task: TaskItem) -> CGFloat {

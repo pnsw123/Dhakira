@@ -12,6 +12,7 @@ final class TaskItem {
     var completedAt: Date?
     var drawingData: Data?
     var calendarEventId: String?
+    var sortOrder: Int = 0
 
     var parentTask: TaskItem?
 
