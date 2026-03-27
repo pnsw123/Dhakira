@@ -3,7 +3,7 @@ import SwiftData
 
 struct TaskListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \TaskItem.createdAt, order: .reverse)
+    @Query(sort: \TaskItem.createdAt, order: .forward)
     private var allTasks: [TaskItem]
 
     @FocusState private var focusedTaskId: UUID?
@@ -17,10 +17,7 @@ struct TaskListView: View {
         if !showCompleted {
             result = result.filter { !$0.isCompleted }
         }
-        switch sortBy {
-        case .creationDate:
-            result.sort { $0.createdAt > $1.createdAt }
-        case .priority:
+        if sortBy == .priority {
             let order = ["high": 0, "medium": 1, "default": 2]
             result.sort { (order[$0.priority] ?? 2) < (order[$1.priority] ?? 2) }
         }
@@ -29,39 +26,41 @@ struct TaskListView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                if filteredTasks.isEmpty {
-                    Spacer()
-                    emptyState
-                    Spacer()
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 10) {
-                            ForEach(filteredTasks) { task in
-                                TaskRowView(
-                                    task: task,
-                                    onToggleComplete: { toggleComplete(task) },
-                                    onTapDetail: { selectedTask = task }
-                                )
-                                .focused($focusedTaskId, equals: task.id)
-                                .padding(.leading, indentLevel(for: task))
-                                .contextMenu {
-                                    Button(role: .destructive) {
-                                        deleteTask(task)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                    Button {
-                                        indentTask(task)
-                                    } label: {
-                                        Label("Make Sub-task", systemImage: "increase.indent")
-                                    }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 14) {
+                        ForEach(filteredTasks) { task in
+                            TaskRowView(
+                                task: task,
+                                onToggleComplete: { toggleComplete(task) },
+                                onTapDetail: { selectedTask = task }
+                            )
+                            .focused($focusedTaskId, equals: task.id)
+                            .id(task.id)
+                            .padding(.leading, indentLevel(for: task))
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    deleteTask(task)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                Button {
+                                    indentTask(task)
+                                } label: {
+                                    Label("Make Sub-task", systemImage: "increase.indent")
                                 }
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                        .padding(.bottom, 80)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 90)
+                }
+                .onChange(of: focusedTaskId) { _, newId in
+                    if let id = newId {
+                        withAnimation {
+                            proxy.scrollTo(id, anchor: .bottom)
+                        }
                     }
                 }
             }
@@ -75,8 +74,17 @@ struct TaskListView: View {
                     )
                 }
             }
-            .overlay(alignment: .bottomTrailing) {
-                addButton
+            .safeAreaInset(edge: .bottom, alignment: .trailing) {
+                Button(action: addTask) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 50, height: 50)
+                        .background(Color.accentColor, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 20)
+                .padding(.bottom, 8)
             }
             .navigationDestination(item: $selectedTask) { task in
                 TaskDetailView(task: task)
@@ -87,37 +95,10 @@ struct TaskListView: View {
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checklist")
-                .font(.system(size: 56))
-                .foregroundStyle(Color.secondary.opacity(0.5))
-            Text("No tasks yet")
-                .font(.title3)
-                .foregroundStyle(Color.secondary)
-            Text("Tap + to create your first task")
-                .font(.subheadline)
-                .foregroundStyle(Color.secondary.opacity(0.7))
-        }
-    }
-
-    private var addButton: some View {
-        Button(action: addTask) {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 52))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(Color.accentColor)
-        }
-        .shadow(color: Color.primary.opacity(0.1), radius: 8, y: 4)
-        .frame(minWidth: 44, minHeight: 44)
-        .padding(.trailing, 24)
-        .padding(.bottom, 24)
-    }
-
     private func addTask() {
-        withAnimation {
-            let newTask = TaskItem(title: "")
-            modelContext.insert(newTask)
+        let newTask = TaskItem(title: "")
+        modelContext.insert(newTask)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             focusedTaskId = newTask.id
         }
     }
@@ -130,18 +111,14 @@ struct TaskListView: View {
     }
 
     private func deleteTask(_ task: TaskItem) {
-        withAnimation {
-            modelContext.delete(task)
-        }
+        withAnimation { modelContext.delete(task) }
     }
 
     private func indentTask(_ task: TaskItem) {
         let sorted = filteredTasks
         guard let index = sorted.firstIndex(where: { $0.id == task.id }),
               index > 0 else { return }
-        withAnimation {
-            task.parentTask = sorted[index - 1]
-        }
+        withAnimation { task.parentTask = sorted[index - 1] }
     }
 
     private func indentLevel(for task: TaskItem) -> CGFloat {
