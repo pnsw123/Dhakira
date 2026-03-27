@@ -7,7 +7,7 @@ struct TaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var html: String = ""
     @State private var showToolbar = true
-    @State private var showDrawing = false
+    @State private var isDrawingMode = false
     @State private var showAttachmentMenu = false
 
     private var formattedDate: String {
@@ -17,37 +17,36 @@ struct TaskDetailView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Date header
+        VStack(spacing: 0) {
+            // Date
             Text(formattedDate)
                 .font(.caption)
                 .foregroundStyle(Color.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
+                .padding(.top, 8)
 
-            // Task title
+            // Title
             TextField("Task Title", text: $task.title)
                 .font(.title2.bold())
                 .padding(.horizontal, 20)
+                .padding(.top, 8)
 
-            // Rich text editor
-            MarkupEditorView(html: $html)
-                .padding(.horizontal, 8)
+            // Content area — either rich text or drawing
+            if isDrawingMode {
+                DrawingCanvasView(drawingData: $task.drawingData)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                MarkupEditorView(html: $html)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.horizontal, 4)
+            }
 
-            Spacer(minLength: 0)
-
-            // Editor toolbar
+            // Bottom toolbar (Apple Notes style)
             if showToolbar {
-                EditorToolbarView(
-                    onAttachment: {
-                        showAttachmentMenu.toggle()
-                    },
-                    onMarkup: {
-                        showDrawing.toggle()
-                    }
-                )
+                editorToolbar
             }
         }
-        .padding(.top, 8)
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -64,65 +63,93 @@ struct TaskDetailView: View {
             }
 
             ToolbarItemGroup(placement: .confirmationAction) {
-                Button {
-                    shareTask()
-                } label: {
+                Button { shareTask() } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .frame(minWidth: 44, minHeight: 44)
                 }
 
-                Button {
-                    showToolbar.toggle()
-                } label: {
+                Button { showToolbar.toggle() } label: {
                     Image(systemName: showToolbar ? "keyboard.chevron.compact.down" : "keyboard")
-                        .frame(minWidth: 44, minHeight: 44)
                 }
 
-                Button {
-                    toggleComplete()
-                } label: {
+                Button { toggleComplete() } label: {
                     Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "checkmark.circle")
-                        .frame(minWidth: 44, minHeight: 44)
+                        .foregroundStyle(task.isCompleted ? Color.accentColor : Color.primary)
                 }
             }
-        }
-        .onAppear {
-            loadBody()
-        }
-        .onDisappear {
-            saveBody()
         }
         .sheet(isPresented: $showAttachmentMenu) {
-            NavigationStack {
-                AttachmentMenuView()
-                    .navigationTitle("Attachments")
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") {
-                                showAttachmentMenu = false
-                            }
-                        }
-                    }
-            }
-            .presentationDetents([.medium])
+            attachmentSheet
         }
-        .sheet(isPresented: $showDrawing) {
-            NavigationStack {
-                DrawingCanvasView(drawingData: $task.drawingData)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") {
-                                showDrawing = false
-                            }
-                        }
-                    }
+        .onAppear { loadBody() }
+        .onDisappear { saveBody() }
+    }
+
+    // MARK: - Apple Notes style toolbar
+    private var editorToolbar: some View {
+        HStack(spacing: 0) {
+            toolbarButton("textformat") { /* Aa formatting */ }
+            toolbarButton("checklist") { /* checklist toggle */ }
+            toolbarButton("tablecells") { /* table insert */ }
+            toolbarButton("paperclip") { showAttachmentMenu = true }
+            toolbarButton("pencil.tip.crop.circle") { isDrawingMode.toggle() }
+            toolbarButton("list.bullet") { /* paragraph/list */ }
+        }
+        .frame(height: 44)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .shadow(color: Color.primary.opacity(0.08), radius: 8, y: 2)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+
+    private func toolbarButton(_ icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundStyle(Color.primary)
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Attachment sheet (Apple Notes style)
+    private var attachmentSheet: some View {
+        NavigationStack {
+            List {
+                attachmentRow(icon: "text.viewfinder", title: "Scan Text")
+                attachmentRow(icon: "doc.viewfinder", title: "Scan Documents")
+                attachmentRow(icon: "camera", title: "Take Photo or Video")
+                attachmentRow(icon: "photo.on.rectangle", title: "Choose Photo or Video")
+                attachmentRow(icon: "waveform", title: "Record Audio")
+                attachmentRow(icon: "doc", title: "Attach File")
             }
+            .navigationTitle("Attachments")
+            #if !os(macOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showAttachmentMenu = false }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func attachmentRow(icon: String, title: String) -> some View {
+        Button {
+            showAttachmentMenu = false
+        } label: {
+            Label(title, systemImage: icon)
         }
     }
 
+    // MARK: - Actions
     private func loadBody() {
-        if let data = task.body, let bodyHtml = String(data: data, encoding: .utf8) {
-            html = bodyHtml
+        if let data = task.body, let s = String(data: data, encoding: .utf8) {
+            html = s
         }
     }
 
@@ -130,9 +157,7 @@ struct TaskDetailView: View {
         task.body = html.data(using: .utf8)
     }
 
-    private func shareTask() {
-        // Share functionality placeholder
-    }
+    private func shareTask() {}
 
     private func toggleComplete() {
         withAnimation {

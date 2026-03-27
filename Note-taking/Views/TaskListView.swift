@@ -13,7 +13,7 @@ struct TaskListView: View {
     @State private var showTheme = false
 
     private var filteredTasks: [TaskItem] {
-        var result = allTasks
+        var result = Array(allTasks)
         if !showCompleted {
             result = result.filter { !$0.isCompleted }
         }
@@ -29,11 +29,40 @@ struct TaskListView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            VStack(spacing: 0) {
                 if filteredTasks.isEmpty {
+                    Spacer()
                     emptyState
+                    Spacer()
                 } else {
-                    taskList
+                    ScrollView {
+                        LazyVStack(spacing: 10) {
+                            ForEach(filteredTasks) { task in
+                                TaskRowView(
+                                    task: task,
+                                    onToggleComplete: { toggleComplete(task) },
+                                    onTapDetail: { selectedTask = task }
+                                )
+                                .focused($focusedTaskId, equals: task.id)
+                                .padding(.leading, indentLevel(for: task))
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        deleteTask(task)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                    Button {
+                                        indentTask(task)
+                                    } label: {
+                                        Label("Make Sub-task", systemImage: "increase.indent")
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 80)
+                    }
                 }
             }
             .navigationTitle("Tasks")
@@ -60,70 +89,37 @@ struct TaskListView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.secondary)
+            Image(systemName: "checklist")
+                .font(.system(size: 56))
+                .foregroundStyle(Color.secondary.opacity(0.5))
             Text("No tasks yet")
-                .font(.headline)
+                .font(.title3)
                 .foregroundStyle(Color.secondary)
+            Text("Tap + to create your first task")
+                .font(.subheadline)
+                .foregroundStyle(Color.secondary.opacity(0.7))
         }
-    }
-
-    private var taskList: some View {
-        List {
-            ForEach(filteredTasks) { task in
-                TaskRowView(
-                    task: task,
-                    isFocused: focusedTaskId == task.id,
-                    onToggleComplete: {
-                        toggleComplete(task)
-                    },
-                    onTapDetail: {
-                        selectedTask = task
-                    }
-                )
-                .focused($focusedTaskId, equals: task.id)
-                .padding(.leading, indentLevel(for: task))
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button(role: .destructive) {
-                        deleteTask(task)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                }
-                .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    Button {
-                        indentTask(task)
-                    } label: {
-                        Label("Indent", systemImage: "increase.indent")
-                    }
-                    .tint(Color.accentColor)
-                }
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                .listRowBackground(Color.clear)
-            }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
     }
 
     private var addButton: some View {
         Button(action: addTask) {
             Image(systemName: "plus.circle.fill")
-                .font(.system(size: 56))
+                .font(.system(size: 52))
+                .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(Color.accentColor)
-                .shadow(color: Color.primary.opacity(0.15), radius: 4, y: 2)
         }
+        .shadow(color: Color.primary.opacity(0.1), radius: 8, y: 4)
         .frame(minWidth: 44, minHeight: 44)
-        .padding(.trailing, 20)
-        .padding(.bottom, 20)
+        .padding(.trailing, 24)
+        .padding(.bottom, 24)
     }
 
     private func addTask() {
-        let newTask = TaskItem(title: "")
-        modelContext.insert(newTask)
-        focusedTaskId = newTask.id
+        withAnimation {
+            let newTask = TaskItem(title: "")
+            modelContext.insert(newTask)
+            focusedTaskId = newTask.id
+        }
     }
 
     private func toggleComplete(_ task: TaskItem) {
@@ -143,9 +139,8 @@ struct TaskListView: View {
         let sorted = filteredTasks
         guard let index = sorted.firstIndex(where: { $0.id == task.id }),
               index > 0 else { return }
-        let parentCandidate = sorted[index - 1]
         withAnimation {
-            task.parentTask = parentCandidate
+            task.parentTask = sorted[index - 1]
         }
     }
 
@@ -156,6 +151,6 @@ struct TaskListView: View {
             level += 1
             current = current?.parentTask
         }
-        return level * 24
+        return level * 20
     }
 }

@@ -12,44 +12,34 @@ struct SettingsMenuView: View {
 
     var body: some View {
         Menu {
-            // Sort By
-            Menu {
+            Section("Sort By") {
                 ForEach(SortOption.allCases, id: \.self) { option in
                     Button {
                         sortBy = option
                     } label: {
-                        HStack {
+                        if sortBy == option {
+                            Label(option.rawValue, systemImage: "checkmark")
+                        } else {
                             Text(option.rawValue)
-                            if sortBy == option {
-                                Image(systemName: "checkmark")
-                            }
                         }
                     }
                 }
-            } label: {
-                Label("Sort By", systemImage: "arrow.up.arrow.down")
             }
 
-            // Show Completed
-            Button {
-                showCompleted.toggle()
-            } label: {
-                Label(
-                    showCompleted ? "Hide Completed" : "Show Completed",
-                    systemImage: showCompleted ? "eye.slash" : "eye"
-                )
+            Section {
+                Toggle(isOn: $showCompleted) {
+                    Label("Show Completed", systemImage: "checkmark.circle")
+                }
             }
 
-            Divider()
-
-            // Theme
-            Button(action: onThemeTapped) {
-                Label("Theme", systemImage: "paintbrush")
+            Section {
+                Button(action: onThemeTapped) {
+                    Label("Theme", systemImage: "paintbrush")
+                }
             }
         } label: {
-            Image(systemName: "gearshape")
-                .font(.body)
-                .frame(minWidth: 44, minHeight: 44)
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 20))
         }
     }
 }
