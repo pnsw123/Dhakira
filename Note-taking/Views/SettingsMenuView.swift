@@ -12,7 +12,8 @@ struct SettingsMenuView: View {
 
     var body: some View {
         Menu {
-            Section("Sort By") {
+            // Sort By — single row with submenu (like Apple Reminders)
+            Menu {
                 ForEach(SortOption.allCases, id: \.self) { option in
                     Button {
                         sortBy = option
@@ -24,22 +25,38 @@ struct SettingsMenuView: View {
                         }
                     }
                 }
-            }
-
-            Section {
-                Toggle(isOn: $showCompleted) {
-                    Label("Show Completed", systemImage: "checkmark.circle")
+            } label: {
+                Label {
+                    VStack(alignment: .leading) {
+                        Text("Sort By")
+                        Text(sortBy.rawValue)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "arrow.up.arrow.down")
                 }
             }
 
-            Section {
-                Button(action: onThemeTapped) {
-                    Label("Theme", systemImage: "paintbrush")
-                }
+            // Show Completed — single row
+            Button {
+                showCompleted.toggle()
+            } label: {
+                Label(
+                    showCompleted ? "Hide Completed" : "Show Completed",
+                    systemImage: showCompleted ? "eye.slash" : "eye"
+                )
+            }
+
+            Divider()
+
+            // Theme
+            Button(action: onThemeTapped) {
+                Label("Theme", systemImage: "paintbrush")
             }
         } label: {
             Image(systemName: "ellipsis.circle")
-                .font(.system(size: 20))
+                .font(.system(size: 22))
         }
     }
 }
