@@ -28,7 +28,7 @@ struct TaskListView: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 14) {
+                    LazyVStack(spacing: 6) {
                         ForEach(filteredTasks) { task in
                             TaskRowView(
                                 task: task,
@@ -77,10 +77,10 @@ struct TaskListView: View {
             .safeAreaInset(edge: .bottom, alignment: .trailing) {
                 Button(action: addTask) {
                     Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 50, height: 50)
-                        .background(Color.accentColor, in: Circle())
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(Color.secondary)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, 20)
