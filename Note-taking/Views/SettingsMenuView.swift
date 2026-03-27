@@ -12,7 +12,6 @@ struct SettingsMenuView: View {
 
     var body: some View {
         Menu {
-            // 1. Show Completed
             Button {
                 showCompleted.toggle()
             } label: {
@@ -22,12 +21,10 @@ struct SettingsMenuView: View {
                 )
             }
 
-            // 2. Theme
             Button(action: onThemeTapped) {
                 Label("Theme", systemImage: "paintbrush")
             }
 
-            // 3. Sort By — inline submenu with chevron (like Apple Reminders)
             Menu {
                 ForEach(SortOption.allCases, id: \.self) { option in
                     Button {
@@ -41,16 +38,7 @@ struct SettingsMenuView: View {
                     }
                 }
             } label: {
-                Label {
-                    VStack(alignment: .leading) {
-                        Text("Sort By")
-                        Text(sortBy.rawValue)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                } icon: {
-                    Image(systemName: "arrow.up.arrow.down")
-                }
+                Label("Sort By", systemImage: "arrow.up.arrow.down")
             }
         } label: {
             Image(systemName: "ellipsis.circle")

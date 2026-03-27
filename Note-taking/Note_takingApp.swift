@@ -13,6 +13,13 @@ struct Note_takingApp: App {
         )
         do {
             container = try ModelContainer(for: schema, configurations: [config])
+            // One-time cleanup: delete all empty test tasks
+            let context = container.mainContext
+            let allTasks = try context.fetch(FetchDescriptor<TaskItem>())
+            for task in allTasks where task.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                context.delete(task)
+            }
+            try context.save()
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }

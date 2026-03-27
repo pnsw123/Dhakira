@@ -66,9 +66,10 @@ struct TaskListView: View {
             .safeAreaInset(edge: .bottom, alignment: .trailing) {
                 Button(action: addTask) {
                     Image(systemName: "plus")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(Color.primary)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.white)
                         .frame(width: 48, height: 48)
+                        .background(Color.indigo, in: Circle())
                         .glassEffect(.regular.interactive(), in: .circle)
                 }
                 .buttonStyle(.plain)
