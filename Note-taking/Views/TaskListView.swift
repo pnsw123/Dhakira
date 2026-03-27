@@ -45,7 +45,7 @@ struct TaskListView: View {
                     .focused($focusedTaskId, equals: task.id)
                     .id(task.id)
                     .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 1, leading: 8 + indentLevel(for: task), bottom: 1, trailing: 8))
+                    .listRowInsets(EdgeInsets(top: 4, leading: 8 + indentLevel(for: task), bottom: 4, trailing: 8))
                     .listRowBackground(Color.clear)
                 }
                 .onMove { source, destination in
