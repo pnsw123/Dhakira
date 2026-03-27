@@ -27,8 +27,6 @@ struct SettingsMenuView: View {
                 Label("Theme", systemImage: "paintbrush")
             }
 
-            Divider()
-
             // 3. Sort By — inline submenu with chevron (like Apple Reminders)
             Menu {
                 ForEach(SortOption.allCases, id: \.self) { option in
