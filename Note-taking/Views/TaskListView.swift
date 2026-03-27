@@ -33,10 +33,10 @@ struct TaskListView: View {
                     .focused($focusedTaskId, equals: task.id)
                     .id(task.id)
                     .listRowSeparator(.visible, edges: .bottom)
-                    .listRowSeparatorTint(Color.black.opacity(0.06))
-                    .listRowInsets(EdgeInsets(top: 0, leading: 4 + indentLevel(for: task), bottom: 0, trailing: 4))
+                    .listRowSeparatorTint(Color.black.opacity(0.10))
+                    .listRowInsets(EdgeInsets(top: 0, leading: 4 + indentLevel(for: task), bottom: 0, trailing: 0))
                     .listRowSpacing(0)
-                    .listRowBackground(Color.white)
+                    .listRowBackground(Color.screenBackground)
                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
                         Button { setPriority(task, to: "high") } label: {
                             Label("High", systemImage: "flag.fill")
@@ -64,7 +64,7 @@ struct TaskListView: View {
             .animation(.smooth(duration: 0.35), value: filteredTasks.count)
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Color.white)
+            .background(Color.screenBackground)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top) {
                 HStack {
@@ -73,10 +73,16 @@ struct TaskListView: View {
                     Spacer()
                     settingsButton
                 }
-                .padding(.horizontal, 16)
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
-                .background(Color.white)
+                .background(Color.screenBackground)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(Color.black.opacity(0.06))
+                        .frame(height: 0.5)
+                }
             }
             .safeAreaInset(edge: .bottom, alignment: .trailing) {
                 Button(action: addTask) {
@@ -156,10 +162,27 @@ struct TaskListView: View {
     }
 
     private func moveTask(from source: IndexSet, to destination: Int) {
-        var items = filteredTasks
-        items.move(fromOffsets: source, toOffset: destination)
-        for (index, item) in items.enumerated() {
-            item.sortOrder = index
+        guard let sourceIndex = source.first else { return }
+        let movedItem = filteredTasks[sourceIndex]
+        var newItems = filteredTasks
+        newItems.move(fromOffsets: source, toOffset: destination)
+        let newIndex = newItems.firstIndex(where: { $0.id == movedItem.id }) ?? destination
+
+        let prevOrder = newIndex > 0 ? newItems[newIndex - 1].sortOrder : nil
+        let nextOrder = newIndex < newItems.count - 1 ? newItems[newIndex + 1].sortOrder : nil
+
+        switch (prevOrder, nextOrder) {
+        case (nil, let n?):
+            movedItem.sortOrder = n - 1000
+        case (let p?, nil):
+            movedItem.sortOrder = p + 1000
+        case (let p?, let n?) where n - p > 1:
+            movedItem.sortOrder = (p + n) / 2
+        default:
+            // No gap between neighbours — re-normalise all with spacing
+            for (index, item) in newItems.enumerated() {
+                item.sortOrder = index * 1000
+            }
         }
     }
 

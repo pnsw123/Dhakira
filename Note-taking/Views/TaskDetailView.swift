@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import MarkupEditor
 
 struct TaskDetailView: View {
     @Bindable var task: TaskItem
@@ -37,9 +36,9 @@ struct TaskDetailView: View {
                 DrawingCanvasView(drawingData: $task.drawingData)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                MarkupEditorView(html: $html)
+                TipTapEditorView(html: $html)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 16)
             }
 
             // Bottom toolbar (Apple Notes style)
@@ -154,7 +153,11 @@ struct TaskDetailView: View {
     }
 
     private func saveBody() {
-        task.body = html.data(using: .utf8)
+        let meaningful = html
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&[a-zA-Z0-9#]+;", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        task.body = meaningful.isEmpty ? nil : html.data(using: .utf8)
     }
 
     private func shareTask() {}

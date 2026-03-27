@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+      font-size: 16px;
+      color: #1c1c1e;
+      padding: 12px 0;
+      -webkit-text-size-adjust: none;
+    }
+    .ProseMirror { outline: none; min-height: 120px; line-height: 1.65; }
+    .ProseMirror > * + * { margin-top: 8px; }
+    .ProseMirror p { margin: 0; }
+    .ProseMirror h1 { font-size: 22px; font-weight: 700; }
+    .ProseMirror h2 { font-size: 18px; font-weight: 600; }
+    .ProseMirror h3 { font-size: 16px; font-weight: 600; }
+    .ProseMirror ul, .ProseMirror ol { padding-left: 22px; }
+    .ProseMirror li { margin-top: 2px; }
+    .ProseMirror blockquote {
+      border-left: 3px solid #c7c7cc;
+      padding-left: 14px;
+      color: #6c6c70;
+    }
+    .ProseMirror code {
+      background: #f2f2f7;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 14px;
+    }
+    .ProseMirror pre {
+      background: #f2f2f7;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    .ProseMirror pre code { background: none; padding: 0; font-size: 14px; }
+    .ProseMirror p.is-editor-empty:first-child::before {
+      content: attr(data-placeholder);
+      color: #c7c7cc;
+      pointer-events: none;
+      float: left;
+      height: 0;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { color: #f2f2f7; }
+      .ProseMirror code, .ProseMirror pre { background: #2c2c2e; }
+    }
+  </style>
+</head>
+<body>
+  <div id="editor"></div>
+  <script type="module">
+    import { Editor } from 'https://esm.sh/@tiptap/core@2'
+    import StarterKit from 'https://esm.sh/@tiptap/starter-kit@2'
+    import Placeholder from 'https://esm.sh/@tiptap/extension-placeholder@2'
+
+    const editor = new Editor({
+      element: document.querySelector('#editor'),
+      extensions: [
+        StarterKit,
+        Placeholder.configure({ placeholder: 'Add a note…' }),
+      ],
+      content: '',
+      onUpdate({ editor }) {
+        const html = editor.getHTML()
+        window.webkit?.messageHandlers?.contentChanged?.postMessage(html)
+      },
+    })
+
+    // Swift → JS: set initial HTML content (called once on load)
+    window.setContent = function(html) {
+      editor.commands.setContent(html, false)
+    }
+
+    // Swift → JS: get current HTML (called on save)
+    window.getContent = function() {
+      return editor.getHTML()
+    }
+
+    // Swift → JS: focus cursor at end
+    window.focusEditor = function() {
+      editor.commands.focus('end')
+    }
+
+    // Signal ready to Swift
+    window.webkit?.messageHandlers?.editorReady?.postMessage(true)
+  </script>
+</body>
+</html>

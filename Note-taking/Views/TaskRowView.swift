@@ -22,21 +22,19 @@ struct TaskRowView: View {
 
     private let priorityCycle = ["default", "medium", "high"]
 
-    /// Three-dots: blue if task has real content (excluding title/date), black otherwise
-    private var dotsColor: Color {
-        let hasRealContent: Bool = {
-            if let bodyData = task.body,
-               let bodyText = String(data: bodyData, encoding: .utf8) {
-                let stripped = bodyText
-                    .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !stripped.isEmpty { return true }
-            }
-            if task.drawingData != nil { return true }
-            if let attachments = task.attachments, !attachments.isEmpty { return true }
-            return false
-        }()
-        return hasRealContent ? .accentColor : .primary
+    /// True if task has real content beyond title and creation date
+    private var hasRealContent: Bool {
+        if let bodyData = task.body,
+           let bodyText = String(data: bodyData, encoding: .utf8) {
+            let stripped = bodyText
+                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "&[a-zA-Z0-9#]+;", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !stripped.isEmpty { return true }
+        }
+        if let drawingData = task.drawingData, !drawingData.isEmpty { return true }
+        if let attachments = task.attachments, !attachments.isEmpty { return true }
+        return false
     }
 
     var body: some View {
@@ -51,50 +49,54 @@ struct TaskRowView: View {
                             .foregroundStyle(
                                 task.isCompleted
                                 ? Color.forPriority(task.priority)
-                                : Color.secondary.opacity(0.3)
+                                : Color.secondary.opacity(0.45)
                             )
                     }
                     .buttonStyle(.plain)
                     .frame(width: 30, height: 30)
                     .contentShape(Rectangle())
 
-                    TextField("New Task", text: $task.title)
+                    TextField("New Task", text: $task.title, axis: .vertical)
                         .font(.system(size: 15))
                         .foregroundStyle(task.isCompleted ? Color.secondary : Color.primary)
                         .strikethrough(task.isCompleted)
+                        .lineLimit(1...2)
                 }
 
-                // Line 2: Three-dots
+                // Line 2: Asterisk — blue if has content, dim if empty
                 HStack {
                     Spacer().frame(width: 40)
                     Button(action: onTapDetail) {
-                        Text("···")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(dotsColor.opacity(0.6))
+                        Image(systemName: "asterisk")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(
+                                hasRealContent
+                                ? Color.accentColor
+                                : Color.secondary.opacity(0.25)
+                            )
                     }
                     .buttonStyle(.plain)
-                    .frame(height: 16)
-                    .contentShape(Rectangle())
+                    .frame(height: 20)
+                    .contentShape(Rectangle().size(CGSize(width: 44, height: 20)))
                 }
             }
             .padding(.leading, 4)
-            .padding(.trailing, 12)
+            .padding(.trailing, 32)
             .padding(.vertical, 8)
 
-            // Pennant flag — visible for non-default, invisible tap target always
+            // Pennant flag
             Button { cyclePriority() } label: {
                 ZStack(alignment: .top) {
                     Color.clear.frame(width: 44, height: 44)
                     PennantShape()
                         .fill(Color.forPriority(task.priority))
-                        .frame(width: 22, height: 36)
+                        .frame(width: 14, height: 22)
                         .opacity(task.priority == "default" ? 0 : 1)
                 }
             }
             .buttonStyle(.plain)
             .contentShape(Rectangle())
             .sensoryFeedback(.selection, trigger: task.priority)
-            .offset(x: -4, y: 0)
         }
         .opacity(task.isCompleted ? 0.35 : 1.0)
         .sensoryFeedback(.success, trigger: task.isCompleted)

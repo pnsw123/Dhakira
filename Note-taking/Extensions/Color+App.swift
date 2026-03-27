@@ -17,7 +17,8 @@ extension Color {
     }
 
     // MARK: - Theme tokens
-    static let screenBackground = Color.white
+    static let screenBackground = Color(red: 0.969, green: 0.969, blue: 0.961) // #F7F7F5 warm off-white
+    static let rowBackground = Color(red: 0.980, green: 0.980, blue: 0.976)    // #FAFAF9 slightly lighter than screen
 
     /// FAB button background — warm charcoal (light), white (dark)
     static let fabColor = Color(light: Color(red: 0.235, green: 0.227, blue: 0.212),
