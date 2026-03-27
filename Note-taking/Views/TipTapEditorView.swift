@@ -6,7 +6,7 @@ import UIKit
 
 /// WKWebView subclass that hides the default keyboard accessory bar
 /// (the ^  v  Done row that WKWebView adds above the keyboard)
-fileprivate final class NoAccessoryWebView: WKWebView {
+final class NoAccessoryWebView: WKWebView {
     override var inputAccessoryView: UIView? { nil }
 }
 
