@@ -132,6 +132,8 @@ struct TaskListView: View {
     }
 
     private func cleanupEmptyTask(id: UUID) {
+        // Never delete the task currently open in the detail view
+        guard selectedTask?.id != id else { return }
         if let task = allTasks.first(where: { $0.id == id }),
            task.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            task.body == nil {
