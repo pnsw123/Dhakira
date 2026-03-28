@@ -12,8 +12,10 @@ struct ContentView: View {
             Group {
                 if showHome {
                     HomeView(onClose: { showHome = false })
+                        .transition(.opacity)
                 } else {
                     TaskListView(onShowHome: { showHome = true })
+                        .transition(.opacity)
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: showHome)

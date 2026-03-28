@@ -29,48 +29,52 @@ struct HomeView: View {
                     foldersSection
                         .id("folders-section")
 
-                    // Recently Completed card
-                    Button(action: { showRecentlyCompleted = true }) {
-                        HStack {
-                            Image(systemName: "checkmark.circle")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(Color.primary)
-                            Text("Recently Completed")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(Color.primary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Color.secondary)
+                    // Recently Completed + Recently Deleted — one grouped card
+                    VStack(spacing: 0) {
+                        Button(action: { showRecentlyCompleted = true }) {
+                            HStack(spacing: 10) {
+                                Spacer().frame(width: 0)
+                                Image(systemName: "checkmark.circle")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(Color.primary)
+                                    .frame(width: 22)
+                                Text("Recently Completed")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Color.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.secondary)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                        .glassEffect(.regular, in: .rect(cornerRadius: 14))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 16)
+                        .buttonStyle(.plain)
 
-                    // Recently Deleted card
-                    Button(action: { showRecentlyDeleted = true }) {
-                        HStack {
-                            Image(systemName: "trash")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(Color.primary)
-                            Text("Recently Deleted")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(Color.primary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Color.secondary)
+                        Divider().padding(.leading, 16)
+
+                        Button(action: { showRecentlyDeleted = true }) {
+                            HStack(spacing: 10) {
+                                Spacer().frame(width: 0)
+                                Image(systemName: "trash")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(Color.primary)
+                                    .frame(width: 22)
+                                Text("Recently Deleted")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Color.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.secondary)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                        .glassEffect(.regular, in: .rect(cornerRadius: 14))
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    .glassEffect(.regular, in: .rect(cornerRadius: 14))
                     .padding(.horizontal, 16)
                 }
                 .padding(.top, 12)
@@ -94,7 +98,15 @@ struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top) {
                 HStack(spacing: 0) {
-                    Spacer()
+                    // Invisible spacer — mirrors the < button on Tasks so "Folders" sits at the same x position
+                    Color.clear
+                        .frame(width: 36, height: 36)
+                        .padding(.leading, 8)
+
+                    Text("Folders")
+                        .font(.system(size: 34, weight: .bold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 16)
 
                     // > goes back to Tasks (the default page)
                     Button(action: {
@@ -135,11 +147,6 @@ struct HomeView: View {
 
     private var foldersSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Folders")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(Color.primary)
-                .padding(.horizontal, 16)
-
             VStack(spacing: 0) {
                 if !topLevelFolders.isEmpty {
                     FolderSectionView(
@@ -157,6 +164,7 @@ struct HomeView: View {
                 // "Add Folder" lives inside the section card — neutral color, no blue
                 Button(action: createNewFolder) {
                     HStack(spacing: 10) {
+                        Spacer().frame(width: 0)
                         Image(systemName: "folder.badge.plus")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundStyle(Color.primary)
@@ -167,7 +175,7 @@ struct HomeView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 13)
+                    .padding(.vertical, 12)
                 }
                 .buttonStyle(.plain)
             }
