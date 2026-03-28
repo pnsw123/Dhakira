@@ -294,9 +294,51 @@ struct TaskDetailView: View {
         }
         // AttachmentService drives all picker sheets via a single enum (Issue #49)
         .background(attachmentService.presentationHooks(attributedText: $attributedText))
-        .sheet(isPresented: $showAttachmentSheet) {
-            GlassAttachmentMenuSheet(service: attachmentService, isPresented: $showAttachmentSheet)
+        .overlay {
+            if showAttachmentSheet {
+                // Dimming background — tap to dismiss
+                Color.black.opacity(0.25)
+                    .ignoresSafeArea()
+                    .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { showAttachmentSheet = false } }
+
+                // Inline glass menu — no separate window/sheet
+                VStack(spacing: 0) {
+                    ForEach(Array(attachmentMenuItems.enumerated()), id: \.element.id) { index, item in
+                        Button {
+                            withAnimation(.easeOut(duration: 0.2)) { showAttachmentSheet = false }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                triggerAttachment(item.id)
+                            }
+                        } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: item.icon)
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundStyle(Color.primary)
+                                    .frame(width: 28)
+                                Text(item.label)
+                                    .font(.system(size: 17))
+                                    .foregroundStyle(Color.primary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 14)
+                        }
+                        .buttonStyle(.plain)
+
+                        if index < attachmentMenuItems.count - 1 {
+                            Divider().padding(.leading, 62)
+                        }
+                    }
+                }
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .glassEffect(.regular, in: .rect(cornerRadius: 16))
+                .padding(.horizontal, 24)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 80)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: showAttachmentSheet)
         .onAppear { loadBody() }
         .onDisappear { saveBody() }
     }
@@ -496,6 +538,37 @@ struct TaskDetailView: View {
         NativeExportService.exportAsPDF(title: task.title, content: attributedText, from: root)
     }
 
+    // MARK: - Inline Attachment Menu
+
+    private struct AttachmentMenuItem: Identifiable {
+        let id: String
+        let icon: String
+        let label: String
+    }
+
+    private var attachmentMenuItems: [AttachmentMenuItem] {
+        [
+            .init(id: "scanText",      icon: "text.viewfinder", label: "Scan Text"),
+            .init(id: "scanDocuments", icon: "doc.viewfinder",  label: "Scan Documents"),
+            .init(id: "takePhoto",     icon: "camera",           label: "Take Photo or Video"),
+            .init(id: "choosePhoto",   icon: "photo",            label: "Choose Photo or Video"),
+            .init(id: "recordAudio",   icon: "mic",              label: "Record Audio"),
+            .init(id: "attachFile",    icon: "paperclip",        label: "Attach File"),
+        ]
+    }
+
+    private func triggerAttachment(_ id: String) {
+        switch id {
+        case "scanText":      attachmentService.scanText()
+        case "scanDocuments": attachmentService.scanDocuments()
+        case "takePhoto":     attachmentService.takePhotoOrVideo()
+        case "choosePhoto":   attachmentService.choosePhotoOrVideo()
+        case "recordAudio":   attachmentService.recordAudio()
+        case "attachFile":    attachmentService.attachFile()
+        default: break
+        }
+    }
+
     private func exportAsWord() {
         log.info("exportAsWord: exporting '\(task.title)' as RTF")
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
@@ -637,89 +710,7 @@ struct TableGridPickerView: View {
     }
 }
 
-// MARK: - GlassAttachmentMenuSheet (iOS 26 glassmorphism)
-
-struct GlassAttachmentMenuSheet: View {
-    let service: AttachmentService
-    @Binding var isPresented: Bool
-
-    private struct MenuItem: Identifiable {
-        let id: String
-        let icon: String
-        let label: String
-    }
-
-    private let menuItems: [MenuItem] = [
-        .init(id: "scanText",       icon: "text.viewfinder",  label: "Scan Text"),
-        .init(id: "scanDocuments",  icon: "doc.viewfinder",   label: "Scan Documents"),
-        .init(id: "takePhoto",      icon: "camera",            label: "Take Photo or Video"),
-        .init(id: "choosePhoto",    icon: "photo",             label: "Choose Photo or Video"),
-        .init(id: "recordAudio",    icon: "mic",               label: "Record Audio"),
-        .init(id: "attachFile",     icon: "paperclip",         label: "Attach File"),
-    ]
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Drag handle
-            Capsule()
-                .fill(Color.secondary.opacity(0.35))
-                .frame(width: 36, height: 5)
-                .padding(.top, 14)
-                .padding(.bottom, 18)
-
-            ForEach(Array(menuItems.enumerated()), id: \.element.id) { index, item in
-                Button {
-                    isPresented = false
-                    // Small delay lets the sheet dismiss before the next sheet opens.
-                    // AttachmentService uses a single enum — no race between Bool flags (Issue #49).
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        switch item.id {
-                        case "scanText":      service.scanText()
-                        case "scanDocuments": service.scanDocuments()
-                        case "takePhoto":     service.takePhotoOrVideo()
-                        case "choosePhoto":   service.choosePhotoOrVideo()
-                        case "recordAudio":   service.recordAudio()
-                        case "attachFile":    service.attachFile()
-                        default: break
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 14) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(.thinMaterial)
-                                .frame(width: 42, height: 42)
-                            Image(systemName: item.icon)
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundStyle(Color.primary)
-                        }
-                        Text(item.label)
-                            .font(.system(size: 17, weight: .regular))
-                            .foregroundStyle(Color.primary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.secondary.opacity(0.5))
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 15)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                if index < menuItems.count - 1 {
-                    Divider()
-                        .padding(.leading, 76)
-                }
-            }
-
-            Spacer(minLength: 20)
-        }
-        .presentationDetents([.height(460)])
-        .presentationBackground(.ultraThinMaterial)
-        .presentationCornerRadius(28)
-    }
-}
+// GlassAttachmentMenuSheet removed — replaced by inline overlay in TaskDetailView
 
 // AttachmentCoordinator and AttachmentPresenters removed — replaced by AttachmentService (Issue #49)
 
