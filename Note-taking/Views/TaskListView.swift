@@ -199,13 +199,25 @@ struct TaskListView: View {
             .navigationDestination(isPresented: $showTheme) {
                 ThemeView()
             }
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                TapGesture(count: 2).onEnded {
+                    if !isAddingTask { addTask() }
+                }
+            )
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    guard isAddingTask else { return }
+                    newTaskFieldFocused = false
+                }
+            )
             .onChange(of: newTaskFieldFocused) { _, focused in
                 if !focused && isAddingTask {
                     // Short delay — gives addTask() time to intercept if the
                     // user tapped + again (which steals focus first).
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         if !newTaskFieldFocused && isAddingTask {
-                            commitNewTask()
+                            cancelNewTask()
                         }
                     }
                 }
@@ -252,9 +264,17 @@ struct TaskListView: View {
         log.info("commitNewTask: created '\(trimmed)' (sortOrder=\(maxOrder))")
     }
 
-    /// Called when the inline field loses focus (user tapped elsewhere).
+    /// Called when Return is pressed — saves if non-empty.
     private func commitNewTask() {
         saveNewTaskIfNeeded()
+        withAnimation(.smooth(duration: 0.3)) {
+            isAddingTask = false
+        }
+        newTaskTitle = ""
+    }
+
+    /// Called when the user taps elsewhere — discards without saving (like Escape).
+    private func cancelNewTask() {
         withAnimation(.smooth(duration: 0.3)) {
             isAddingTask = false
         }
