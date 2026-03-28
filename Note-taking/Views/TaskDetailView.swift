@@ -21,29 +21,47 @@ struct TaskDetailView: View {
     // RichTextKit bindings — attributed string is the source of truth for RTF content
     @State private var attributedText: NSAttributedString = NSAttributedString()
     @StateObject private var richTextContext = RichTextContext()
+    /// Reference to the underlying UITextView — obtained once via onEditorReady.
+    /// Used to restore focus + selection before issuing formatting commands.
+    @State private var richTextView: UITextView?
 
     @State private var showToolbar = true
     @State private var isDrawingMode = false
-    @State private var showAttachmentMenu = false
     @State private var showTablePicker = false
+    /// Cursor position captured when the table picker opens — preserved because
+    /// tapping the picker dismisses the keyboard and resets richTextContext.selectedRange.
+    @State private var savedTableCursorLocation: Int = 0
 
     // Slash command menu state
     @State private var showSlashMenu = false
     @State private var slashCommands: [SlashCommand] = []
+    /// Suppress the slash menu re-evaluation immediately after a command is applied
+    /// (the attributedText mutation from deleting "/" would otherwise re-trigger evaluation)
+    @State private var suppressSlashDetection = false
 
-    // Color palette state
+    // Color palette state — shown automatically when text is selected
     @State private var showColorPalette = false
+    /// The selected text's rect in global (window) coordinates — used to position
+    /// the color palette right below the system "Copy / Paste" callout.
+    @State private var selectionGlobalRect: CGRect = .zero
+    /// Selected range saved the moment the palette appears — preserved because
+    /// tapping a swatch dismisses the keyboard and clears UITextView.selectedRange.
+    @State private var savedColorSelection: NSRange = NSRange(location: 0, length: 0)
 
-    // MRU toolbar
+    // Fixed toolbar — order matches familiar mobile editor conventions (Bold first).
+    // MRU promotion removed: position never changes.
     @State private var toolbarItems: [EditorTool] = [
-        .init(id: "tablecells",    icon: "tablecells"),
-        .init(id: "paperclip",     icon: "paperclip"),
-        .init(id: "pencil",        icon: "pencil.tip.crop.circle"),
-        .init(id: "list.bullet",   icon: "list.bullet"),
-        .init(id: "bold",          icon: "bold"),
-        .init(id: "italic",        icon: "italic"),
-        .init(id: "underline",     icon: "underline"),
-        .init(id: "strikethrough", icon: "strikethrough"),
+        .init(id: "bold",            icon: "bold"),
+        .init(id: "italic",          icon: "italic"),
+        .init(id: "underline",       icon: "underline"),
+        .init(id: "strikethrough",   icon: "strikethrough"),
+        .init(id: "text.alignleft",  icon: "text.alignleft"),
+        .init(id: "text.aligncenter",icon: "text.aligncenter"),
+        .init(id: "text.alignright", icon: "text.alignright"),
+        .init(id: "list.bullet",     icon: "list.bullet"),
+        .init(id: "tablecells",      icon: "tablecells"),
+        .init(id: "paperclip",       icon: "paperclip"),
+        .init(id: "pencil",          icon: "pencil.tip.crop.circle"),
     ]
 
     struct EditorTool: Identifiable { let id: String; let icon: String }
@@ -78,12 +96,50 @@ struct TaskDetailView: View {
                 // Native RichTextKit editor (Issue #38)
                 NativeEditorView(
                     attributedText: $attributedText,
-                    context: richTextContext
+                    context: richTextContext,
+                    onEditorReady: { tv in
+                        richTextView = tv
+                    }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 4)
                 .onChange(of: attributedText) { _, newText in
+                    guard !suppressSlashDetection else { return }
                     detectSlashCommand(in: newText)
+                }
+                .onChange(of: richTextContext.selectedRange) { _, range in
+                    let hasSelection = range.length > 0
+                    // Capture the selection's screen rect BEFORE animating so the
+                    // palette can be positioned correctly from the first frame.
+                    if hasSelection, let tv = richTextView {
+                        let nsLen = (tv.text as NSString).length
+                        let loc = min(range.location, max(0, nsLen))
+                        let len = min(range.length, nsLen - loc)
+                        if len > 0,
+                           let start = tv.position(from: tv.beginningOfDocument, offset: loc),
+                           let end   = tv.position(from: start, offset: len),
+                           let tRange = tv.textRange(from: start, to: end) {
+                            let r = tv.firstRect(for: tRange)
+                            // firstRect returns CGRect.null / infinite on empty ranges
+                            if !r.isNull, !r.isInfinite, r.width < 5000 {
+                                selectionGlobalRect = tv.convert(r, to: nil)
+                                log.debug("selectionGlobalRect updated: \(selectionGlobalRect.debugDescription)")
+                            } else {
+                                selectionGlobalRect = .zero
+                            }
+                        } else {
+                            selectionGlobalRect = .zero
+                        }
+                    } else {
+                        selectionGlobalRect = .zero
+                    }
+                    if hasSelection {
+                        // Snapshot the range NOW, before the keyboard/focus changes
+                        savedColorSelection = range
+                    }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showColorPalette = hasSelection
+                    }
                 }
 
                 if isDrawingMode || task.drawingData != nil {
@@ -92,68 +148,95 @@ struct TaskDetailView: View {
                         .allowsHitTesting(isDrawingMode)
                 }
 
-                // Slash command menu — floats above keyboard (Issue #46)
-                if showSlashMenu && !slashCommands.isEmpty {
-                    VStack {
-                        Spacer()
-                        HStack(alignment: .bottom) {
-                            SlashCommandMenuView(
-                                commands: slashCommands,
-                                onSelect: { cmd in
-                                    applySlashCommand(cmd)
-                                },
-                                onDismiss: {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        showSlashMenu = false
-                                    }
-                                }
-                            )
-                            .padding(.leading, 16)
-                            .padding(.bottom, 8)
-                            Spacer()
-                        }
-                    }
-                    .zIndex(20)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    .animation(.easeInOut(duration: 0.15), value: showSlashMenu)
-                }
-
-                // Color palette — Issue #44
-                if showColorPalette {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Color palette — floats below the system "Copy / Paste" callout,
+            // anchored to the selected text rect (Issue #44).
+            .overlay(alignment: .topLeading) {
+                if showColorPalette && !isDrawingMode && !selectionGlobalRect.isEmpty {
+                    GeometryReader { geo in
+                        let gf = geo.frame(in: .global)
+                        // Position the palette just below the selection rect.
+                        // selectionGlobalRect is in window coords; subtract the ZStack's
+                        // global origin to get local coordinates.
+                        // +8 gap below selection + ~44pt system Cut/Copy/Paste bar height + 8pt padding
+                        let localY = selectionGlobalRect.maxY - gf.minY + 60
+                        if localY > 0 && localY < geo.size.height {
                             ColorPaletteView(
                                 onApplyHighlight: { color in
-                                    RichEditorCommands.applyHighlightColor(color, context: richTextContext)
-                                    withAnimation { showColorPalette = false }
+                                    // Restore focus + selection before mutating
+                                    richTextView?.becomeFirstResponder()
+                                    richTextView?.selectedRange = savedColorSelection
+                                    RichEditorCommands.applyHighlightColor(
+                                        color,
+                                        attributedText: &attributedText,
+                                        selectedRange: savedColorSelection
+                                    )
                                 },
                                 onApplyFontColor: { color in
-                                    RichEditorCommands.applyTextColor(color, context: richTextContext)
-                                    withAnimation { showColorPalette = false }
+                                    richTextView?.becomeFirstResponder()
+                                    richTextView?.selectedRange = savedColorSelection
+                                    RichEditorCommands.applyTextColor(
+                                        color,
+                                        attributedText: &attributedText,
+                                        selectedRange: savedColorSelection
+                                    )
+                                },
+                                onRemoveFontColor: {
+                                    RichEditorCommands.applyTextColor(
+                                        .label,
+                                        attributedText: &attributedText,
+                                        selectedRange: savedColorSelection
+                                    )
+                                },
+                                onRemoveHighlight: {
+                                    RichEditorCommands.applyHighlightColor(
+                                        .clear,
+                                        attributedText: &attributedText,
+                                        selectedRange: savedColorSelection
+                                    )
                                 },
                                 onDismiss: { showColorPalette = false }
                             )
-                            .padding(.trailing, 16)
-                            .padding(.bottom, 8)
+                            .fixedSize()
+                            // Center horizontally around the selection midpoint,
+                            // clamped so it doesn't clip off screen edges.
+                            .frame(maxWidth: geo.size.width, alignment: .center)
+                            .offset(y: localY)
                         }
                     }
-                    .zIndex(20)
                     .transition(.opacity)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Slash command menu — anchored above toolbar, keyboard-aware (Issue #46)
+            if showSlashMenu && !slashCommands.isEmpty {
+                HStack(alignment: .bottom) {
+                    SlashCommandMenuView(
+                        commands: slashCommands,
+                        onSelect: { cmd in applySlashCommand(cmd) },
+                        onDismiss: {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                showSlashMenu = false
+                            }
+                        }
+                    )
+                    .padding(.leading, 16)
+                    .padding(.bottom, 4)
+                    Spacer()
+                }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .animation(.easeInOut(duration: 0.15), value: showSlashMenu)
+            }
 
             // Table grid picker (Issue #43)
             if showTablePicker {
                 TableGridPickerView(
                     onInsert: { rows, cols in
-                        let cursor = richTextContext.selectedRange.location
                         RichEditorCommands.insertTable(
                             rows: rows, cols: cols,
                             attributedText: &attributedText,
-                            cursorLocation: cursor
+                            cursorLocation: savedTableCursorLocation
                         )
                         showTablePicker = false
                     },
@@ -211,15 +294,6 @@ struct TaskDetailView: View {
                 }
             }
         }
-        .confirmationDialog("Add to Note", isPresented: $showAttachmentMenu, titleVisibility: .hidden) {
-            Button("Scan Text")             { attachmentCoordinator.scanText() }
-            Button("Scan Documents")        { attachmentCoordinator.scanDocuments() }
-            Button("Take Photo or Video")   { attachmentCoordinator.takePhotoOrVideo() }
-            Button("Choose Photo or Video") { attachmentCoordinator.choosePhotoOrVideo() }
-            Button("Record Audio")          { attachmentCoordinator.recordAudio() }
-            Button("Attach File")           { attachmentCoordinator.attachFile() }
-            Button("Cancel", role: .cancel) { }
-        }
         .background(attachmentCoordinator.presentationHooks(attributedText: $attributedText))
         .onAppear { loadBody() }
         .onDisappear { saveBody() }
@@ -231,8 +305,12 @@ struct TaskDetailView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 ForEach(toolbarItems) { item in
-                    toolbarButton(item.icon) {
-                        handleToolbarTap(item.id)
+                    if item.id == "paperclip" {
+                        attachmentMenuButton
+                    } else {
+                        toolbarButton(item.icon) {
+                            handleToolbarTap(item.id)
+                        }
                     }
                 }
             }
@@ -249,39 +327,95 @@ struct TaskDetailView: View {
         .padding(.bottom, 8)
     }
 
+    /// Native iOS 26 Menu for attachments — pops up right above the paperclip icon.
+    private var attachmentMenuButton: some View {
+        Menu {
+            Button { attachmentCoordinator.scanText() } label: {
+                Label("Scan Text", systemImage: "text.viewfinder")
+            }
+            Button { attachmentCoordinator.scanDocuments() } label: {
+                Label("Scan Documents", systemImage: "doc.viewfinder")
+            }
+            Button { attachmentCoordinator.takePhotoOrVideo() } label: {
+                Label("Take Photo or Video", systemImage: "camera")
+            }
+            Button { attachmentCoordinator.choosePhotoOrVideo() } label: {
+                Label("Choose Photo or Video", systemImage: "photo")
+            }
+            Button { attachmentCoordinator.recordAudio() } label: {
+                Label("Record Audio", systemImage: "mic")
+            }
+            Button { attachmentCoordinator.attachFile() } label: {
+                Label("Attach File", systemImage: "paperclip")
+            }
+        } label: {
+            Image(systemName: "paperclip")
+                .font(.system(size: 18))
+                .foregroundStyle(Color.primary)
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+    }
+
     private func handleToolbarTap(_ id: String) {
+        log.info("handleToolbarTap: '\(id)'")
         switch id {
         case "tablecells":
+            log.debug("handleToolbarTap: toggling table picker")
+            savedTableCursorLocation = richTextContext.selectedRange.location
             withAnimation(.spring(response: 0.3)) { showTablePicker.toggle() }
-        case "paperclip":
-            showAttachmentMenu = true
         case "pencil":
+            log.debug("handleToolbarTap: entering drawing mode")
+            // Resign text view first responder so PKCanvasView can take it and show PKToolPicker
+            richTextView?.resignFirstResponder()
             saveBody()
             showTablePicker = false
             withAnimation(.spring(response: 0.35)) { isDrawingMode = true }
         case "list.bullet":
-            RichEditorCommands.toggleBulletList(
-                attributedText: &attributedText,
-                selectedRange: richTextContext.selectedRange
-            )
+            log.debug("handleToolbarTap: toggling bullet list")
+            refocusAndApply {
+                RichEditorCommands.toggleBulletList(
+                    attributedText: &attributedText,
+                    selectedRange: richTextContext.selectedRange
+                )
+            }
         case "bold":
-            RichEditorCommands.toggleBold(context: richTextContext)
+            log.debug("handleToolbarTap: toggling bold")
+            refocusAndApply { RichEditorCommands.toggleBold(context: richTextContext) }
         case "italic":
-            RichEditorCommands.toggleItalic(context: richTextContext)
+            log.debug("handleToolbarTap: toggling italic")
+            refocusAndApply { RichEditorCommands.toggleItalic(context: richTextContext) }
         case "underline":
-            RichEditorCommands.toggleUnderline(context: richTextContext)
+            log.debug("handleToolbarTap: toggling underline")
+            refocusAndApply { RichEditorCommands.toggleUnderline(context: richTextContext) }
         case "strikethrough":
-            RichEditorCommands.toggleStrikethrough(context: richTextContext)
+            log.debug("handleToolbarTap: toggling strikethrough")
+            refocusAndApply { RichEditorCommands.toggleStrikethrough(context: richTextContext) }
+        case "text.alignleft":
+            log.debug("handleToolbarTap: align left")
+            refocusAndApply { RichEditorCommands.setAlignment(.left, context: richTextContext) }
+        case "text.aligncenter":
+            log.debug("handleToolbarTap: align center")
+            refocusAndApply { RichEditorCommands.setAlignment(.center, context: richTextContext) }
+        case "text.alignright":
+            log.debug("handleToolbarTap: align right")
+            refocusAndApply { RichEditorCommands.setAlignment(.right, context: richTextContext) }
         default:
+            log.warning("handleToolbarTap: unrecognised toolbar id '\(id)'")
             break
         }
-        // Bubble used item to front (MRU)
-        withAnimation(.spring(response: 0.35)) {
-            if let idx = toolbarItems.firstIndex(where: { $0.id == id }), idx != 0 {
-                let tool = toolbarItems.remove(at: idx)
-                toolbarItems.insert(tool, at: 0)
-            }
+    }
+
+    /// Restore focus + selection on the text view before applying a formatting command.
+    /// Without this, tapping a toolbar button causes the text view to lose focus,
+    /// resetting the selection to {0,0}, and the command applies to nothing.
+    private func refocusAndApply(_ command: () -> Void) {
+        let range = richTextContext.selectedRange
+        richTextView?.becomeFirstResponder()
+        if range.length > 0 {
+            richTextView?.selectedRange = range
         }
+        command()
     }
 
     private func toolbarButton(_ icon: String, action: @escaping () -> Void) -> some View {
@@ -299,6 +433,7 @@ struct TaskDetailView: View {
     private func detectSlashCommand(in text: NSAttributedString) {
         let cursor = richTextContext.selectedRange.location
         let state = SlashCommandEngine.evaluate(text: text.string, cursorLocation: cursor)
+        log.debug("detectSlashCommand: cursor=\(cursor), active=\(state.isActive), filter='\(state.filterText)', \(state.filteredCommands.count) result(s)")
         withAnimation(.easeInOut(duration: 0.15)) {
             showSlashMenu = state.isActive
             slashCommands = state.filteredCommands
@@ -306,6 +441,15 @@ struct TaskDetailView: View {
     }
 
     private func applySlashCommand(_ cmd: SlashCommand) {
+        log.info("applySlashCommand: '\(cmd.id)' (\(cmd.label))")
+        // Suppress slash detection while we mutate attributedText to remove the "/"
+        suppressSlashDetection = true
+        defer {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                suppressSlashDetection = false
+            }
+        }
+
         let cursor = richTextContext.selectedRange.location
         let state = SlashCommandEngine.evaluate(text: attributedText.string, cursorLocation: cursor)
 
@@ -314,7 +458,11 @@ struct TaskDetailView: View {
             let deleteLen = cursor - state.slashLocation
             if deleteLen > 0 {
                 let deleteRange = NSRange(location: state.slashLocation, length: deleteLen)
-                let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+                log.debug("applySlashCommand: deleting \(deleteLen) char(s) at offset \(state.slashLocation)")
+                guard let mutable = attributedText.mutableCopy() as? NSMutableAttributedString else {
+                    log.error("applySlashCommand: failed to get mutable copy of attributedText")
+                    return
+                }
                 mutable.deleteCharacters(in: deleteRange)
                 attributedText = mutable
             }
@@ -340,6 +488,7 @@ struct TaskDetailView: View {
         case "heading3":
             RichEditorCommands.applyHeading(.h3, attributedText: &attributedText, selectedRange: selRange)
         case "table":
+            log.debug("applySlashCommand: showing table grid picker")
             withAnimation(.spring(response: 0.3)) { showTablePicker = true }
         case "colorGray":   RichEditorCommands.applyTextColor(UIColor(hex: "#8e8e93"), context: richTextContext)
         case "colorOrange": RichEditorCommands.applyTextColor(UIColor(hex: "#ff6a00"), context: richTextContext)
@@ -347,29 +496,44 @@ struct TaskDetailView: View {
         case "colorPurple": RichEditorCommands.applyTextColor(UIColor(hex: "#bf5af2"), context: richTextContext)
         case "colorPink":   RichEditorCommands.applyTextColor(UIColor(hex: "#ff375f"), context: richTextContext)
         case "colorBrown":  RichEditorCommands.applyTextColor(UIColor(hex: "#ac8e68"), context: richTextContext)
-        default: break
+        default:
+            log.warning("applySlashCommand: unhandled command id '\(cmd.id)'")
+            break
         }
 
+        log.debug("applySlashCommand: done, dismissing slash menu")
         withAnimation(.easeInOut(duration: 0.15)) { showSlashMenu = false }
     }
 
     // MARK: - Export (Issue #45 — native, no WKWebView)
 
     private func exportAsPDF() {
+        log.info("exportAsPDF: exporting '\(task.title)'")
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root = scene.windows.first?.rootViewController else { return }
+              let root = scene.windows.first?.rootViewController else {
+            log.error("exportAsPDF: could not find root view controller")
+            return
+        }
         NativeExportService.exportAsPDF(title: task.title, content: attributedText, from: root)
     }
 
     private func exportAsWord() {
+        log.info("exportAsWord: exporting '\(task.title)' as RTF")
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root = scene.windows.first?.rootViewController else { return }
+              let root = scene.windows.first?.rootViewController else {
+            log.error("exportAsWord: could not find root view controller")
+            return
+        }
         NativeExportService.exportAsRTF(title: task.title, content: attributedText, from: root)
     }
 
     private func shareTask() {
+        log.info("shareTask: sharing '\(task.title)'")
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root = scene.windows.first?.rootViewController else { return }
+              let root = scene.windows.first?.rootViewController else {
+            log.error("shareTask: could not find root view controller")
+            return
+        }
         NativeExportService.shareText(title: task.title, content: attributedText, from: root)
     }
 
@@ -403,51 +567,105 @@ struct TableGridPickerView: View {
     let onInsert: (Int, Int) -> Void
     let onDismiss: () -> Void
 
-    @State private var hoveredRow = 1
-    @State private var hoveredCol = 1
+    @State private var selectedRow = 2
+    @State private var selectedCol = 3
+
     private let maxRows = 6
     private let maxCols = 6
+    private let cellSize: CGFloat = 32
+    private let cellGap: CGFloat  = 5
 
     var body: some View {
-        VStack(spacing: 12) {
-            Text("Select table size")
-                .font(.subheadline.weight(.semibold))
+        VStack(spacing: 0) {
+            // Header row
+            HStack {
+                Text("Insert Table")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 16)
 
-            VStack(spacing: 4) {
-                ForEach(1...maxRows, id: \.self) { row in
-                    HStack(spacing: 4) {
-                        ForEach(1...maxCols, id: \.self) { col in
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(row <= hoveredRow && col <= hoveredCol
-                                      ? Color.accentColor
-                                      : Color.secondary.opacity(0.2))
-                                .frame(width: 28, height: 28)
-                                .onHover { inside in
-                                    if inside { hoveredRow = row; hoveredCol = col }
-                                }
-                                .onTapGesture {
-                                    onInsert(row, col)
-                                }
+            // Interactive grid — drag finger to choose size
+            let gridW = CGFloat(maxCols) * cellSize + CGFloat(maxCols - 1) * cellGap
+            let gridH = CGFloat(maxRows) * cellSize + CGFloat(maxRows - 1) * cellGap
+
+            ZStack(alignment: .topLeading) {
+                VStack(spacing: cellGap) {
+                    ForEach(1...maxRows, id: \.self) { row in
+                        HStack(spacing: cellGap) {
+                            ForEach(1...maxCols, id: \.self) { col in
+                                let active = row <= selectedRow && col <= selectedCol
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(active
+                                          ? Color.accentColor.opacity(0.85)
+                                          : Color.primary.opacity(0.07))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .strokeBorder(
+                                                active ? Color.accentColor : Color.primary.opacity(0.18),
+                                                lineWidth: 1
+                                            )
+                                    )
+                                    .frame(width: cellSize, height: cellSize)
+                            }
                         }
                     }
                 }
+                // Invisible overlay captures drag/tap across the whole grid
+                Color.clear
+                    .frame(width: gridW, height: gridH)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let col = min(maxCols, max(1, Int(value.location.x / (cellSize + cellGap)) + 1))
+                                let row = min(maxRows, max(1, Int(value.location.y / (cellSize + cellGap)) + 1))
+                                if row != selectedRow || col != selectedCol {
+                                    selectedRow = row
+                                    selectedCol = col
+                                }
+                            }
+                            .onEnded { _ in
+                                onInsert(selectedRow, selectedCol)
+                            }
+                    )
             }
+            .frame(width: gridW, height: gridH)
+            .padding(.bottom, 14)
 
-            Text("\(hoveredRow) × \(hoveredCol)")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(Color.secondary)
+            // Size label
+            Text("\(selectedRow) × \(selectedCol)")
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 14)
 
-            Button("Cancel", action: onDismiss)
-                .font(.caption)
-                .foregroundStyle(Color.secondary)
+            // Insert button — tap alternative to lifting the finger off the grid
+            Button {
+                onInsert(selectedRow, selectedCol)
+            } label: {
+                Text("Insert")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .buttonStyle(.plain)
         }
         .padding(20)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.regularMaterial)
-                .shadow(color: Color.primary.opacity(0.15), radius: 16)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.14), radius: 24, y: 10)
         )
-        .padding(32)
+        .padding(.horizontal, 28)
     }
 }
 
@@ -466,12 +684,12 @@ final class AttachmentCoordinator: NSObject {
         AttachmentPresenters(coordinator: self, attributedText: attributedText)
     }
 
-    func scanText()             { presentDataScanner = true }
-    func scanDocuments()        { presentDocumentScanner = true }
-    func takePhotoOrVideo()     { presentPhotoPickerCamera = true }
-    func choosePhotoOrVideo()   { presentPhotoPickerLibrary = true }
-    func recordAudio()          { presentAudioRecorder = true }
-    func attachFile()           { presentDocumentPicker = true }
+    func scanText()             { log.info("AttachmentCoordinator: scanText"); presentDataScanner = true }
+    func scanDocuments()        { log.info("AttachmentCoordinator: scanDocuments"); presentDocumentScanner = true }
+    func takePhotoOrVideo()     { log.info("AttachmentCoordinator: takePhotoOrVideo"); presentPhotoPickerCamera = true }
+    func choosePhotoOrVideo()   { log.info("AttachmentCoordinator: choosePhotoOrVideo"); presentPhotoPickerLibrary = true }
+    func recordAudio()          { log.info("AttachmentCoordinator: recordAudio"); presentAudioRecorder = true }
+    func attachFile()           { log.info("AttachmentCoordinator: attachFile"); presentDocumentPicker = true }
 }
 
 // MARK: - AttachmentPresenters
@@ -495,7 +713,7 @@ struct AttachmentPresenters: View {
                         string: url.lastPathComponent,
                         attributes: [.link: url, .font: UIFont.preferredFont(forTextStyle: .body)]
                     )
-                    let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+                    guard let mutable = attributedText.mutableCopy() as? NSMutableAttributedString else { return }
                     mutable.append(NSAttributedString(string: "\n"))
                     mutable.append(link)
                     attributedText = mutable
@@ -508,14 +726,14 @@ struct AttachmentPresenters: View {
             }
             .sheet(isPresented: $coordinator.presentAudioRecorder) {
                 AudioRecorderView { url in
-                    let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+                    guard let mutable = attributedText.mutableCopy() as? NSMutableAttributedString else { return }
                     mutable.append(NSAttributedString(string: "\n[Audio: \(url.lastPathComponent)]"))
                     attributedText = mutable
                 }
             }
             .sheet(isPresented: $coordinator.presentDataScanner) {
                 DataScannerWrapperView { text in
-                    let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+                    guard let mutable = attributedText.mutableCopy() as? NSMutableAttributedString else { return }
                     mutable.append(NSAttributedString(string: "\n" + text))
                     attributedText = mutable
                 }
@@ -523,18 +741,27 @@ struct AttachmentPresenters: View {
     }
 
     private func appendImage(_ data: Data) {
-        guard let image = UIImage(data: data) else { return }
+        log.info("appendImage: received \(data.count) bytes")
+        guard let image = UIImage(data: data) else {
+            log.error("appendImage: failed to decode UIImage from \(data.count) bytes")
+            return
+        }
         let attachment = NSTextAttachment()
         attachment.image = image
         let maxWidth: CGFloat = 280
         if image.size.width > maxWidth {
             let scale = maxWidth / image.size.width
             attachment.bounds = CGRect(x: 0, y: 0, width: maxWidth, height: image.size.height * scale)
+            log.debug("appendImage: scaled image from \(image.size.width)pt to \(maxWidth)pt")
         }
-        let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+        guard let mutable = attributedText.mutableCopy() as? NSMutableAttributedString else {
+            log.error("appendImage: failed to get mutable copy of attributedText")
+            return
+        }
         mutable.append(NSAttributedString(string: "\n"))
         mutable.append(NSAttributedString(attachment: attachment))
         attributedText = mutable
+        log.info("appendImage: image appended successfully (\(Int(image.size.width))×\(Int(image.size.height)))")
     }
 }
 
@@ -547,7 +774,21 @@ struct DataScannerWrapperView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIViewController {
         guard DataScannerViewController.isSupported && DataScannerViewController.isAvailable else {
-            return UIViewController()
+            let vc = UIViewController()
+            let label = UILabel()
+            label.text = "Text scanning is not available on this device."
+            label.textAlignment = .center
+            label.numberOfLines = 0
+            label.textColor = .secondaryLabel
+            label.translatesAutoresizingMaskIntoConstraints = false
+            vc.view.addSubview(label)
+            NSLayoutConstraint.activate([
+                label.centerXAnchor.constraint(equalTo: vc.view.centerXAnchor),
+                label.centerYAnchor.constraint(equalTo: vc.view.centerYAnchor),
+                label.leadingAnchor.constraint(equalTo: vc.view.leadingAnchor, constant: 32),
+                label.trailingAnchor.constraint(equalTo: vc.view.trailingAnchor, constant: -32)
+            ])
+            return vc
         }
         let scanner = DataScannerViewController(
             recognizedDataTypes: [.text()],
@@ -714,6 +955,7 @@ struct AudioRecorderView: View {
     @State private var isRecording = false
     @State private var recorder: AVAudioRecorder?
     @State private var audioURL: URL?
+    @State private var showMicPermissionAlert = false
 
     var body: some View {
         ZStack {
@@ -743,35 +985,73 @@ struct AudioRecorderView: View {
                         .buttonStyle(.bordered)
                 }
 
-                Button("Cancel") { dismiss() }.foregroundStyle(Color.secondary)
+                        Button("Cancel") { dismiss() }.foregroundStyle(Color.secondary)
             }
             .padding(32)
         }
         .presentationDetents([.medium])
         .presentationBackground(.clear)
+        .alert("Microphone Access Required", isPresented: $showMicPermissionAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Please enable microphone access in Settings to record audio.")
+        }
     }
 
     private func startRecording() {
+        switch AVAudioApplication.shared.recordPermission {
+        case .denied:
+            showMicPermissionAlert = true
+            return
+        case .undetermined:
+            AVAudioApplication.requestRecordPermission { granted in
+                if granted {
+                    DispatchQueue.main.async { self.beginRecording() }
+                } else {
+                    DispatchQueue.main.async { self.showMicPermissionAlert = true }
+                }
+            }
+            return
+        case .granted:
+            beginRecording()
+        @unknown default:
+            beginRecording()
+        }
+    }
+
+    private func beginRecording() {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("recording-\(Date().timeIntervalSince1970).m4a")
+        log.info("AudioRecorder: beginning recording to \(url.lastPathComponent)")
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
             AVSampleRateKey: 44100,
             AVNumberOfChannelsKey: 1,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
-        try? AVAudioSession.sharedInstance().setCategory(.record, mode: .default)
-        try? AVAudioSession.sharedInstance().setActive(true)
-        recorder = try? AVAudioRecorder(url: url, settings: settings)
-        recorder?.record()
-        audioURL = url
-        isRecording = true
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.record, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+            recorder = try AVAudioRecorder(url: url, settings: settings)
+            recorder?.record()
+            audioURL = url
+            isRecording = true
+            log.info("AudioRecorder: recording started")
+        } catch {
+            log.error("AudioRecorder: failed to start recording — \(error.localizedDescription)")
+        }
     }
 
     private func stopRecording() {
+        log.info("AudioRecorder: stopping recording, file=\(audioURL?.lastPathComponent ?? "nil")")
         recorder?.stop()
-        try? AVAudioSession.sharedInstance().setActive(false)
+        do {
+            try AVAudioSession.sharedInstance().setActive(false)
+        } catch {
+            log.error("AudioRecorder: failed to deactivate audio session — \(error.localizedDescription)")
+        }
         isRecording = false
+        log.info("AudioRecorder: recording stopped")
     }
 }
 #endif
