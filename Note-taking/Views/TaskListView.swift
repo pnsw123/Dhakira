@@ -170,9 +170,6 @@ struct TaskListView: View {
                     cleanupEmptyTask(id: old)
                 }
             }
-            .onTapGesture(count: 2) {
-                addTask()
-            }
     }
 
     private var settingsButton: some View {
