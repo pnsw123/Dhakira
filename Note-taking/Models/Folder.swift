@@ -15,6 +15,9 @@ final class Folder {
     @Relationship(deleteRule: .nullify, inverse: \TaskItem.folder)
     var tasks: [TaskItem]? = []
 
+    @Relationship(deleteRule: .cascade, inverse: \TaskList.folder)
+    var taskLists: [TaskList]? = []
+
     init(name: String = "", parentFolder: Folder? = nil) {
         self.id = UUID()
         self.name = name

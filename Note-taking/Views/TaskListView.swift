@@ -1,8 +1,16 @@
 import SwiftUI
 import SwiftData
+import OSLog
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "TaskList")
 
 struct TaskListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    /// The TaskList this view is scoped to. Nil means show all (legacy / default fallback).
+    var taskList: TaskList?
+
     @Query(sort: \TaskItem.sortOrder, order: .forward)
     private var allTasks: [TaskItem]
 
@@ -11,14 +19,25 @@ struct TaskListView: View {
     @State private var selectedTask: TaskItem?
     @State private var showTheme = false
     @State private var recentlyCompletedIds: Set<UUID> = []
+    @State private var isEditingName: Bool = false
+    @State private var editedName: String = ""
 
+    /// Tasks belonging to this task list (not soft-deleted).
     private var filteredTasks: [TaskItem] {
-        var result = Array(allTasks)
-        result = result.filter { !$0.isCompleted || recentlyCompletedIds.contains($0.id) }
+        var result = allTasks.filter { task in
+            let belongsHere = taskList == nil ? true : task.taskList?.id == taskList?.id
+            let notDeleted = !task.isDeleted
+            let notCompleted = !task.isCompleted || recentlyCompletedIds.contains(task.id)
+            return belongsHere && notDeleted && notCompleted
+        }
         if sortBy == .creationDate {
             result.sort { $0.createdAt < $1.createdAt }
         }
         return result
+    }
+
+    private var displayName: String {
+        taskList?.name ?? "Tasks"
     }
 
     var body: some View {
@@ -53,12 +72,16 @@ struct TaskListView: View {
                         }
                         .tint(.gray)
                     }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            softDeleteTask(task)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
                 .onMove { source, destination in
                     moveTask(from: source, to: destination)
-                }
-                .onDelete { offsets in
-                    deleteTasks(at: offsets)
                 }
             }
             .animation(.smooth(duration: 0.35), value: filteredTasks.count)
@@ -67,13 +90,39 @@ struct TaskListView: View {
             .background(Color.screenBackground)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top) {
-                HStack {
-                    Text("Tasks")
-                        .font(.system(size: 34, weight: .bold))
-                    Spacer()
+                HStack(spacing: 0) {
+                    // Back button — only shown when launched from HomeView (taskList != nil)
+                    if taskList != nil {
+                        Button(action: { dismiss() }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                                .frame(width: 36, height: 36)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // List name — tappable to edit
+                    if isEditingName {
+                        TextField("List name", text: $editedName, onCommit: commitNameEdit)
+                            .font(.system(size: 34, weight: .bold))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, taskList == nil ? 16 : 4)
+                    } else {
+                        Text(displayName)
+                            .font(.system(size: 34, weight: .bold))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, taskList == nil ? 16 : 4)
+                            .onTapGesture {
+                                if taskList != nil {
+                                    editedName = displayName
+                                    isEditingName = true
+                                }
+                            }
+                    }
+
                     settingsButton
                 }
-                .padding(.leading, 16)
                 .padding(.trailing, 8)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
@@ -121,22 +170,36 @@ struct TaskListView: View {
         )
     }
 
+    private func commitNameEdit() {
+        let trimmed = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty, let list = taskList {
+            list.name = trimmed
+            log.info("commitNameEdit: renamed task list to '\(trimmed)'")
+        }
+        isEditingName = false
+    }
+
     private func addTask() {
-        let maxOrder = (allTasks.map(\.sortOrder).max() ?? 0) + 1
-        let newTask = TaskItem(title: "")
+        let scopedTasks = allTasks.filter { taskList == nil ? true : $0.taskList?.id == taskList?.id }
+        let maxOrder = (scopedTasks.map(\.sortOrder).max() ?? 0) + 1
+        let newTask = TaskItem(title: "", taskList: taskList)
         newTask.sortOrder = maxOrder
         modelContext.insert(newTask)
+        log.info("addTask: inserted new task (sortOrder=\(maxOrder))")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             focusedTaskId = newTask.id
         }
     }
 
     private func cleanupEmptyTask(id: UUID) {
-        // Never delete the task currently open in the detail view
-        guard selectedTask?.id != id else { return }
+        guard selectedTask?.id != id else {
+            log.debug("cleanupEmptyTask: skipping — task is currently open in detail view")
+            return
+        }
         if let task = allTasks.first(where: { $0.id == id }),
            task.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            task.body == nil {
+            log.info("cleanupEmptyTask: deleting empty task \(id)")
             withAnimation(.smooth(duration: 0.3)) {
                 modelContext.delete(task)
             }
@@ -145,6 +208,7 @@ struct TaskListView: View {
 
     private func toggleComplete(_ task: TaskItem) {
         let willComplete = !task.isCompleted
+        log.info("toggleComplete: '\(task.title)' → \(willComplete ? "complete" : "incomplete")")
         withAnimation(.easeInOut(duration: 0.3)) {
             task.isCompleted = willComplete
             task.completedAt = willComplete ? Date() : nil
@@ -160,12 +224,22 @@ struct TaskListView: View {
     }
 
     private func setPriority(_ task: TaskItem, to priority: String) {
+        log.info("setPriority: '\(task.title)' → \(priority)")
         task.priority = priority
+    }
+
+    private func softDeleteTask(_ task: TaskItem) {
+        log.info("softDeleteTask: '\(task.title)'")
+        withAnimation(.smooth(duration: 0.3)) {
+            task.isDeleted = true
+            task.deletedAt = Date()
+        }
     }
 
     private func moveTask(from source: IndexSet, to destination: Int) {
         guard let sourceIndex = source.first else { return }
         let movedItem = filteredTasks[sourceIndex]
+        log.info("moveTask: '\(movedItem.title)' from index \(sourceIndex) to \(destination)")
         var newItems = filteredTasks
         newItems.move(fromOffsets: source, toOffset: destination)
         let newIndex = newItems.firstIndex(where: { $0.id == movedItem.id }) ?? destination
@@ -181,18 +255,8 @@ struct TaskListView: View {
         case (let p?, let n?) where n - p > 1:
             movedItem.sortOrder = (p + n) / 2
         default:
-            // No gap between neighbours — re-normalise all with spacing
             for (index, item) in newItems.enumerated() {
                 item.sortOrder = index * 1000
-            }
-        }
-    }
-
-    private func deleteTasks(at offsets: IndexSet) {
-        let tasks = filteredTasks
-        withAnimation(.smooth(duration: 0.3)) {
-            for index in offsets {
-                modelContext.delete(tasks[index])
             }
         }
     }

@@ -20,6 +20,11 @@ final class TaskItem {
     var subtasks: [TaskItem]? = []
 
     var folder: Folder?
+    var taskList: TaskList?
+
+    // Soft-delete fields
+    var isDeleted: Bool = false
+    var deletedAt: Date?
 
     @Relationship(deleteRule: .nullify, inverse: \Attachment.task)
     var attachments: [Attachment]? = []
@@ -28,7 +33,8 @@ final class TaskItem {
         title: String = "",
         priority: String = "default",
         parentTask: TaskItem? = nil,
-        folder: Folder? = nil
+        folder: Folder? = nil,
+        taskList: TaskList? = nil
     ) {
         self.id = UUID()
         self.title = title
@@ -37,5 +43,8 @@ final class TaskItem {
         self.createdAt = Date()
         self.parentTask = parentTask
         self.folder = folder
+        self.taskList = taskList
+        self.isDeleted = false
+        self.deletedAt = nil
     }
 }
