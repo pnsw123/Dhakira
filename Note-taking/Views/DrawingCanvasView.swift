@@ -35,8 +35,8 @@ struct DrawingCanvasView: UIViewRepresentable {
             }
         }
 
+        // Create the tool picker and store in coordinator (survives SwiftUI re-renders)
         let toolPicker = PKToolPicker()
-        toolPicker.addObserver(canvasView)
         context.coordinator.toolPicker = toolPicker
         log.debug("DrawingCanvasView.makeUIView: PKToolPicker created")
 
@@ -44,23 +44,34 @@ struct DrawingCanvasView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: PKCanvasView, context: Context) {
-        // Explicitly disable touch so PKCanvasView's internal gesture recognizers
-        // don't swallow taps when the canvas is visible but drawing is inactive.
         uiView.isUserInteractionEnabled = isActive
         log.debug("DrawingCanvasView.updateUIView: isActive=\(isActive)")
 
         // PKToolPicker requires a real window — skip in Xcode previews
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
         let picker = context.coordinator.toolPicker
+
         if isActive {
-            // Defer until the next run-loop tick so the canvas is fully in the
-            // window hierarchy before we ask it to become first responder.
-            // Without this, PKToolPicker silently fails to appear.
-            DispatchQueue.main.async {
+            // Must re-add observer every time — SwiftUI can recreate the view
+            picker?.addObserver(uiView)
+
+            // Defer until canvas is in the window hierarchy
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                guard uiView.window != nil else {
+                    log.warning("DrawingCanvasView: canvas not in window yet — retrying")
+                    // Retry once more after a longer delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        guard uiView.window != nil else { return }
+                        picker?.setVisible(true, forFirstResponder: uiView)
+                        picker?.addObserver(uiView)
+                        uiView.becomeFirstResponder()
+                    }
+                    return
+                }
                 picker?.setVisible(true, forFirstResponder: uiView)
                 uiView.becomeFirstResponder()
+                log.debug("DrawingCanvasView: tool picker shown, canvas is first responder")
             }
-            log.debug("DrawingCanvasView.updateUIView: tool picker show queued")
         } else {
             picker?.setVisible(false, forFirstResponder: uiView)
             uiView.resignFirstResponder()

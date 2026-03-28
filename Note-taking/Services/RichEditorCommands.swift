@@ -209,46 +209,45 @@ final class RichEditorCommands {
     }
 
     // MARK: - Tables (#43)
-    // NSTextTable/NSTextTableBlock are AppKit-only and unavailable on iOS.
-    // On iOS, the correct approach is to build the table as HTML and convert it
-    // to NSAttributedString — UIKit's HTML renderer preserves borders and the
-    // header row background, and the result inserts cleanly into UITextView.
+    // NSTextTable is AppKit-only. HTML tables render broken on iOS (cells stack vertically).
+    // Use a monospaced text grid with Unicode box-drawing characters — renders correctly
+    // in UITextView and survives RTF round-trip.
 
     static func insertTable(rows: Int, cols: Int, attributedText: inout NSAttributedString, cursorLocation: Int) {
-        var html = "<table border='1' cellpadding='8' cellspacing='0' style='border-collapse:collapse;width:100%;font-family:-apple-system;font-size:15px;'>"
-        for row in 0..<rows {
-            html += "<tr>"
-            for _ in 0..<cols {
-                if row == 0 {
-                    html += "<th style='background:#f2f2f7;font-weight:600;'>&nbsp;&nbsp;&nbsp;&nbsp;</th>"
-                } else {
-                    html += "<td>&nbsp;&nbsp;&nbsp;&nbsp;</td>"
-                }
-            }
-            html += "</tr>"
-        }
-        html += "</table><br>"
+        let cellWidth = 10 // characters per cell
+        let font = UIFont.monospacedSystemFont(ofSize: 15, weight: .regular)
+        let headerFont = UIFont.monospacedSystemFont(ofSize: 15, weight: .semibold)
+        let bodyFont = UIFont.preferredFont(forTextStyle: .body)
 
-        guard
-            let data = html.data(using: .utf8),
-            let tableAttr = try? NSAttributedString(
-                data: data,
-                options: [
-                    .documentType: NSAttributedString.DocumentType.html,
-                    .characterEncoding: String.Encoding.utf8.rawValue
-                ],
-                documentAttributes: nil
-            )
-        else {
-            log.error("insertTable: failed to build HTML table attributed string")
-            return
+        // Build the text table line by line
+        let hBar = String(repeating: "─", count: cellWidth)
+        let topBorder    = "┌" + Array(repeating: hBar, count: cols).joined(separator: "┬") + "┐\n"
+        let middleBorder = "├" + Array(repeating: hBar, count: cols).joined(separator: "┼") + "┤\n"
+        let bottomBorder = "└" + Array(repeating: hBar, count: cols).joined(separator: "┴") + "┘\n"
+
+        let result = NSMutableAttributedString()
+        // Newline before table for spacing
+        result.append(NSAttributedString(string: "\n", attributes: [.font: bodyFont]))
+
+        result.append(NSAttributedString(string: topBorder, attributes: [.font: font]))
+        for row in 0..<rows {
+            let cellContent = String(repeating: " ", count: cellWidth)
+            let line = "│" + Array(repeating: cellContent, count: cols).joined(separator: "│") + "│\n"
+            let cellFont = row == 0 ? headerFont : font
+            result.append(NSAttributedString(string: line, attributes: [.font: cellFont]))
+            if row < rows - 1 {
+                result.append(NSAttributedString(string: middleBorder, attributes: [.font: font]))
+            }
         }
+        result.append(NSAttributedString(string: bottomBorder, attributes: [.font: font]))
+        // Newline after table to resume normal text
+        result.append(NSAttributedString(string: "\n", attributes: [.font: bodyFont]))
 
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
         let safeLocation = min(cursorLocation, mutable.length)
-        mutable.insert(tableAttr, at: safeLocation)
+        mutable.insert(result, at: safeLocation)
         attributedText = mutable
-        log.debug("insertTable: inserted \(rows)×\(cols) HTML table at position \(safeLocation)")
+        log.debug("insertTable: inserted \(rows)×\(cols) text table at position \(safeLocation)")
     }
 
     // MARK: - Alignment — via RichTextContext

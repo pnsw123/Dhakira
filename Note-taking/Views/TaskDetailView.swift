@@ -367,19 +367,11 @@ struct TaskDetailView: View {
         .padding(.bottom, 8)
     }
 
-    /// iOS 26 glassmorphic attachment button — triggers the glass attachment sheet.
+    /// Attachment button — same plain style as every other toolbar button.
     private var attachmentMenuButton: some View {
-        Button {
+        toolbarButton("paperclip") {
             showAttachmentSheet = true
-        } label: {
-            Image(systemName: "paperclip")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(Color.primary)
-                .frame(width: 44, height: 44)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 10))
         }
-        .buttonStyle(.plain)
     }
 
     private func handleToolbarTap(_ id: String) {
@@ -397,7 +389,9 @@ struct TaskDetailView: View {
             richTextView?.resignFirstResponder()
             saveBody()
             showTablePicker = false
-            withAnimation(.spring(response: 0.35)) { isDrawingMode = true }
+            // No animation — canvas must be in the window immediately
+            // so PKToolPicker can attach via becomeFirstResponder
+            isDrawingMode = true
             return
         default:
             break
