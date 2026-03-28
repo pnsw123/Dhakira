@@ -15,9 +15,13 @@ struct ColorPaletteView: View {
     let onRemoveFontColor: () -> Void
     let onRemoveHighlight: () -> Void
     let onDismiss:         () -> Void
+    /// Pre-detected color names so the palette shows what's already applied.
+    var initialFontColorName: String? = nil
+    var initialHighlightName: String? = nil
     @State private var activeFontColorName: String? = nil
     @State private var activeHighlightName: String? = nil
     @State private var showMoreColors = false
+    @State private var didSyncInitial = false
 
     // Derived from NamedColor — single source of truth (Issue #51)
     private var mainColors: [(String, UIColor)] {
@@ -97,6 +101,12 @@ struct ColorPaletteView: View {
             }
         }
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: showMoreColors)
+        .onAppear {
+            guard !didSyncInitial else { return }
+            didSyncInitial = true
+            activeFontColorName = initialFontColorName
+            activeHighlightName = initialHighlightName
+        }
     }
 
     // MARK: - Mode segment control

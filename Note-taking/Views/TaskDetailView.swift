@@ -46,14 +46,19 @@ struct TaskDetailView: View {
     /// tapping a swatch dismisses the keyboard and clears UITextView.selectedRange.
     @State private var savedColorSelection: NSRange = NSRange(location: 0, length: 0)
 
+    /// Cursor rect in global (window) coordinates when "/" was typed — used to
+    /// anchor the slash menu right below the cursor instead of at the bottom.
+    @State private var slashCursorGlobalRect: CGRect = .zero
+
     // Fixed toolbar — order matches familiar mobile editor conventions (Bold first).
     // MRU promotion removed: position never changes.
     @State private var toolbarItems: [EditorTool] = [
         .init(id: "bold",            icon: "bold"),
         .init(id: "italic",          icon: "italic"),
         .init(id: "underline",       icon: "underline"),
+        .init(id: "fontSizeUp",      icon: "textformat.size.larger"),
         .init(id: "strikethrough",   icon: "strikethrough"),
-        .init(id: "paperclip",       icon: "paperclip"),      // ← 5th position
+        .init(id: "paperclip",       icon: "paperclip"),      // ← 6th position
         .init(id: "pencil",          icon: "pencil.tip.crop.circle"), // ← 6th position
         .init(id: "text.alignleft",  icon: "text.alignleft"),
         .init(id: "text.aligncenter",icon: "text.aligncenter"),
@@ -66,7 +71,6 @@ struct TaskDetailView: View {
 
     // Attachment service — single enum replaces 6 Bool flags (Issue #49)
     @State private var attachmentService = AttachmentService()
-    @State private var showAttachmentSheet = false
 
     private var formattedDate: String {
         let formatter = DateFormatter()
@@ -104,11 +108,26 @@ struct TaskDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 4)
                 .onChange(of: attributedText) { _, newText in
+                    let cursorLoc = richTextContext.selectedRange.location
                     // Use coordinator — handles suppression internally (Issue #48)
                     slashCoordinator.textDidChange(
                         text: newText,
-                        cursorLocation: richTextContext.selectedRange.location
+                        cursorLocation: cursorLoc
                     )
+                    // Capture cursor rect when slash menu becomes visible so we can
+                    // anchor the menu right below the cursor.
+                    if slashCoordinator.isMenuVisible, let tv = richTextView {
+                        let safeLoc = min(cursorLoc, max(0, (tv.text as NSString).length))
+                        if let pos = tv.position(from: tv.beginningOfDocument, offset: safeLoc),
+                           let tRange = tv.textRange(from: pos, to: pos) {
+                            let r = tv.firstRect(for: tRange)
+                            if !r.isNull, !r.isInfinite {
+                                slashCursorGlobalRect = tv.convert(r, to: nil)
+                            }
+                        }
+                    } else if !slashCoordinator.isMenuVisible {
+                        slashCursorGlobalRect = .zero
+                    }
                 }
                 .onChange(of: richTextContext.selectedRange) { _, range in
                     let hasSelection = range.length > 0
@@ -187,7 +206,9 @@ struct TaskDetailView: View {
                                                         value: nil,
                                                         range: savedColorSelection)
                                 },
-                                onDismiss: { showColorPalette = false }
+                                onDismiss: { showColorPalette = false },
+                                initialFontColorName: detectedFontColorName(),
+                                initialHighlightName: detectedHighlightName()
                             )
                             .fixedSize()
                             // Center horizontally around the selection midpoint,
@@ -199,26 +220,31 @@ struct TaskDetailView: View {
                     .transition(.opacity)
                 }
             }
+            // Slash command menu — anchored right below the cursor (Issue #46 / #48)
+            .overlay(alignment: .topLeading) {
+                if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty && slashCursorGlobalRect.height > 0 {
+                    GeometryReader { geo in
+                        let gf = geo.frame(in: .global)
+                        // Convert global cursor rect to local coords within this overlay
+                        let localX = max(8, min(slashCursorGlobalRect.minX - gf.minX, geo.size.width - 268))
+                        let localY = slashCursorGlobalRect.maxY - gf.minY + 4
+                        SlashCommandMenuView(
+                            commands: slashCoordinator.filteredCommands,
+                            onSelect: { cmd in applySlashCommand(cmd) },
+                            onDismiss: { slashCoordinator.dismiss() }
+                        )
+                        .offset(x: localX, y: localY)
+                    }
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.15), value: slashCoordinator.isMenuVisible)
+                }
+            }
 
             if showToolbar && !isDrawingMode {
                 ZStack(alignment: .bottom) {
                     editorToolbar
 
-                    // Slash command menu — floats above toolbar (Issue #46 / #48)
-                    if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty {
-                        HStack(alignment: .bottom) {
-                            SlashCommandMenuView(
-                                commands: slashCoordinator.filteredCommands,
-                                onSelect: { cmd in applySlashCommand(cmd) },
-                                onDismiss: { slashCoordinator.dismiss() }
-                            )
-                            .padding(.leading, 16)
-                            Spacer()
-                        }
-                        .offset(y: -60)
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        .animation(.easeInOut(duration: 0.15), value: slashCoordinator.isMenuVisible)
-                    }
+                    // Slash command menu moved to cursor-anchored overlay (see below)
 
                     // Table grid picker — floats above toolbar (Issue #43)
                     if showTablePicker {
@@ -294,51 +320,6 @@ struct TaskDetailView: View {
         }
         // AttachmentService drives all picker sheets via a single enum (Issue #49)
         .background(attachmentService.presentationHooks(attributedText: $attributedText))
-        .overlay {
-            if showAttachmentSheet {
-                // Dimming background — tap to dismiss
-                Color.black.opacity(0.25)
-                    .ignoresSafeArea()
-                    .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { showAttachmentSheet = false } }
-
-                // Inline glass menu — no separate window/sheet
-                VStack(spacing: 0) {
-                    ForEach(Array(attachmentMenuItems.enumerated()), id: \.element.id) { index, item in
-                        Button {
-                            withAnimation(.easeOut(duration: 0.2)) { showAttachmentSheet = false }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                                triggerAttachment(item.id)
-                            }
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: item.icon)
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundStyle(Color.primary)
-                                    .frame(width: 28)
-                                Text(item.label)
-                                    .font(.system(size: 17))
-                                    .foregroundStyle(Color.primary)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 14)
-                        }
-                        .buttonStyle(.plain)
-
-                        if index < attachmentMenuItems.count - 1 {
-                            Divider().padding(.leading, 62)
-                        }
-                    }
-                }
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .glassEffect(.regular, in: .rect(cornerRadius: 16))
-                .padding(.horizontal, 24)
-                .frame(maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 80)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: showAttachmentSheet)
         .onAppear { loadBody() }
         .onDisappear { saveBody() }
     }
@@ -367,10 +348,22 @@ struct TaskDetailView: View {
         .padding(.bottom, 8)
     }
 
-    /// Attachment button — same plain style as every other toolbar button.
+    /// Attachment menu — native iOS 26 Menu (system glass context menu).
     private var attachmentMenuButton: some View {
-        toolbarButton("paperclip") {
-            showAttachmentSheet = true
+        Menu {
+            ForEach(attachmentMenuItems) { item in
+                Button {
+                    triggerAttachment(item.id)
+                } label: {
+                    Label(item.label, systemImage: item.icon)
+                }
+            }
+        } label: {
+            Image(systemName: "paperclip")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.primary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
     }
 
@@ -459,6 +452,25 @@ struct TaskDetailView: View {
         tv.selectedRange  = range       // restore selection (setting attributedText resets it)
         attributedText    = mutable     // keep the SwiftUI binding in sync
         log.debug("applyColorAttribute: \(key.rawValue) — \(applied) chars coloured (whitespace skipped)")
+    }
+
+    /// Read the foreground color at the start of the saved selection and match it
+    /// against our palette so the swatch appears pre-selected.
+    private func detectedFontColorName() -> String? {
+        guard savedColorSelection.length > 0, savedColorSelection.location < attributedText.length else { return nil }
+        if let color = attributedText.attribute(.foregroundColor, at: savedColorSelection.location, effectiveRange: nil) as? UIColor {
+            return NamedColor.matchLabel(for: color)
+        }
+        return nil
+    }
+
+    /// Same for background/highlight color.
+    private func detectedHighlightName() -> String? {
+        guard savedColorSelection.length > 0, savedColorSelection.location < attributedText.length else { return nil }
+        if let color = attributedText.attribute(.backgroundColor, at: savedColorSelection.location, effectiveRange: nil) as? UIColor {
+            return NamedColor.matchLabel(for: color)
+        }
+        return nil
     }
 
     private func toolbarButton(_ icon: String, action: @escaping () -> Void) -> some View {
@@ -704,8 +716,6 @@ struct TableGridPickerView: View {
     }
 }
 
-// GlassAttachmentMenuSheet removed — replaced by inline overlay in TaskDetailView
-
 // AttachmentCoordinator and AttachmentPresenters removed — replaced by AttachmentService (Issue #49)
 
 // MARK: - DataScannerWrapperView (VisionKit live text capture)
@@ -764,7 +774,7 @@ struct DataScannerWrapperView: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - PhotoPickerView
+// MARK: - PhotoPickerView (Photos + Videos, multi-select — matches Apple Notes)
 
 struct PhotoPickerView: UIViewControllerRepresentable {
     let onPick: (Data) -> Void
@@ -772,9 +782,10 @@ struct PhotoPickerView: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
-        var config = PHPickerConfiguration()
-        config.filter = .images
-        config.selectionLimit = 1
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.filter = .any(of: [.images, .videos])
+        config.selectionLimit = 0 // 0 = unlimited, like Apple Notes
+        config.preferredAssetRepresentationMode = .current
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = context.coordinator
         return picker
@@ -785,20 +796,47 @@ struct PhotoPickerView: UIViewControllerRepresentable {
     class Coordinator: NSObject, PHPickerViewControllerDelegate {
         let onPick: (Data) -> Void
         init(onPick: @escaping (Data) -> Void) { self.onPick = onPick }
+
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
-            guard let provider = results.first?.itemProvider,
-                  provider.canLoadObject(ofClass: UIImage.self) else { return }
-            provider.loadObject(ofClass: UIImage.self) { object, _ in
-                if let image = object as? UIImage, let data = image.pngData() {
-                    DispatchQueue.main.async { self.onPick(data) }
+            for result in results {
+                let provider = result.itemProvider
+                // Try image first
+                if provider.canLoadObject(ofClass: UIImage.self) {
+                    provider.loadObject(ofClass: UIImage.self) { object, _ in
+                        if let image = object as? UIImage,
+                           let data = image.jpegData(compressionQuality: 0.85) {
+                            DispatchQueue.main.async { self.onPick(data) }
+                        }
+                    }
+                } else if provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
+                    // Video — load file representation and read data
+                    provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, _ in
+                        guard let url else { return }
+                        // Copy to temp so it survives provider cleanup
+                        let tmp = FileManager.default.temporaryDirectory
+                            .appendingPathComponent(url.lastPathComponent)
+                        try? FileManager.default.removeItem(at: tmp)
+                        try? FileManager.default.copyItem(at: url, to: tmp)
+                        // Generate thumbnail for inline display
+                        DispatchQueue.main.async {
+                            let generator = AVAssetImageGenerator(asset: AVAsset(url: tmp))
+                            generator.appliesPreferredTrackTransform = true
+                            if let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) {
+                                let thumb = UIImage(cgImage: cgImage)
+                                if let data = thumb.jpegData(compressionQuality: 0.85) {
+                                    self.onPick(data)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-// MARK: - CameraPickerView
+// MARK: - CameraPickerView (Photo + Video — matches Apple Notes)
 
 struct CameraPickerView: UIViewControllerRepresentable {
     let onCapture: (Data) -> Void
@@ -807,7 +845,15 @@ struct CameraPickerView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
-        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            picker.sourceType = .camera
+            // Allow both photo and video — same as Apple Notes
+            picker.mediaTypes = [UTType.image.identifier, UTType.movie.identifier]
+            picker.videoQuality = .typeHigh
+            picker.cameraCaptureMode = .photo
+        } else {
+            picker.sourceType = .photoLibrary
+        }
         picker.delegate = context.coordinator
         return picker
     }
@@ -817,13 +863,31 @@ struct CameraPickerView: UIViewControllerRepresentable {
     class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         let onCapture: (Data) -> Void
         init(onCapture: @escaping (Data) -> Void) { self.onCapture = onCapture }
+
         func imagePickerController(_ picker: UIImagePickerController,
                                    didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
             picker.dismiss(animated: true)
-            if let image = info[.originalImage] as? UIImage, let data = image.pngData() {
+
+            // Photo path
+            if let image = info[.originalImage] as? UIImage,
+               let data = image.jpegData(compressionQuality: 0.85) {
                 DispatchQueue.main.async { self.onCapture(data) }
+                return
+            }
+
+            // Video path — generate thumbnail for inline display
+            if let videoURL = info[.mediaURL] as? URL {
+                let generator = AVAssetImageGenerator(asset: AVAsset(url: videoURL))
+                generator.appliesPreferredTrackTransform = true
+                if let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) {
+                    let thumb = UIImage(cgImage: cgImage)
+                    if let data = thumb.jpegData(compressionQuality: 0.85) {
+                        DispatchQueue.main.async { self.onCapture(data) }
+                    }
+                }
             }
         }
+
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             picker.dismiss(animated: true)
         }
@@ -890,71 +954,223 @@ struct DocumentScannerView: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - AudioRecorderView
+// MARK: - AudioRecorderView (Apple Notes-style with waveform + timer + playback)
 
 struct AudioRecorderView: View {
     let onSave: (URL) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var isRecording = false
+
+    // Recording state
     @State private var recorder: AVAudioRecorder?
     @State private var audioURL: URL?
+    @State private var isRecording = false
+    @State private var isPaused = false
     @State private var showMicPermissionAlert = false
 
+    // Playback state
+    @State private var player: AVAudioPlayer?
+    @State private var isPlaying = false
+
+    // Timer
+    @State private var elapsedSeconds: TimeInterval = 0
+    @State private var timer: Timer?
+
+    // Waveform — live amplitude samples
+    @State private var waveformSamples: [CGFloat] = []
+    @State private var meteringTimer: Timer?
+
+    // State machine: idle → recording → stopped (ready to play/save)
+    private enum RecorderState { case idle, recording, paused, stopped }
+    private var state: RecorderState {
+        if isRecording && !isPaused { return .recording }
+        if isRecording && isPaused { return .paused }
+        if audioURL != nil && !isRecording { return .stopped }
+        return .idle
+    }
+
     var body: some View {
-        ZStack {
-            Color.clear.background(.ultraThinMaterial).ignoresSafeArea()
-            VStack(spacing: 24) {
-                Capsule()
-                    .fill(Color.secondary.opacity(0.3))
-                    .frame(width: 36, height: 5)
-                    .padding(.top, 10)
+        VStack(spacing: 0) {
+            // Drag handle
+            Capsule()
+                .fill(Color.secondary.opacity(0.3))
+                .frame(width: 36, height: 5)
+                .padding(.top, 10)
+                .padding(.bottom, 20)
 
-                Text("Record Audio").font(.headline)
+            // Timer display
+            Text(formattedTime(elapsedSeconds))
+                .font(.system(size: 54, weight: .light, design: .monospaced))
+                .foregroundStyle(isRecording ? Color.red : Color.primary)
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: 0.1), value: elapsedSeconds)
+                .padding(.bottom, 20)
 
-                Image(systemName: isRecording ? "waveform.circle.fill" : "mic.circle")
-                    .font(.system(size: 72))
-                    .foregroundStyle(isRecording ? Color.red : Color.accentColor)
-                    .symbolEffect(.pulse, isActive: isRecording)
+            // Waveform visualization
+            waveformView
+                .frame(height: 60)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 28)
 
-                Text(isRecording ? "Recording…" : "Tap to start").foregroundStyle(Color.secondary)
-
-                Button(isRecording ? "Stop" : "Record") {
-                    isRecording ? stopRecording() : startRecording()
-                }
-                .buttonStyle(.borderedProminent)
-
-                if let url = audioURL {
-                    Button("Insert Audio") { onSave(url); dismiss() }
-                        .buttonStyle(.bordered)
-                }
-
-                        Button("Cancel") { dismiss() }.foregroundStyle(Color.secondary)
-            }
-            .padding(32)
+            // Controls
+            controlsBar
+                .padding(.horizontal, 32)
+                .padding(.bottom, 20)
         }
-        .presentationDetents([.medium])
-        .presentationBackground(.clear)
+        .presentationDetents([.height(340)])
+        .presentationDragIndicator(.hidden)
+        .presentationBackground(.regularMaterial)
         .alert("Microphone Access Required", isPresented: $showMicPermissionAlert) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Please enable microphone access in Settings to record audio.")
         }
+        .onDisappear { cleanup() }
     }
 
-    private func startRecording() {
+    // MARK: - Waveform
+
+    private var waveformView: some View {
+        GeometryReader { geo in
+            HStack(alignment: .center, spacing: 2.5) {
+                ForEach(Array(displaySamples(width: geo.size.width).enumerated()), id: \.offset) { _, amplitude in
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(isRecording ? Color.red : Color.primary.opacity(0.35))
+                        .frame(width: 3, height: max(4, amplitude * geo.size.height))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+    }
+
+    private func displaySamples(width: CGFloat) -> [CGFloat] {
+        let barCount = max(1, Int(width / 5.5))
+        if waveformSamples.isEmpty {
+            return Array(repeating: 0.05, count: barCount)
+        }
+        if waveformSamples.count <= barCount {
+            let padding = Array(repeating: CGFloat(0.05), count: barCount - waveformSamples.count)
+            return padding + waveformSamples
+        }
+        return Array(waveformSamples.suffix(barCount))
+    }
+
+    // MARK: - Controls bar
+
+    private var controlsBar: some View {
+        HStack {
+            // Cancel / Delete
+            Button {
+                cleanup()
+                dismiss()
+            } label: {
+                Text(state == .stopped ? "Delete" : "Cancel")
+                    .font(.system(size: 17))
+                    .foregroundStyle(state == .stopped ? Color.red : Color.primary)
+            }
+
+            Spacer()
+
+            // Center button — Record / Pause / Play
+            centerButton
+
+            Spacer()
+
+            // Save button (only after recording stops)
+            if state == .stopped {
+                Button {
+                    if let url = audioURL { onSave(url) }
+                    dismiss()
+                } label: {
+                    Text("Save")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            } else {
+                // Invisible spacer for alignment
+                Text("Save")
+                    .font(.system(size: 17, weight: .semibold))
+                    .hidden()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var centerButton: some View {
+        switch state {
+        case .idle:
+            // Big red record button
+            Button { requestAndRecord() } label: {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 64, height: 64)
+                    .overlay {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+            }
+        case .recording:
+            // Stop button (red square inside circle) — matches Apple Notes
+            Button { stopRecording() } label: {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 64, height: 64)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.white)
+                            .frame(width: 22, height: 22)
+                    }
+            }
+        case .paused:
+            // Resume recording
+            Button { resumeRecording() } label: {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 64, height: 64)
+                    .overlay {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+            }
+        case .stopped:
+            // Play/pause playback
+            Button { togglePlayback() } label: {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 64, height: 64)
+                    .overlay {
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .offset(x: isPlaying ? 0 : 2) // Optical center for play icon
+                    }
+            }
+        }
+    }
+
+    // MARK: - Time formatting
+
+    private func formattedTime(_ seconds: TimeInterval) -> String {
+        let mins = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        let frac = Int((seconds.truncatingRemainder(dividingBy: 1)) * 100)
+        return String(format: "%d:%02d.%02d", mins, secs, frac)
+    }
+
+    // MARK: - Recording logic
+
+    private func requestAndRecord() {
         switch AVAudioApplication.shared.recordPermission {
         case .denied:
             showMicPermissionAlert = true
-            return
         case .undetermined:
             AVAudioApplication.requestRecordPermission { granted in
-                if granted {
-                    DispatchQueue.main.async { self.beginRecording() }
-                } else {
-                    DispatchQueue.main.async { self.showMicPermissionAlert = true }
+                DispatchQueue.main.async {
+                    if granted { beginRecording() }
+                    else { showMicPermissionAlert = true }
                 }
             }
-            return
         case .granted:
             beginRecording()
         @unknown default:
@@ -965,7 +1181,6 @@ struct AudioRecorderView: View {
     private func beginRecording() {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("recording-\(Date().timeIntervalSince1970).m4a")
-        log.info("AudioRecorder: beginning recording to \(url.lastPathComponent)")
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
             AVSampleRateKey: 44100,
@@ -975,26 +1190,106 @@ struct AudioRecorderView: View {
         do {
             try AVAudioSession.sharedInstance().setCategory(.record, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
-            recorder = try AVAudioRecorder(url: url, settings: settings)
-            recorder?.record()
+            let rec = try AVAudioRecorder(url: url, settings: settings)
+            rec.isMeteringEnabled = true
+            rec.record()
+            recorder = rec
             audioURL = url
             isRecording = true
-            log.info("AudioRecorder: recording started")
+            isPaused = false
+            elapsedSeconds = 0
+            waveformSamples = []
+            startTimers()
         } catch {
-            log.error("AudioRecorder: failed to start recording — \(error.localizedDescription)")
+            log.error("AudioRecorder: failed to start — \(error.localizedDescription)")
         }
     }
 
+    private func resumeRecording() {
+        recorder?.record()
+        isPaused = false
+        startTimers()
+    }
+
     private func stopRecording() {
-        log.info("AudioRecorder: stopping recording, file=\(audioURL?.lastPathComponent ?? "nil")")
         recorder?.stop()
-        do {
-            try AVAudioSession.sharedInstance().setActive(false)
-        } catch {
-            log.error("AudioRecorder: failed to deactivate audio session — \(error.localizedDescription)")
-        }
+        stopTimers()
         isRecording = false
-        log.info("AudioRecorder: recording stopped")
+        isPaused = false
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            log.error("AudioRecorder: deactivate failed — \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Playback
+
+    private func togglePlayback() {
+        if isPlaying {
+            player?.pause()
+            isPlaying = false
+            stopTimers()
+            return
+        }
+        guard let url = audioURL else { return }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+            let p = try AVAudioPlayer(contentsOf: url)
+            p.isMeteringEnabled = true
+            p.play()
+            player = p
+            isPlaying = true
+            elapsedSeconds = 0
+            // Playback timer
+            timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+                guard let p = player else { return }
+                if p.isPlaying {
+                    elapsedSeconds = p.currentTime
+                    p.updateMeters()
+                    let power = p.averagePower(forChannel: 0)
+                    let normalized = CGFloat(max(0, (power + 50) / 50)) // -50dB…0dB → 0…1
+                    waveformSamples.append(max(0.05, normalized))
+                } else {
+                    isPlaying = false
+                    timer?.invalidate()
+                }
+            }
+        } catch {
+            log.error("AudioRecorder: playback failed — \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Timers
+
+    private func startTimers() {
+        // Elapsed time timer
+        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            elapsedSeconds += 0.05
+        }
+        // Metering timer for waveform
+        meteringTimer = Timer.scheduledTimer(withTimeInterval: 0.07, repeats: true) { _ in
+            guard let rec = recorder, rec.isRecording else { return }
+            rec.updateMeters()
+            let power = rec.averagePower(forChannel: 0)
+            let normalized = CGFloat(max(0, (power + 50) / 50))
+            waveformSamples.append(max(0.05, normalized))
+        }
+    }
+
+    private func stopTimers() {
+        timer?.invalidate()
+        timer = nil
+        meteringTimer?.invalidate()
+        meteringTimer = nil
+    }
+
+    private func cleanup() {
+        stopTimers()
+        recorder?.stop()
+        player?.stop()
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
 #endif

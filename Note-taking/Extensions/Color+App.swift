@@ -59,6 +59,24 @@ struct NamedColor {
     }
 
     static func find(id: String) -> NamedColor? { all.first { $0.id == id } }
+
+    /// Find the palette color whose RGB is closest to the given UIColor.
+    /// Returns the label (e.g. "Blue") or nil if no match within tolerance.
+    static func matchLabel(for color: UIColor) -> String? {
+        let allPalette = paletteMain + paletteExtra
+        var cr: CGFloat = 0, cg: CGFloat = 0, cb: CGFloat = 0, ca: CGFloat = 0
+        color.getRed(&cr, green: &cg, blue: &cb, alpha: &ca)
+        var bestName: String?
+        var bestDist: CGFloat = .greatestFiniteMagnitude
+        for nc in allPalette {
+            var pr: CGFloat = 0, pg: CGFloat = 0, pb: CGFloat = 0, pa: CGFloat = 0
+            nc.uiColor.getRed(&pr, green: &pg, blue: &pb, alpha: &pa)
+            let dist = abs(cr - pr) + abs(cg - pg) + abs(cb - pb)
+            if dist < bestDist { bestDist = dist; bestName = nc.label }
+        }
+        // Tolerance: sum of per-channel differences < 0.08 (~5% per channel)
+        return bestDist < 0.08 ? bestName : nil
+    }
 }
 
 // MARK: - UIColor hex initialiser (shared, single definition)

@@ -20,6 +20,7 @@ enum ToolbarCommand: String, CaseIterable {
     case bold            = "bold"
     case italic          = "italic"
     case underline       = "underline"
+    case fontSizeUp      = "fontSizeUp"
     case strikethrough   = "strikethrough"
     case alignLeft       = "text.alignleft"
     case alignCenter     = "text.aligncenter"
@@ -57,6 +58,10 @@ enum RichEditorCommandDispatcher {
             RichEditorCommands.toggleItalic(context: context.richTextContext)
         case .underline:
             RichEditorCommands.toggleUnderline(context: context.richTextContext)
+        case .fontSizeUp:
+            RichEditorCommands.increaseFontSize(attributedText: &attributedText,
+                                                 selectedRange: range)
+            return attributedText
         case .strikethrough:
             RichEditorCommands.toggleStrikethrough(context: context.richTextContext)
         case .alignLeft:
@@ -102,6 +107,37 @@ final class RichEditorCommands {
     static func toggleStrikethrough(context: RichTextContext) {
         log.debug("toggleStrikethrough: toggling strikethrough")
         context.toggleStyle(.strikethrough)
+    }
+
+    // MARK: - Font Size Increase
+
+    /// Cycle font size: body (17) → 20 → 24 → 28 → back to 17.
+    static func increaseFontSize(attributedText: inout NSAttributedString, selectedRange: NSRange) {
+        let steps: [CGFloat] = [17, 20, 24, 28]
+        let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+        let range: NSRange
+        if selectedRange.length > 0 {
+            range = selectedRange
+        } else {
+            // No selection — apply to the whole current paragraph
+            range = (mutable.string as NSString).paragraphRange(for: selectedRange)
+        }
+        guard range.length > 0, range.location + range.length <= mutable.length else { return }
+
+        // Detect the current size from the first character
+        let existingFont = mutable.attribute(.font, at: range.location, effectiveRange: nil) as? UIFont
+        let currentSize = existingFont?.pointSize ?? 17
+        // Find next step up, or wrap to smallest
+        let nextSize = steps.first(where: { $0 > currentSize }) ?? steps[0]
+
+        mutable.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
+            let font = (value as? UIFont) ?? UIFont.preferredFont(forTextStyle: .body)
+            let descriptor = font.fontDescriptor
+            let newFont = UIFont(descriptor: descriptor, size: nextSize)
+            mutable.addAttribute(.font, value: newFont, range: subRange)
+        }
+        attributedText = mutable
+        log.debug("increaseFontSize: \(currentSize) → \(nextSize)")
     }
 
     // MARK: - Headings (#42) — via NSAttributedString + UITextView

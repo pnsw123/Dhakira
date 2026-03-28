@@ -46,10 +46,10 @@ final class SlashCommandCoordinator: ObservableObject {
             frozenState = nil
         }
 
-        withAnimation(.easeInOut(duration: 0.15)) {
-            isMenuVisible = state.isActive
-            filteredCommands = state.filteredCommands
-        }
+        // Set immediately (no withAnimation) so callers can read isMenuVisible
+        // in the same frame. The overlay applies its own .animation() modifier.
+        isMenuVisible = state.isActive
+        filteredCommands = state.filteredCommands
     }
 
     /// Call this when the user selects a command from the menu.
