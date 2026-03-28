@@ -200,41 +200,44 @@ struct TaskDetailView: View {
                 }
             }
 
-            // Slash command menu — anchored above toolbar, keyboard-aware (Issue #46 / #48)
-            if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty {
-                HStack(alignment: .bottom) {
-                    SlashCommandMenuView(
-                        commands: slashCoordinator.filteredCommands,
-                        onSelect: { cmd in applySlashCommand(cmd) },
-                        onDismiss: { slashCoordinator.dismiss() }
-                    )
-                    .padding(.leading, 16)
-                    .padding(.bottom, 4)
-                    Spacer()
-                }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                .animation(.easeInOut(duration: 0.15), value: slashCoordinator.isMenuVisible)
-            }
-
-            // Table grid picker (Issue #43)
-            if showTablePicker {
-                TableGridPickerView(
-                    onInsert: { rows, cols in
-                        RichEditorCommands.insertTable(
-                            rows: rows, cols: cols,
-                            attributedText: &attributedText,
-                            cursorLocation: savedTableCursorLocation
-                        )
-                        showTablePicker = false
-                    },
-                    onDismiss: { showTablePicker = false }
-                )
-                .transition(.scale.combined(with: .opacity))
-                .zIndex(10)
-            }
-
             if showToolbar && !isDrawingMode {
-                editorToolbar
+                ZStack(alignment: .bottom) {
+                    editorToolbar
+
+                    // Slash command menu — floats above toolbar (Issue #46 / #48)
+                    if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty {
+                        HStack(alignment: .bottom) {
+                            SlashCommandMenuView(
+                                commands: slashCoordinator.filteredCommands,
+                                onSelect: { cmd in applySlashCommand(cmd) },
+                                onDismiss: { slashCoordinator.dismiss() }
+                            )
+                            .padding(.leading, 16)
+                            Spacer()
+                        }
+                        .offset(y: -60)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        .animation(.easeInOut(duration: 0.15), value: slashCoordinator.isMenuVisible)
+                    }
+
+                    // Table grid picker — floats above toolbar (Issue #43)
+                    if showTablePicker {
+                        TableGridPickerView(
+                            onInsert: { rows, cols in
+                                RichEditorCommands.insertTable(
+                                    rows: rows, cols: cols,
+                                    attributedText: &attributedText,
+                                    cursorLocation: savedTableCursorLocation
+                                )
+                                showTablePicker = false
+                            },
+                            onDismiss: { showTablePicker = false }
+                        )
+                        .offset(y: -60)
+                        .transition(.scale.combined(with: .opacity))
+                        .zIndex(10)
+                    }
+                }
             }
         }
         #if !os(macOS)
@@ -256,10 +259,14 @@ struct TaskDetailView: View {
                 if isDrawingMode {
                     Button {
                         withAnimation(.spring(response: 0.3)) { isDrawingMode = false }
-                        // Do NOT auto-refocus the text view here — a delayed becomeFirstResponder
-                        // would fire after the user re-enters drawing mode and steal first
-                        // responder from the canvas, making the PKToolPicker disappear.
-                        // The keyboard returns naturally when the user taps the text area.
+                        // Re-focus the text editor so the keyboard area is tappable again.
+                        // Delay must be longer than the animation to avoid stealing first
+                        // responder from PKCanvasView if user re-enters drawing quickly.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            if !isDrawingMode {
+                                richTextView?.becomeFirstResponder()
+                            }
+                        }
                     } label: {
                         Text("Done").fontWeight(.semibold)
                     }
@@ -298,7 +305,7 @@ struct TaskDetailView: View {
 
     private var editorToolbar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
+            HStack(spacing: 2) {
                 ForEach(toolbarItems) { item in
                     if item.id == "paperclip" {
                         attachmentMenuButton
@@ -309,28 +316,26 @@ struct TaskDetailView: View {
                     }
                 }
             }
-            .padding(.horizontal, 8)
-            .animation(.spring(response: 0.3), value: toolbarItems.map(\.id))
+            .padding(.horizontal, 6)
         }
         .frame(height: 52)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: Color.primary.opacity(0.08), radius: 8, y: 2)
-        )
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .glassEffect(.regular, in: .rect(cornerRadius: 18))
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
     }
 
-    /// iOS 26 glassmorphic attachment sheet — triggered by the paperclip toolbar button.
+    /// iOS 26 glassmorphic attachment button — triggers the glass attachment sheet.
     private var attachmentMenuButton: some View {
         Button {
             showAttachmentSheet = true
         } label: {
             Image(systemName: "paperclip")
-                .font(.system(size: 18))
+                .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(Color.primary)
                 .frame(width: 44, height: 44)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 10))
         }
         .buttonStyle(.plain)
     }
@@ -626,11 +631,8 @@ struct TableGridPickerView: View {
             .buttonStyle(.plain)
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.14), radius: 24, y: 10)
-        )
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
         .padding(.horizontal, 28)
     }
 }
