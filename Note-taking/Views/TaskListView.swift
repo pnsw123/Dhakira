@@ -10,6 +10,9 @@ struct TaskListView: View {
 
     /// The TaskList this view is scoped to. Nil means show all (legacy / default fallback).
     var taskList: TaskList?
+    /// Called when the root view's < button is tapped. Owned by ContentView so
+    /// HomeView is only registered once in the NavigationStack (avoids crashes).
+    var onShowHome: (() -> Void)? = nil
 
     @Query(sort: \TaskItem.sortOrder, order: .forward)
     private var allTasks: [TaskItem]
@@ -20,21 +23,13 @@ struct TaskListView: View {
     @State private var recentlyCompletedIds: Set<UUID> = []
     @State private var isEditingName: Bool = false
     @State private var editedName: String = ""
-    @State private var showHome: Bool = false
 
     // Inline "add task" — no task is created until the user types a name
     @State private var isAddingTask: Bool = false
     @State private var newTaskTitle: String = ""
     @FocusState private var newTaskFieldFocused: Bool
 
-    /// Binding that only activates for the root view (taskList == nil).
-    /// Prevents duplicate HomeView destination registration when this view
-    /// is pushed from HomeView, which crashes NavigationStack.
-    private var homeBinding: Binding<Bool> {
-        taskList == nil ? $showHome : .constant(false)
-    }
-
-    /// Tasks belonging to this task list (not soft-deleted).
+/// Tasks belonging to this task list (not soft-deleted).
     private var filteredTasks: [TaskItem] {
         var result = allTasks.filter { task in
             let belongsHere = taskList == nil ? true : task.taskList?.id == taskList?.id
@@ -127,8 +122,11 @@ struct TaskListView: View {
             .safeAreaInset(edge: .top) {
                 HStack(spacing: 0) {
                     if taskList == nil {
-                        // Root view — back chevron navigates to HomeView
-                        Button(action: { showHome = true }) {
+                        // Root view — back chevron navigates to HomeView (via ContentView)
+                        Button(action: {
+                            log.info("TaskListView: < button tapped (root), calling onShowHome, onShowHome=\(onShowHome != nil ? "set" : "NIL")")
+                            onShowHome?()
+                        }) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundStyle(Color.primary)
@@ -136,9 +134,13 @@ struct TaskListView: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.leading, 8)
+                        .accessibilityIdentifier("btn-go-to-folders")
                     } else {
                         // Pushed from HomeView — chevron goes back
-                        Button(action: { dismiss() }) {
+                        Button(action: {
+                            log.info("TaskListView: < button tapped (pushed list=\(taskList?.name ?? "?")), calling dismiss()")
+                            dismiss()
+                        }) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundStyle(Color.primary)
@@ -190,9 +192,6 @@ struct TaskListView: View {
                 .buttonStyle(.plain)
                 .padding(.trailing, 6)
                 .padding(.bottom, 8)
-            }
-            .navigationDestination(isPresented: homeBinding) {
-                HomeView()
             }
             .navigationDestination(item: $selectedTask) { task in
                 TaskDetailView(task: task)

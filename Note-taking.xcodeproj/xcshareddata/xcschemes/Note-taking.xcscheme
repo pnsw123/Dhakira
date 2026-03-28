@@ -41,8 +41,13 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES"
-      shouldAutocreateTestPlan = "YES">
+      shouldUseLaunchSchemeArgsEnv = "YES">
+      <TestPlans>
+         <TestPlanReference
+            reference = "container:Note-taking.xctestplan"
+            default = "YES">
+         </TestPlanReference>
+      </TestPlans>
       <Testables>
          <TestableReference
             skipped = "NO"
@@ -52,6 +57,16 @@
                BlueprintIdentifier = "CC110001000000000000005A"
                BuildableName = "Note-takingTests.xctest"
                BlueprintName = "Note-takingTests"
+               ReferencedContainer = "container:Note-taking.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "38577E582F787F2A002E377C"
+               BuildableName = "Note-takingUITests.xctest"
+               BlueprintName = "Note-takingUITests"
                ReferencedContainer = "container:Note-taking.xcodeproj">
             </BuildableReference>
          </TestableReference>

@@ -7,6 +7,8 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "HomeView")
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    /// Called by the > button — more reliable than dismiss() with NavigationStack bindings.
+    var onClose: (() -> Void)? = nil
 
     @Query(filter: #Predicate<Folder> { $0.parentFolder == nil }, sort: \Folder.createdAt)
     private var topLevelFolders: [Folder]
@@ -75,6 +77,15 @@ struct HomeView: View {
                 .padding(.bottom, 32)
             }
             .background(Color.screenBackground)
+            .onAppear {
+                log.info("HomeView: appeared — topLevelFolders=\(topLevelFolders.count), allTaskLists=\(allTaskLists.count)")
+            }
+            .onDisappear {
+                log.info("HomeView: disappeared")
+            }
+            .onChange(of: selectedTaskList) { old, new in
+                log.info("HomeView: selectedTaskList changed \(old?.name ?? "nil") → \(new?.name ?? "nil")")
+            }
             .onChange(of: autoRenameFolderId) { _, newId in
                 if newId != nil {
                     withAnimation { proxy.scrollTo("folders-section", anchor: .top) }
@@ -86,7 +97,10 @@ struct HomeView: View {
                     Spacer()
 
                     // > goes back to Tasks (the default page)
-                    Button(action: { dismiss() }) {
+                    Button(action: {
+                        log.info("HomeView: > button tapped → calling onClose()")
+                        onClose?()
+                    }) {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(Color.primary)
@@ -94,6 +108,7 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.trailing, 8)
+                    .accessibilityIdentifier("btn-go-to-tasks")
                 }
                 .padding(.top, 4)
                 .padding(.bottom, 8)
@@ -130,7 +145,10 @@ struct HomeView: View {
                     FolderSectionView(
                         folders: topLevelFolders,
                         allTaskLists: allTaskLists,
-                        onSelectTaskList: { list in selectedTaskList = list },
+                        onSelectTaskList: { list in
+                        log.info("HomeView: onSelectTaskList called for '\(list.name)' — setting selectedTaskList")
+                        selectedTaskList = list
+                    },
                         autoRenameId: autoRenameFolderId
                     )
                     Divider().padding(.leading, 16)

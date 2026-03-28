@@ -1,10 +1,22 @@
 import SwiftUI
 import SwiftData
+import OSLog
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "ContentView")
 
 struct ContentView: View {
+    @State private var showHome = false
+
     var body: some View {
         NavigationStack {
-            TaskListView()
+            Group {
+                if showHome {
+                    HomeView(onClose: { showHome = false })
+                } else {
+                    TaskListView(onShowHome: { showHome = true })
+                }
+            }
+            .animation(.easeInOut(duration: 0.25), value: showHome)
         }
     }
 }

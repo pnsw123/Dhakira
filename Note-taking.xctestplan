@@ -1,0 +1,37 @@
+{
+  "configurations" : [
+    {
+      "id" : "9F90F3B7-E428-45AA-AB2C-3CC8786E9ABB",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Note-taking.xcodeproj",
+      "identifier" : "38EED4792F75B1CB0069B470",
+      "name" : "Note-taking"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Note-taking.xcodeproj",
+        "identifier" : "CC110001000000000000005A",
+        "name" : "Note-takingTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Note-taking.xcodeproj",
+        "identifier" : "38577E582F787F2A002E377C",
+        "name" : "Note-takingUITests"
+      }
+    }
+  ],
+  "version" : 1
+}
