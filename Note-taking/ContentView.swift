@@ -3,7 +3,9 @@ import SwiftData
 
 struct ContentView: View {
     var body: some View {
-        TaskListView()
+        NavigationStack {
+            TaskListView()
+        }
     }
 }
 

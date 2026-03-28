@@ -42,8 +42,7 @@ struct TaskListView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
+        List {
                 ForEach(filteredTasks) { task in
                     TaskRowView(
                         task: task,
@@ -174,7 +173,6 @@ struct TaskListView: View {
             .onTapGesture(count: 2) {
                 addTask()
             }
-        }
     }
 
     private var settingsButton: some View {
