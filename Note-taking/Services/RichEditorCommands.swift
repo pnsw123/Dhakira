@@ -20,7 +20,6 @@ enum ToolbarCommand: String, CaseIterable {
     case bold            = "bold"
     case italic          = "italic"
     case underline       = "underline"
-    case fontSizeUp      = "fontSizeUp"
     case strikethrough   = "strikethrough"
     case alignLeft       = "text.alignleft"
     case alignCenter     = "text.aligncenter"
@@ -58,10 +57,6 @@ enum RichEditorCommandDispatcher {
             RichEditorCommands.toggleItalic(context: context.richTextContext)
         case .underline:
             RichEditorCommands.toggleUnderline(context: context.richTextContext)
-        case .fontSizeUp:
-            RichEditorCommands.increaseFontSize(attributedText: &attributedText,
-                                                 selectedRange: range)
-            return attributedText
         case .strikethrough:
             RichEditorCommands.toggleStrikethrough(context: context.richTextContext)
         case .alignLeft:
@@ -109,35 +104,35 @@ final class RichEditorCommands {
         context.toggleStyle(.strikethrough)
     }
 
-    // MARK: - Font Size Increase
+    // MARK: - Font Size (Increase / Decrease)
 
-    /// Cycle font size: body (17) → 20 → 24 → 28 → back to 17.
-    static func increaseFontSize(attributedText: inout NSAttributedString, selectedRange: NSRange) {
-        let steps: [CGFloat] = [17, 20, 24, 28]
+    /// Step font size up or down by 2pt. Min 10pt, no upper limit.
+    static func stepFontSize(increase: Bool, attributedText: inout NSAttributedString, selectedRange: NSRange) {
+        let step: CGFloat = 2
+        let minSize: CGFloat = 10
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
         let range: NSRange
         if selectedRange.length > 0 {
             range = selectedRange
         } else {
-            // No selection — apply to the whole current paragraph
             range = (mutable.string as NSString).paragraphRange(for: selectedRange)
         }
         guard range.length > 0, range.location + range.length <= mutable.length else { return }
 
-        // Detect the current size from the first character
-        let existingFont = mutable.attribute(.font, at: range.location, effectiveRange: nil) as? UIFont
-        let currentSize = existingFont?.pointSize ?? 17
-        // Find next step up, or wrap to smallest
-        let nextSize = steps.first(where: { $0 > currentSize }) ?? steps[0]
-
         mutable.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
             let font = (value as? UIFont) ?? UIFont.preferredFont(forTextStyle: .body)
-            let descriptor = font.fontDescriptor
-            let newFont = UIFont(descriptor: descriptor, size: nextSize)
+            let currentSize = font.pointSize
+            let newSize = increase ? currentSize + step : max(minSize, currentSize - step)
+            let newFont = UIFont(descriptor: font.fontDescriptor, size: newSize)
             mutable.addAttribute(.font, value: newFont, range: subRange)
         }
         attributedText = mutable
-        log.debug("increaseFontSize: \(currentSize) → \(nextSize)")
+        log.debug("stepFontSize: \(increase ? "+" : "-")\(step)pt")
+    }
+
+    /// Legacy wrapper — kept for ToolbarCommand dispatcher compatibility.
+    static func increaseFontSize(attributedText: inout NSAttributedString, selectedRange: NSRange) {
+        stepFontSize(increase: true, attributedText: &attributedText, selectedRange: selectedRange)
     }
 
     // MARK: - Headings (#42) — via NSAttributedString + UITextView
@@ -357,12 +352,14 @@ final class RichEditorCommands {
     // MARK: - Body text reset
 
     static func applyBodyText(attributedText: inout NSAttributedString, selectedRange: NSRange) {
-        guard selectedRange.length > 0 else {
-            log.debug("applyBodyText: skipped — no selection")
+        let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+        // Use paragraph range so this works whether text is selected or just cursor-positioned
+        let paragraphRange = (mutable.string as NSString).paragraphRange(for: selectedRange)
+        guard paragraphRange.length > 0,
+              paragraphRange.location + paragraphRange.length <= mutable.length else {
+            log.debug("applyBodyText: skipped — empty paragraph range")
             return
         }
-        let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
-        let paragraphRange = (mutable.string as NSString).paragraphRange(for: selectedRange)
         log.debug("applyBodyText: resetting paragraph at range=\(paragraphRange.location)-\(paragraphRange.length)")
         mutable.addAttribute(.font, value: UIFont.preferredFont(forTextStyle: .body), range: paragraphRange)
         mutable.removeAttribute(.paragraphStyle, range: paragraphRange)

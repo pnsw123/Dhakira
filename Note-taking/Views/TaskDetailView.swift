@@ -7,6 +7,7 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "TaskDetail")
 
 #if canImport(UIKit)
 import UIKit
+import PencilKit
 import PhotosUI
 import VisionKit
 import AVFoundation
@@ -27,6 +28,9 @@ struct TaskDetailView: View {
 
     @State private var showToolbar = true
     @State private var isDrawingMode = false
+    /// References to PencilKit objects — obtained via onCanvasReady, managed here.
+    @State private var pkCanvasView: PKCanvasView?
+    @State private var pkToolPicker: PKToolPicker?
     @State private var showTablePicker = false
     /// Cursor position captured when the table picker opens — preserved because
     /// tapping the picker dismisses the keyboard and resets richTextContext.selectedRange.
@@ -50,24 +54,30 @@ struct TaskDetailView: View {
     /// anchor the slash menu right below the cursor instead of at the bottom.
     @State private var slashCursorGlobalRect: CGRect = .zero
 
-    // Fixed toolbar — order matches familiar mobile editor conventions (Bold first).
-    // MRU promotion removed: position never changes.
-    @State private var toolbarItems: [EditorTool] = [
+    // Default toolbar order — user can drag-reorder, saved to UserDefaults.
+    static let defaultToolbarItems: [EditorTool] = [
         .init(id: "bold",            icon: "bold"),
         .init(id: "italic",          icon: "italic"),
         .init(id: "underline",       icon: "underline"),
-        .init(id: "fontSizeUp",      icon: "textformat.size.larger"),
         .init(id: "strikethrough",   icon: "strikethrough"),
-        .init(id: "paperclip",       icon: "paperclip"),      // ← 6th position
-        .init(id: "pencil",          icon: "pencil.tip.crop.circle"), // ← 6th position
+        .init(id: "fontSizeDown",    icon: "textformat.size.smaller"),
+        .init(id: "fontSizeUp",      icon: "textformat.size.larger"),
+        .init(id: "paperclip",       icon: "paperclip"),
+        .init(id: "pencil",          icon: "pencil.tip.crop.circle"),
         .init(id: "text.alignleft",  icon: "text.alignleft"),
         .init(id: "text.aligncenter",icon: "text.aligncenter"),
         .init(id: "text.alignright", icon: "text.alignright"),
         .init(id: "list.bullet",     icon: "list.bullet"),
         .init(id: "tablecells",      icon: "tablecells"),
     ]
+    @State private var toolbarItems: [EditorTool] = TaskDetailView.defaultToolbarItems
+    @AppStorage("editorToolbarOrder") private var savedToolbarOrder: String = ""
+    @State private var draggingToolId: String?
 
-    struct EditorTool: Identifiable { let id: String; let icon: String }
+    struct EditorTool: Identifiable, Codable, Equatable {
+        let id: String
+        let icon: String
+    }
 
     // Attachment service — single enum replaces 6 Bool flags (Issue #49)
     @State private var attachmentService = AttachmentService()
@@ -107,32 +117,15 @@ struct TaskDetailView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 4)
-                .onChange(of: attributedText) { _, newText in
-                    let cursorLoc = richTextContext.selectedRange.location
-                    // Use coordinator — handles suppression internally (Issue #48)
-                    slashCoordinator.textDidChange(
-                        text: newText,
-                        cursorLocation: cursorLoc
-                    )
-                    // Capture cursor rect when slash menu becomes visible so we can
-                    // anchor the menu right below the cursor.
-                    if slashCoordinator.isMenuVisible, let tv = richTextView {
-                        let safeLoc = min(cursorLoc, max(0, (tv.text as NSString).length))
-                        if let pos = tv.position(from: tv.beginningOfDocument, offset: safeLoc),
-                           let tRange = tv.textRange(from: pos, to: pos) {
-                            let r = tv.firstRect(for: tRange)
-                            if !r.isNull, !r.isInfinite {
-                                slashCursorGlobalRect = tv.convert(r, to: nil)
-                            }
-                        }
-                    } else if !slashCoordinator.isMenuVisible {
-                        slashCursorGlobalRect = .zero
-                    }
+                // UIKit notification — fires on every keystroke, stable since iOS 2.
+                // Replaces unreliable SwiftUI onChange triggers for slash detection.
+                .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidChangeNotification)) { note in
+                    guard let tv = note.object as? UITextView,
+                          tv === richTextView else { return }
+                    evaluateSlashCommand()
                 }
                 .onChange(of: richTextContext.selectedRange) { _, range in
                     let hasSelection = range.length > 0
-                    // Capture the selection's screen rect BEFORE animating so the
-                    // palette can be positioned correctly from the first frame.
                     if hasSelection, let tv = richTextView {
                         let nsLen = (tv.text as NSString).length
                         let loc = min(range.location, max(0, nsLen))
@@ -142,10 +135,8 @@ struct TaskDetailView: View {
                            let end   = tv.position(from: start, offset: len),
                            let tRange = tv.textRange(from: start, to: end) {
                             let r = tv.firstRect(for: tRange)
-                            // firstRect returns CGRect.null / infinite on empty ranges
                             if !r.isNull, !r.isInfinite, r.width < 5000 {
                                 selectionGlobalRect = tv.convert(r, to: nil)
-                                log.debug("selectionGlobalRect updated: \(selectionGlobalRect.debugDescription)")
                             } else {
                                 selectionGlobalRect = .zero
                             }
@@ -156,7 +147,6 @@ struct TaskDetailView: View {
                         selectionGlobalRect = .zero
                     }
                     if hasSelection {
-                        // Snapshot the range NOW, before the keyboard/focus changes
                         savedColorSelection = range
                     }
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -164,11 +154,19 @@ struct TaskDetailView: View {
                     }
                 }
 
-                if isDrawingMode || task.drawingData != nil {
-                    DrawingCanvasView(drawingData: $task.drawingData, isActive: $isDrawingMode)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .allowsHitTesting(isDrawingMode)
-                }
+                // Always in the hierarchy so the Coordinator (and PKToolPicker)
+                // are never destroyed. Hidden with opacity when not needed.
+                DrawingCanvasView(
+                    drawingData: $task.drawingData,
+                    isActive: $isDrawingMode,
+                    onCanvasReady: { canvas, picker in
+                        pkCanvasView = canvas
+                        pkToolPicker = picker
+                    }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .opacity(isDrawingMode || task.drawingData != nil ? 1 : 0)
+                .allowsHitTesting(isDrawingMode)
 
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -197,8 +195,11 @@ struct TaskDetailView: View {
                                                         range: savedColorSelection)
                                 },
                                 onRemoveFontColor: {
+                                    // Use UIColor.label (adaptive: black in light, white in dark)
+                                    // instead of nil, which would remove the attribute and fall
+                                    // back to a static black regardless of color scheme.
                                     applyColorAttribute(key: .foregroundColor,
-                                                        value: nil,
+                                                        value: UIColor.label,
                                                         range: savedColorSelection)
                                 },
                                 onRemoveHighlight: {
@@ -220,31 +221,35 @@ struct TaskDetailView: View {
                     .transition(.opacity)
                 }
             }
-            // Slash command menu — anchored right below the cursor (Issue #46 / #48)
+            // Slash command menu — uses the same global-rect approach as the color palette
+            // so it always appears directly below the caret regardless of scroll or insets.
             .overlay(alignment: .topLeading) {
-                if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty && slashCursorGlobalRect.height > 0 {
+                if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty {
                     GeometryReader { geo in
                         let gf = geo.frame(in: .global)
-                        // Convert global cursor rect to local coords within this overlay
-                        let localX = max(8, min(slashCursorGlobalRect.minX - gf.minX, geo.size.width - 268))
-                        let localY = slashCursorGlobalRect.maxY - gf.minY + 4
-                        SlashCommandMenuView(
-                            commands: slashCoordinator.filteredCommands,
-                            onSelect: { cmd in applySlashCommand(cmd) },
-                            onDismiss: { slashCoordinator.dismiss() }
-                        )
-                        .offset(x: localX, y: localY)
+                        let localY: CGFloat = slashCursorGlobalRect == .zero
+                            ? 40
+                            : slashCursorGlobalRect.maxY - gf.minY + 4
+                        let localX: CGFloat = slashCursorGlobalRect == .zero
+                            ? 16
+                            : max(0, min(slashCursorGlobalRect.minX - gf.minX, geo.size.width - 264))
+                        if localY > 0 && localY < geo.size.height {
+                            SlashCommandMenuView(
+                                commands: slashCoordinator.filteredCommands,
+                                onSelect: { cmd in applySlashCommand(cmd) },
+                                onDismiss: { slashCoordinator.dismiss() }
+                            )
+                            .offset(x: localX, y: localY)
+                            .transition(.opacity)
+                            .animation(.easeInOut(duration: 0.15), value: slashCoordinator.isMenuVisible)
+                        }
                     }
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.15), value: slashCoordinator.isMenuVisible)
                 }
             }
 
             if showToolbar && !isDrawingMode {
                 ZStack(alignment: .bottom) {
                     editorToolbar
-
-                    // Slash command menu moved to cursor-anchored overlay (see below)
 
                     // Table grid picker — floats above toolbar (Issue #43)
                     if showTablePicker {
@@ -320,7 +325,7 @@ struct TaskDetailView: View {
         }
         // AttachmentService drives all picker sheets via a single enum (Issue #49)
         .background(attachmentService.presentationHooks(attributedText: $attributedText))
-        .onAppear { loadBody() }
+        .onAppear { loadToolbarOrder(); loadBody() }
         .onDisappear { saveBody() }
     }
 
@@ -330,13 +335,18 @@ struct TaskDetailView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 2) {
                 ForEach(toolbarItems) { item in
-                    if item.id == "paperclip" {
-                        attachmentMenuButton
-                    } else {
-                        toolbarButton(item.icon) {
-                            handleToolbarTap(item.id)
+                    toolbarItemView(for: item)
+                        .opacity(draggingToolId == item.id ? 0.35 : 1)
+                        .onDrag {
+                            draggingToolId = item.id
+                            return NSItemProvider(object: item.id as NSString)
                         }
-                    }
+                        .onDrop(of: [UTType.text], delegate: ToolbarReorderDelegate(
+                            targetId: item.id,
+                            items: $toolbarItems,
+                            draggingId: $draggingToolId,
+                            onComplete: saveToolbarOrder
+                        ))
                 }
             }
             .padding(.horizontal, 6)
@@ -348,7 +358,19 @@ struct TaskDetailView: View {
         .padding(.bottom, 8)
     }
 
-    /// Attachment menu — native iOS 26 Menu (system glass context menu).
+    @ViewBuilder
+    private func toolbarItemView(for item: EditorTool) -> some View {
+        switch item.id {
+        case "paperclip":
+            attachmentMenuButton
+        default:
+            toolbarButton(item.icon) {
+                handleToolbarTap(item.id)
+            }
+        }
+    }
+
+    /// Attachment menu — native iOS 26 context menu.
     private var attachmentMenuButton: some View {
         Menu {
             ForEach(attachmentMenuItems) { item in
@@ -360,12 +382,14 @@ struct TaskDetailView: View {
             }
         } label: {
             Image(systemName: "paperclip")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 18))
                 .foregroundStyle(Color.primary)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
+        .menuStyle(.button)
     }
+
 
     private func handleToolbarTap(_ id: String) {
         log.info("handleToolbarTap: '\(id)'")
@@ -382,9 +406,22 @@ struct TaskDetailView: View {
             richTextView?.resignFirstResponder()
             saveBody()
             showTablePicker = false
-            // No animation — canvas must be in the window immediately
-            // so PKToolPicker can attach via becomeFirstResponder
             isDrawingMode = true
+            // Show PKToolPicker explicitly — UIKit needs a moment after
+            // the SwiftUI state change for the canvas to be interactable.
+            showDrawingToolPicker()
+            return
+        case "fontSizeUp", "fontSizeDown":
+            guard let tv = richTextView else { return }
+            tv.becomeFirstResponder()
+            let range = tv.selectedRange
+            RichEditorCommands.stepFontSize(
+                increase: id == "fontSizeUp",
+                attributedText: &attributedText,
+                selectedRange: range
+            )
+            tv.attributedText = attributedText
+            tv.selectedRange = range
             return
         default:
             break
@@ -396,8 +433,13 @@ struct TaskDetailView: View {
             log.warning("handleToolbarTap: unrecognised toolbar id '\(id)'")
             return
         }
+        let savedRange = tv.selectedRange
         var ctx = EditorContext(textView: tv, richTextContext: richTextContext)
         if let updated = RichEditorCommandDispatcher.dispatch(command, context: &ctx, attributedText: &attributedText) {
+            // Push structural changes (font size, lists, tables) into the live UITextView
+            // so the user sees the result immediately — the binding alone isn't enough.
+            tv.attributedText = updated
+            tv.selectedRange = savedRange
             attributedText = updated
         }
     }
@@ -473,6 +515,79 @@ struct TaskDetailView: View {
         return nil
     }
 
+    /// Central slash-command evaluation — reads cursor from the UITextView
+    /// directly (richTextContext.selectedRange may lag) and captures the
+    /// cursor rect for the overlay position.
+    private func evaluateSlashCommand() {
+        guard let tv = richTextView else {
+            log.warning("⚠️ SLASH: richTextView is nil — cannot evaluate")
+            return
+        }
+        let cursorLoc = tv.selectedRange.location
+        let text: NSAttributedString = tv.attributedText ?? attributedText
+        let textStr = text.string
+        log.debug("⚠️ SLASH: cursor=\(cursorLoc), textLen=\(textStr.count), last3chars='\(String(textStr.suffix(3)))'")
+
+        slashCoordinator.textDidChange(text: text, cursorLocation: cursorLoc)
+
+        log.debug("⚠️ SLASH: isMenuVisible=\(slashCoordinator.isMenuVisible), commands=\(slashCoordinator.filteredCommands.count)")
+
+        if slashCoordinator.isMenuVisible {
+            let safeLoc = min(cursorLoc, max(0, (tv.text as NSString).length))
+            if let pos = tv.position(from: tv.beginningOfDocument, offset: safeLoc),
+               let tRange = tv.textRange(from: pos, to: pos) {
+                let r = tv.firstRect(for: tRange)
+                let converted = tv.convert(r, to: nil)
+                log.debug("⚠️ SLASH: cursorRect=\(converted.debugDescription), isNull=\(r.isNull), isInf=\(r.isInfinite), height=\(converted.height)")
+                if !r.isNull, !r.isInfinite {
+                    slashCursorGlobalRect = converted
+                }
+            } else {
+                log.warning("⚠️ SLASH: could not create text position for cursor \(safeLoc)")
+            }
+        } else {
+            slashCursorGlobalRect = .zero
+        }
+    }
+
+    /// Calculate Y offset for the slash menu relative to the editor ZStack.
+    /// Uses the UITextView's caret rect converted to the text view's own coordinate space.
+    /// Show PKToolPicker — retries until the canvas successfully becomes first responder.
+    /// Called from handleToolbarTap("pencil") AFTER isDrawingMode = true.
+    private func showDrawingToolPicker(attempt: Int = 0) {
+        guard let canvas = pkCanvasView, let picker = pkToolPicker else {
+            // Canvas not ready yet — retry after SwiftUI has time to create it
+            if attempt < 5 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    showDrawingToolPicker(attempt: attempt + 1)
+                }
+            }
+            return
+        }
+        picker.addObserver(canvas)
+        picker.setVisible(true, forFirstResponder: canvas)
+        let became = canvas.becomeFirstResponder()
+        log.debug("showDrawingToolPicker: attempt=\(attempt), becameFirstResponder=\(became), window=\(canvas.window != nil)")
+        if !became && attempt < 5 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                showDrawingToolPicker(attempt: attempt + 1)
+            }
+        }
+    }
+
+    private func slashMenuYOffset() -> CGFloat {
+        guard let tv = richTextView else { return 0 }
+        let loc = tv.selectedRange.location
+        let safeLoc = min(loc, max(0, (tv.text as NSString).length))
+        guard let pos = tv.position(from: tv.beginningOfDocument, offset: safeLoc),
+              let range = tv.textRange(from: pos, to: pos) else { return 0 }
+        let r = tv.firstRect(for: range)
+        guard !r.isNull, !r.isInfinite else { return 0 }
+        // r is in tv's coordinate space — maxY is the bottom of the caret line
+        // +8pt gap so the menu sits below the "/" text, not on top of it
+        return r.maxY + 8
+    }
+
     private func toolbarButton(_ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
@@ -483,22 +598,80 @@ struct TaskDetailView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Toolbar Order Persistence
+
+    private func loadToolbarOrder() {
+        guard !savedToolbarOrder.isEmpty,
+              let ids = try? JSONDecoder().decode([String].self, from: Data(savedToolbarOrder.utf8))
+        else { return }
+        let lookup = Dictionary(uniqueKeysWithValues: Self.defaultToolbarItems.map { ($0.id, $0) })
+        var reordered: [EditorTool] = []
+        for id in ids {
+            if let tool = lookup[id] { reordered.append(tool) }
+        }
+        // Append any new tools added after the user last saved
+        for tool in Self.defaultToolbarItems where !ids.contains(tool.id) {
+            reordered.append(tool)
+        }
+        toolbarItems = reordered
+    }
+
+    private func saveToolbarOrder() {
+        let ids = toolbarItems.map(\.id)
+        if let data = try? JSONEncoder().encode(ids) {
+            savedToolbarOrder = String(data: data, encoding: .utf8) ?? ""
+        }
+    }
+
+    /// Drop delegate for drag-to-reorder toolbar icons.
+    struct ToolbarReorderDelegate: DropDelegate {
+        let targetId: String
+        @Binding var items: [EditorTool]
+        @Binding var draggingId: String?
+        let onComplete: () -> Void
+
+        func performDrop(info: DropInfo) -> Bool {
+            draggingId = nil
+            onComplete()
+            return true
+        }
+
+        func dropEntered(info: DropInfo) {
+            guard let draggingId,
+                  draggingId != targetId,
+                  let from = items.firstIndex(where: { $0.id == draggingId }),
+                  let to = items.firstIndex(where: { $0.id == targetId })
+            else { return }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                items.move(fromOffsets: IndexSet(integer: from),
+                           toOffset: to > from ? to + 1 : to)
+            }
+        }
+
+        func dropUpdated(info: DropInfo) -> DropProposal? {
+            DropProposal(operation: .move)
+        }
+    }
+
     // MARK: - Slash Command Application (Issue #46 / #48)
 
     private func applySlashCommand(_ cmd: SlashCommand) {
         log.info("applySlashCommand: '\(cmd.id)' (\(cmd.label))")
 
-        let cursor = richTextContext.selectedRange.location
+        // Read slash location BEFORE commandSelected clears frozenState.
+        // richTextContext.selectedRange resets to 0 when the menu steals focus,
+        // so we rely on the coordinator's frozen slash position instead.
+        let slashLoc = slashCoordinator.currentSlashLocation
 
-        // Coordinator removes '/' + filter text using frozen state (no double-evaluate)
-        slashCoordinator.commandSelected(cmd, applyTo: &attributedText, cursorLocation: cursor)
+        // Coordinator removes '/' + filter text using frozen cursor (no focus dependency)
+        slashCoordinator.commandSelected(cmd, applyTo: &attributedText, cursorLocation: 0)
 
-        // newCursor is now where the slash was (coordinator deleted those chars)
-        // We use the post-deletion cursor from the updated attributedText length as a safe fallback
-        let newCursor = max(0, min(cursor, attributedText.length))
+        // After deletion, insertion point is where the '/' was
+        let newCursor = max(0, slashLoc >= 0 ? slashLoc : 0)
         let selRange = NSRange(location: newCursor, length: 0)
 
-        // Apply the selected command
+        // Apply the selected command to the attributedText binding
+        var isColorCommand = false
         switch cmd.id {
         case "text":
             RichEditorCommands.applyBodyText(attributedText: &attributedText, selectedRange: selRange)
@@ -515,21 +688,37 @@ struct TaskDetailView: View {
         case "heading3":
             RichEditorCommands.applyHeading(.h3, attributedText: &attributedText, selectedRange: selRange)
         case "table":
-            log.debug("applySlashCommand: showing table grid picker")
-            withAnimation(.spring(response: 0.3)) { showTablePicker = true }
+            savedTableCursorLocation = newCursor
         case _ where cmd.id.hasPrefix("color"):
-            // Dynamic lookup — no hardcoded hex strings (Issue #51)
+            isColorCommand = true
+        default:
+            log.warning("applySlashCommand: unhandled command id '\(cmd.id)'")
+        }
+
+        // Push every change (including slash deletion) directly into the live UITextView.
+        // RichTextKit's SwiftUI binding does NOT propagate back synchronously — same fix
+        // used by handleToolbarTap (tv.attributedText = updated).
+        if let tv = richTextView {
+            tv.attributedText = attributedText
+            tv.becomeFirstResponder()
+            tv.selectedRange = NSRange(location: newCursor, length: 0)
+        }
+
+        // Table picker: open after TV is updated so picker appears over clean text
+        if cmd.id == "table" {
+            withAnimation(.spring(response: 0.3)) { showTablePicker = true }
+        }
+
+        // Color: set typing attribute AFTER focus is restored so it sticks
+        if isColorCommand {
             if let nc = NamedColor.find(id: cmd.id) {
                 RichEditorCommands.applyTextColor(nc.uiColor, context: richTextContext)
             } else {
                 log.warning("applySlashCommand: unknown color command '\(cmd.id)'")
             }
-        default:
-            log.warning("applySlashCommand: unhandled command id '\(cmd.id)'")
-            break
         }
 
-        log.debug("applySlashCommand: done — coordinator handled slash menu dismissal")
+        log.debug("applySlashCommand: done — pushed to UITextView, cursor at \(newCursor)")
     }
 
     // MARK: - Export (Issue #45 — native, no WKWebView)
@@ -819,10 +1008,10 @@ struct PhotoPickerView: UIViewControllerRepresentable {
                         try? FileManager.default.removeItem(at: tmp)
                         try? FileManager.default.copyItem(at: url, to: tmp)
                         // Generate thumbnail for inline display
-                        DispatchQueue.main.async {
-                            let generator = AVAssetImageGenerator(asset: AVAsset(url: tmp))
+                        Task { @MainActor in
+                            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: tmp))
                             generator.appliesPreferredTrackTransform = true
-                            if let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) {
+                            if let cgImage = try? await generator.image(at: .zero).image {
                                 let thumb = UIImage(cgImage: cgImage)
                                 if let data = thumb.jpegData(compressionQuality: 0.85) {
                                     self.onPick(data)
@@ -877,12 +1066,14 @@ struct CameraPickerView: UIViewControllerRepresentable {
 
             // Video path — generate thumbnail for inline display
             if let videoURL = info[.mediaURL] as? URL {
-                let generator = AVAssetImageGenerator(asset: AVAsset(url: videoURL))
-                generator.appliesPreferredTrackTransform = true
-                if let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) {
-                    let thumb = UIImage(cgImage: cgImage)
-                    if let data = thumb.jpegData(compressionQuality: 0.85) {
-                        DispatchQueue.main.async { self.onCapture(data) }
+                Task { @MainActor in
+                    let generator = AVAssetImageGenerator(asset: AVURLAsset(url: videoURL))
+                    generator.appliesPreferredTrackTransform = true
+                    if let cgImage = try? await generator.image(at: .zero).image {
+                        let thumb = UIImage(cgImage: cgImage)
+                        if let data = thumb.jpegData(compressionQuality: 0.85) {
+                            self.onCapture(data)
+                        }
                     }
                 }
             }

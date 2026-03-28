@@ -40,21 +40,21 @@ struct SlashCommandMenuView: View {
                         .padding(.bottom, 4)
 
                     ForEach(items, id: \.id) { cmd in
-                        commandRow(cmd, isSelected: false)
-                            .onTapGesture {
-                                onSelect(cmd)
-                            }
+                        Button {
+                            onSelect(cmd)
+                        } label: {
+                            commandRow(cmd, isSelected: false)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
             .padding(.bottom, 8)
         }
         .frame(maxHeight: 320)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: Color.primary.opacity(0.15), radius: 12, y: 4)
-        )
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .glassEffect(.regular, in: .rect(cornerRadius: 14))
+        .shadow(color: Color.primary.opacity(0.15), radius: 12, y: 4)
         .frame(maxWidth: 260)
     }
 

@@ -22,6 +22,10 @@ final class SlashCommandCoordinator: ObservableObject {
     /// Used in commandSelected() — we never call evaluate() a second time.
     private var frozenState: SlashCommandEngine.State?
 
+    /// The position of the '/' that triggered the menu, or -1 if not active.
+    /// Read this BEFORE calling commandSelected (which clears frozenState).
+    var currentSlashLocation: Int { frozenState?.slashLocation ?? -1 }
+
     /// Single-tick suppression flag — prevents the attributedText mutation
     /// inside commandSelected() from retriggering evaluation.
     private var suppressNextEvaluation = false
@@ -73,23 +77,25 @@ final class SlashCommandCoordinator: ObservableObject {
         }
 
         // Use FROZEN state — never re-evaluate here (cursor-drift fix).
+        // Compute effective cursor from frozen filter text so we never rely on
+        // richTextContext.selectedRange (which resets to 0 when the menu steals focus).
         let slashLoc: Int
         if let frozen = frozenState, frozen.slashLocation >= 0 {
             slashLoc = frozen.slashLocation
-        } else {
-            slashLoc = -1
-        }
-
-        // Remove the '/' + filter text that was typed
-        if slashLoc >= 0 {
-            let deleteLen = cursorLocation - slashLoc
+            // frozenCursor = '/' position + 1 (for '/') + length of filter text typed after '/'
+            let frozenCursor = frozen.slashLocation + 1 + frozen.filterText.count
+            let deleteLen = frozenCursor - slashLoc
             if deleteLen > 0 {
                 let deleteRange = NSRange(location: slashLoc, length: deleteLen)
                 let mutable = NSMutableAttributedString(attributedString: attributedText)
-                mutable.deleteCharacters(in: deleteRange)
-                attributedText = mutable
-                log.debug("SlashCommandCoordinator.commandSelected: deleted \(deleteLen) char(s) at offset \(slashLoc)")
+                if deleteRange.location + deleteRange.length <= mutable.length {
+                    mutable.deleteCharacters(in: deleteRange)
+                    attributedText = mutable
+                    log.debug("SlashCommandCoordinator.commandSelected: deleted \(deleteLen) char(s) at offset \(slashLoc)")
+                }
             }
+        } else {
+            slashLoc = -1
         }
 
         frozenState = nil
