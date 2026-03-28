@@ -14,7 +14,6 @@ struct TaskListView: View {
     @Query(sort: \TaskItem.sortOrder, order: .forward)
     private var allTasks: [TaskItem]
 
-    @FocusState private var focusedTaskId: UUID?
     @State private var sortBy: SortOption = .manual
     @State private var selectedTask: TaskItem?
     @State private var showTheme = false
@@ -22,6 +21,18 @@ struct TaskListView: View {
     @State private var isEditingName: Bool = false
     @State private var editedName: String = ""
     @State private var showHome: Bool = false
+
+    // Inline "add task" — no task is created until the user types a name
+    @State private var isAddingTask: Bool = false
+    @State private var newTaskTitle: String = ""
+    @FocusState private var newTaskFieldFocused: Bool
+
+    /// Binding that only activates for the root view (taskList == nil).
+    /// Prevents duplicate HomeView destination registration when this view
+    /// is pushed from HomeView, which crashes NavigationStack.
+    private var homeBinding: Binding<Bool> {
+        taskList == nil ? $showHome : .constant(false)
+    }
 
     /// Tasks belonging to this task list (not soft-deleted).
     private var filteredTasks: [TaskItem] {
@@ -49,11 +60,9 @@ struct TaskListView: View {
                         onToggleComplete: { toggleComplete(task) },
                         onTapDetail: { selectedTask = task }
                     )
-                    .focused($focusedTaskId, equals: task.id)
                     .id(task.id)
-                    .listRowSeparator(.visible, edges: .bottom)
-                    .listRowSeparatorTint(Color.black.opacity(0.10))
-                    .listRowInsets(EdgeInsets(top: 0, leading: 4 + indentLevel(for: task), bottom: 0, trailing: 0))
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: indentLevel(for: task), bottom: 0, trailing: 0))
                     .listRowSpacing(0)
                     .listRowBackground(Color.screenBackground)
                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
@@ -83,7 +92,33 @@ struct TaskListView: View {
                 .onMove { source, destination in
                     moveTask(from: source, to: destination)
                 }
+
+                // Inline "new task" row — appears when + is tapped, no task created yet
+                if isAddingTask {
+                    HStack(alignment: .top, spacing: 14) {
+                        Circle()
+                            .stroke(Color.secondary.opacity(0.4), lineWidth: 1.5)
+                            .frame(width: 22, height: 22)
+                            .frame(width: 28, height: 28)
+                            .padding(.top, 1)
+
+                        TextField("New Task", text: $newTaskTitle, axis: .vertical)
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(Color.primary)
+                            .lineLimit(1...3)
+                            .focused($newTaskFieldFocused)
+                            .onSubmit { commitNewTask() }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSpacing(0)
+                    .listRowBackground(Color.screenBackground)
+                }
             }
+            .contentMargins(.bottom, 72, for: .scrollContent)
             .animation(.smooth(duration: 0.35), value: filteredTasks.count)
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -147,17 +182,17 @@ struct TaskListView: View {
                 Button(action: addTask) {
                     Image(systemName: "plus")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.fabIcon)
+                        .foregroundStyle(Color.primary)
                         .frame(width: 48, height: 48)
-                        .background(Color.fabColor, in: Circle())
+                        .background(.regularMaterial, in: Circle())
                         .glassEffect(.regular.interactive(), in: .circle)
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, 6)
                 .padding(.bottom, 8)
             }
-            .navigationDestination(isPresented: $showHome) {
-                HomeView(isPresented: $showHome)
+            .navigationDestination(isPresented: homeBinding) {
+                HomeView()
             }
             .navigationDestination(item: $selectedTask) { task in
                 TaskDetailView(task: task)
@@ -165,9 +200,15 @@ struct TaskListView: View {
             .navigationDestination(isPresented: $showTheme) {
                 ThemeView()
             }
-            .onChange(of: focusedTaskId) { oldValue, newValue in
-                if let old = oldValue, old != newValue {
-                    cleanupEmptyTask(id: old)
+            .onChange(of: newTaskFieldFocused) { _, focused in
+                if !focused && isAddingTask {
+                    // Short delay — gives addTask() time to intercept if the
+                    // user tapped + again (which steals focus first).
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        if !newTaskFieldFocused && isAddingTask {
+                            commitNewTask()
+                        }
+                    }
                 }
             }
     }
@@ -189,30 +230,36 @@ struct TaskListView: View {
     }
 
     private func addTask() {
-        let scopedTasks = allTasks.filter { taskList == nil ? true : $0.taskList?.id == taskList?.id }
-        let maxOrder = (scopedTasks.map(\.sortOrder).max() ?? 0) + 1
-        let newTask = TaskItem(title: "", taskList: taskList)
-        newTask.sortOrder = maxOrder
-        modelContext.insert(newTask)
-        log.info("addTask: inserted new task (sortOrder=\(maxOrder))")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            focusedTaskId = newTask.id
+        // If already adding, commit the current one first (saves if non-empty)
+        if isAddingTask {
+            saveNewTaskIfNeeded()
+        }
+        newTaskTitle = ""
+        isAddingTask = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            newTaskFieldFocused = true
         }
     }
 
-    private func cleanupEmptyTask(id: UUID) {
-        guard selectedTask?.id != id else {
-            log.debug("cleanupEmptyTask: skipping — task is currently open in detail view")
-            return
+    /// Saves the current inline title as a real task if non-empty.
+    private func saveNewTaskIfNeeded() {
+        let trimmed = newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let scopedTasks = allTasks.filter { taskList == nil ? true : $0.taskList?.id == taskList?.id }
+        let maxOrder = (scopedTasks.map(\.sortOrder).max() ?? 0) + 1
+        let newTask = TaskItem(title: trimmed, taskList: taskList)
+        newTask.sortOrder = maxOrder
+        modelContext.insert(newTask)
+        log.info("commitNewTask: created '\(trimmed)' (sortOrder=\(maxOrder))")
+    }
+
+    /// Called when the inline field loses focus (user tapped elsewhere).
+    private func commitNewTask() {
+        saveNewTaskIfNeeded()
+        withAnimation(.smooth(duration: 0.3)) {
+            isAddingTask = false
         }
-        if let task = allTasks.first(where: { $0.id == id }),
-           task.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           task.body == nil {
-            log.info("cleanupEmptyTask: deleting empty task \(id)")
-            withAnimation(.smooth(duration: 0.3)) {
-                modelContext.delete(task)
-            }
-        }
+        newTaskTitle = ""
     }
 
     private func toggleComplete(_ task: TaskItem) {

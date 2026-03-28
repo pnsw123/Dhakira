@@ -20,80 +20,105 @@ struct PennantShape: Shape {
 
 struct TaskRowView: View {
     @Bindable var task: TaskItem
+    /// True when this row is the newly created task being typed into inline.
+    var isFocused: Bool = false
     var onToggleComplete: () -> Void = {}
     var onTapDetail: () -> Void = {}
 
-    private let priorityCycle = ["default", "medium", "high"]
-
-    /// Cached result — recomputed only when task.body / drawingData / attachments change,
-    /// not on every render. Avoids synchronous SwiftData relationship faults during body eval.
+    /// Local focus state for the inline TextField — driven by the `isFocused` prop.
+    @FocusState private var isEditing: Bool
+    /// Cached — recomputed only when task.body / drawingData / attachments change.
     @State private var hasRealContent: Bool = false
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            // Row content
-            VStack(alignment: .leading, spacing: 2) {
-                // Line 1: Checkbox + Title
-                HStack(spacing: 10) {
-                    Button(action: onToggleComplete) {
-                        Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 18))
-                            .foregroundStyle(
-                                task.isCompleted
-                                ? Color.forPriority(task.priority)
-                                : Color.secondary.opacity(0.45)
-                            )
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 14) {
+
+                // ── Tap zone 1: Checkbox ─────────────────────────────────────
+                Button(action: onToggleComplete) {
+                    ZStack {
+                        if task.isCompleted {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(Color.forPriority(task.priority))
+                        } else {
+                            Circle()
+                                .stroke(Color.secondary.opacity(0.4), lineWidth: 1.5)
+                                .frame(width: 22, height: 22)
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .frame(width: 30, height: 30)
-                    .contentShape(Rectangle())
-
-                    TextField("New Task", text: $task.title, axis: .vertical)
-                        .font(.system(size: 15))
-                        .foregroundStyle(task.isCompleted ? Color.secondary : Color.primary)
-                        .strikethrough(task.isCompleted)
-                        .lineLimit(1...2)
+                    .frame(width: 28, height: 28)
                 }
+                .buttonStyle(.plain)
+                .contentShape(Circle().size(CGSize(width: 36, height: 36)))
+                .padding(.top, 1)
 
-                // Line 2: Asterisk — blue if has content, dim if empty
-                HStack {
-                    Spacer().frame(width: 40)
+                if isFocused {
+                    // ── Inline editing (new task just created via +) ──────────
+                    VStack(alignment: .leading, spacing: 6) {
+                        TextField("New Task", text: $task.title, axis: .vertical)
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(Color.primary)
+                            .lineLimit(1...3)
+                            .focused($isEditing)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Text("*")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Color.secondary.opacity(0.4))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    // ── Tap zone 2: Entire row content → detail ───────────────
                     Button(action: onTapDetail) {
-                        Image(systemName: "asterisk")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(
-                                hasRealContent
-                                ? Color.accentColor
-                                : Color.secondary.opacity(0.25)
-                            )
+                        VStack(alignment: .leading, spacing: 6) {
+
+                            // Title + flag (flag stays top-right even for multi-line titles)
+                            HStack(alignment: .top, spacing: 8) {
+                                Text(task.title.isEmpty ? "New Task" : task.title)
+                                    .font(.system(size: 17, weight: .regular))
+                                    .foregroundStyle(task.isCompleted ? Color.secondary : Color.primary)
+                                    .strikethrough(task.isCompleted)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                PennantShape()
+                                    .fill(Color.forPriority(task.priority))
+                                    .frame(width: 11, height: 17)
+                                    .opacity(task.priority == "default" ? 0 : 1)
+                                    .padding(.top, 2)
+                            }
+
+                            // * — visual signal only (gray = empty, blue = has content)
+                            Text("*")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(
+                                    hasRealContent
+                                        ? Color(red: 0.102, green: 0.498, blue: 0.910) // #1A7FE8
+                                        : Color.secondary.opacity(0.4)
+                                )
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.plain)
-                    .frame(height: 20)
-                    .contentShape(Rectangle().size(CGSize(width: 44, height: 20)))
                 }
             }
-            .padding(.leading, 4)
-            .padding(.trailing, 32)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
 
-            // Pennant flag
-            Button { cyclePriority() } label: {
-                ZStack(alignment: .top) {
-                    Color.clear.frame(width: 44, height: 44)
-                    PennantShape()
-                        .fill(Color.forPriority(task.priority))
-                        .frame(width: 14, height: 22)
-                        .opacity(task.priority == "default" ? 0 : 1)
-                }
-            }
-            .buttonStyle(.plain)
-            .contentShape(Rectangle())
-            .sensoryFeedback(.selection, trigger: task.priority)
+            // Full-width separator — bypasses List's trailing inset gap
+            Rectangle()
+                .fill(Color.primary.opacity(0.08))
+                .frame(maxWidth: .infinity)
+                .frame(height: 0.5)
         }
         .opacity(task.isCompleted ? 0.35 : 1.0)
         .sensoryFeedback(.success, trigger: task.isCompleted)
+        .onChange(of: isFocused) { _, focused in
+            if focused { isEditing = true }
+        }
         .task(id: task.body) {
-            let bodyData = task.body
+            let bodyData    = task.body
             let drawingData = task.drawingData
             let attachments = task.attachments
             let result: Bool
@@ -108,17 +133,5 @@ struct TaskRowView: View {
             }
             hasRealContent = result
         }
-    }
-
-    private func cyclePriority() {
-        guard let currentIndex = priorityCycle.firstIndex(of: task.priority) else {
-            log.warning("cyclePriority: unknown priority '\(task.priority)' for '\(task.title)' — resetting to medium")
-            task.priority = "medium"
-            return
-        }
-        let nextIndex = (currentIndex + 1) % priorityCycle.count
-        let newPriority = priorityCycle[nextIndex]
-        log.info("cyclePriority: '\(task.title)' \(task.priority) → \(newPriority)")
-        task.priority = newPriority
     }
 }

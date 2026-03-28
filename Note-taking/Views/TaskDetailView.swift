@@ -36,6 +36,8 @@ struct TaskDetailView: View {
     @StateObject private var slashCoordinator = SlashCommandCoordinator()
 
     // Color palette state — shown automatically when text is selected
+    /// Persisted across palette appearances so the last-used mode (text color / highlight) is remembered.
+    @State private var paletteMode: ColorPaletteView.ColorMode = .fontColor
     @State private var showColorPalette = false
     /// The selected text's rect in global (window) coordinates — used to position
     /// the color palette right below the system "Copy / Paste" callout.
@@ -52,12 +54,12 @@ struct TaskDetailView: View {
         .init(id: "underline",       icon: "underline"),
         .init(id: "strikethrough",   icon: "strikethrough"),
         .init(id: "paperclip",       icon: "paperclip"),      // ← 5th position
+        .init(id: "pencil",          icon: "pencil.tip.crop.circle"), // ← 6th position
         .init(id: "text.alignleft",  icon: "text.alignleft"),
         .init(id: "text.aligncenter",icon: "text.aligncenter"),
         .init(id: "text.alignright", icon: "text.alignright"),
         .init(id: "list.bullet",     icon: "list.bullet"),
         .init(id: "tablecells",      icon: "tablecells"),
-        .init(id: "pencil",          icon: "pencil.tip.crop.circle"),
     ]
 
     struct EditorTool: Identifiable { let id: String; let icon: String }
@@ -164,6 +166,7 @@ struct TaskDetailView: View {
                         let localY = selectionGlobalRect.maxY - gf.minY + 60
                         if localY > 0 && localY < geo.size.height {
                             ColorPaletteView(
+                                mode: $paletteMode,
                                 onApplyHighlight: { color in
                                     applyColorAttribute(key: .backgroundColor,
                                                         value: color,
@@ -253,6 +256,10 @@ struct TaskDetailView: View {
                 if isDrawingMode {
                     Button {
                         withAnimation(.spring(response: 0.3)) { isDrawingMode = false }
+                        // Do NOT auto-refocus the text view here — a delayed becomeFirstResponder
+                        // would fire after the user re-enters drawing mode and steal first
+                        // responder from the canvas, making the PKToolPicker disappear.
+                        // The keyboard returns naturally when the user taps the text area.
                     } label: {
                         Text("Done").fontWeight(.semibold)
                     }
@@ -383,15 +390,23 @@ struct TaskDetailView: View {
         let safe    = NSRange(location: loc, length: len)
         let nsStr   = mutable.string as NSString
         var applied = 0
-        // Apply attribute character-by-character, skipping whitespace and newlines.
-        // This prevents coloured blocks appearing on blank lines and indented spaces.
+        // Apply attribute character-by-character.
+        // For font color: skip all whitespace (invisible on spaces anyway).
+        // For highlight: only skip newlines/line-endings — spaces between words must
+        // be included or the highlight appears broken with gaps.
         for i in safe.location ..< (safe.location + safe.length) {
             guard i < mutable.length else { break }
             let charRange = NSRange(location: i, length: 1)
             let scalar    = nsStr.character(at: i)
-            // Skip spaces, tabs, newlines, carriage returns, non-breaking spaces
-            if scalar == 0x20 || scalar == 0x09 || scalar == 0x0A ||
-               scalar == 0x0D || scalar == 0xA0 { continue }
+            if key == .foregroundColor {
+                // Font color — skip all whitespace
+                if scalar == 0x20 || scalar == 0x09 || scalar == 0x0A ||
+                   scalar == 0x0D || scalar == 0xA0 { continue }
+            } else {
+                // Highlight (backgroundColor) — only skip line endings to avoid
+                // coloured blocks on blank lines; spaces between words are included.
+                if scalar == 0x0A || scalar == 0x0D { continue }
+            }
             if let v = value {
                 mutable.addAttribute(key, value: v, range: charRange)
             } else {

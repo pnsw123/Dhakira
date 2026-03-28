@@ -6,7 +6,7 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "HomeView")
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
-    @Binding var isPresented: Bool
+    @Environment(\.dismiss) private var dismiss
 
     @Query(filter: #Predicate<Folder> { $0.parentFolder == nil }, sort: \Folder.createdAt)
     private var topLevelFolders: [Folder]
@@ -86,7 +86,7 @@ struct HomeView: View {
                     Spacer()
 
                     // > goes back to Tasks (the default page)
-                    Button(action: { isPresented = false }) {
+                    Button(action: { dismiss() }) {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(Color.primary)

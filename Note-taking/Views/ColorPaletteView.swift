@@ -9,13 +9,12 @@ import UIKit
 struct ColorPaletteView: View {
     enum ColorMode { case highlight, fontColor }
 
+    @Binding var mode: ColorMode
     let onApplyHighlight:  (UIColor) -> Void
     let onApplyFontColor:  (UIColor) -> Void
     let onRemoveFontColor: () -> Void
     let onRemoveHighlight: () -> Void
     let onDismiss:         () -> Void
-
-    @State private var mode: ColorMode = .fontColor
     @State private var activeFontColorName: String? = nil
     @State private var activeHighlightName: String? = nil
     @State private var showMoreColors = false

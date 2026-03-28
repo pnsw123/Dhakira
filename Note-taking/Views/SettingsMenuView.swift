@@ -31,8 +31,12 @@ struct SettingsMenuView: View {
                 Label("Sort By", systemImage: "arrow.up.arrow.down")
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
-                .font(.system(size: 22))
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.primary)
+                .frame(width: 36, height: 36)
+                .background(.regularMaterial, in: Circle())
+                .glassEffect(.regular.interactive(), in: .circle)
         }
     }
 }

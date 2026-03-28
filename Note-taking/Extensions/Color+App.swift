@@ -77,8 +77,8 @@ extension UIColor {
 
 extension Color {
     // MARK: - Priority colors
-    static let priorityHighColor = Color(red: 1.0, green: 0.0, blue: 0.0)         // #FF0000
-    static let priorityMediumColor = Color(red: 1.0, green: 0.404, blue: 0.0)      // #FF6700
+    static let priorityHighColor = Color(red: 0.910, green: 0.251, blue: 0.251)    // #E84040
+    static let priorityMediumColor = Color(red: 0.878, green: 0.439, blue: 0.125)  // #E07020
 
     static func forPriority(_ priority: String) -> Color {
         switch priority {
