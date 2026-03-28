@@ -1,6 +1,9 @@
 import SwiftUI
 import SwiftData
-import WebKit
+import RichTextKit
+import OSLog
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "TaskDetail")
 
 #if canImport(UIKit)
 import UIKit
@@ -14,19 +17,38 @@ import UniformTypeIdentifiers
 struct TaskDetailView: View {
     @Bindable var task: TaskItem
     @Environment(\.dismiss) private var dismiss
-    @State private var html: String = ""
+
+    // RichTextKit bindings — attributed string is the source of truth for RTF content
+    @State private var attributedText: NSAttributedString = NSAttributedString()
+    @StateObject private var richTextContext = RichTextContext()
+
     @State private var showToolbar = true
     @State private var isDrawingMode = false
     @State private var showAttachmentMenu = false
-    @State private var showFormattingBar = false
     @State private var showTablePicker = false
-    @State private var showExportMenu = false
 
-    // Attachment coordinator (holds UIKit delegates)
+    // Slash command menu state
+    @State private var showSlashMenu = false
+    @State private var slashCommands: [SlashCommand] = []
+
+    // Color palette state
+    @State private var showColorPalette = false
+
+    // MRU toolbar
+    @State private var toolbarItems: [EditorTool] = [
+        .init(id: "tablecells",    icon: "tablecells"),
+        .init(id: "paperclip",     icon: "paperclip"),
+        .init(id: "pencil",        icon: "pencil.tip.crop.circle"),
+        .init(id: "list.bullet",   icon: "list.bullet"),
+        .init(id: "bold",          icon: "bold"),
+        .init(id: "italic",        icon: "italic"),
+        .init(id: "underline",     icon: "underline"),
+        .init(id: "strikethrough", icon: "strikethrough"),
+    ]
+
+    struct EditorTool: Identifiable { let id: String; let icon: String }
+
     @State private var attachmentCoordinator = AttachmentCoordinator()
-
-    // Reference to WKWebView for export
-    @State private var editorWebView: WKWebView?
 
     private var formattedDate: String {
         let formatter = DateFormatter()
@@ -36,7 +58,6 @@ struct TaskDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Date — caption above title
             Text(formattedDate)
                 .font(.caption)
                 .foregroundStyle(Color.secondary)
@@ -44,7 +65,6 @@ struct TaskDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
 
-            // Title — always the largest text element on the page
             TextField("Untitled", text: $task.title, axis: .vertical)
                 .font(.system(size: 28, weight: .bold))
                 .lineLimit(1...4)
@@ -54,42 +74,95 @@ struct TaskDetailView: View {
 
             Divider().padding(.horizontal, 20)
 
-            // Content area — either rich text editor or drawing canvas
-            if isDrawingMode {
-                DrawingCanvasViewWithDoneButton(
-                    drawingData: $task.drawingData,
-                    onDone: { drawingImageData in
-                        exitDrawingMode(imageData: drawingImageData)
-                    }
+            ZStack(alignment: .topLeading) {
+                // Native RichTextKit editor (Issue #38)
+                NativeEditorView(
+                    attributedText: $attributedText,
+                    context: richTextContext
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                TipTapEditorView(html: $html, onWebViewReady: { wv in
-                    editorWebView = wv
-                })
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 4)
-            }
-
-            // Inline formatting bar (shown when Aa is active)
-            if showFormattingBar {
-                formattingBar
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
-            // Table grid picker overlay
-            if showTablePicker {
-                TableGridPickerView { rows, cols in
-                    insertTable(rows: rows, cols: cols)
-                    showTablePicker = false
-                } onDismiss: {
-                    showTablePicker = false
+                .onChange(of: attributedText) { _, newText in
+                    detectSlashCommand(in: newText)
                 }
+
+                if isDrawingMode || task.drawingData != nil {
+                    DrawingCanvasView(drawingData: $task.drawingData, isActive: $isDrawingMode)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .allowsHitTesting(isDrawingMode)
+                }
+
+                // Slash command menu — floats above keyboard (Issue #46)
+                if showSlashMenu && !slashCommands.isEmpty {
+                    VStack {
+                        Spacer()
+                        HStack(alignment: .bottom) {
+                            SlashCommandMenuView(
+                                commands: slashCommands,
+                                onSelect: { cmd in
+                                    applySlashCommand(cmd)
+                                },
+                                onDismiss: {
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        showSlashMenu = false
+                                    }
+                                }
+                            )
+                            .padding(.leading, 16)
+                            .padding(.bottom, 8)
+                            Spacer()
+                        }
+                    }
+                    .zIndex(20)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .animation(.easeInOut(duration: 0.15), value: showSlashMenu)
+                }
+
+                // Color palette — Issue #44
+                if showColorPalette {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            ColorPaletteView(
+                                onApplyHighlight: { color in
+                                    RichEditorCommands.applyHighlightColor(color, context: richTextContext)
+                                    withAnimation { showColorPalette = false }
+                                },
+                                onApplyFontColor: { color in
+                                    RichEditorCommands.applyTextColor(color, context: richTextContext)
+                                    withAnimation { showColorPalette = false }
+                                },
+                                onDismiss: { showColorPalette = false }
+                            )
+                            .padding(.trailing, 16)
+                            .padding(.bottom, 8)
+                        }
+                    }
+                    .zIndex(20)
+                    .transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Table grid picker (Issue #43)
+            if showTablePicker {
+                TableGridPickerView(
+                    onInsert: { rows, cols in
+                        let cursor = richTextContext.selectedRange.location
+                        RichEditorCommands.insertTable(
+                            rows: rows, cols: cols,
+                            attributedText: &attributedText,
+                            cursorLocation: cursor
+                        )
+                        showTablePicker = false
+                    },
+                    onDismiss: { showTablePicker = false }
+                )
                 .transition(.scale.combined(with: .opacity))
                 .zIndex(10)
             }
 
-            // Bottom toolbar — single swipeable row
             if showToolbar && !isDrawingMode {
                 editorToolbar
             }
@@ -110,81 +183,61 @@ struct TaskDetailView: View {
             }
 
             ToolbarItemGroup(placement: .confirmationAction) {
-                // Share / Export menu
-                Menu {
+                if isDrawingMode {
                     Button {
-                        shareTask()
+                        withAnimation(.spring(response: 0.3)) { isDrawingMode = false }
                     } label: {
-                        Label("Share", systemImage: "square.and.arrow.up")
+                        Text("Done").fontWeight(.semibold)
                     }
-                    Button {
-                        exportAsPDF()
+                } else {
+                    // Export menu (Issue #45 — native PDF + RTF)
+                    Menu {
+                        Button { shareTask() } label: {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        Button { exportAsPDF() } label: {
+                            Label("Export as PDF", systemImage: "doc.richtext")
+                        }
+                        Button { exportAsWord() } label: {
+                            Label("Export as Word", systemImage: "doc.text")
+                        }
                     } label: {
-                        Label("Export as PDF", systemImage: "doc.richtext")
+                        Image(systemName: "square.and.arrow.up")
                     }
-                    Button {
-                        exportAsWord()
-                    } label: {
-                        Label("Export as Word", systemImage: "doc.text")
-                    }
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                }
 
-                Button { showToolbar.toggle() } label: {
-                    Image(systemName: showToolbar ? "keyboard.chevron.compact.down" : "keyboard")
-                }
-
-                Button { toggleComplete() } label: {
-                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "checkmark.circle")
-                        .foregroundStyle(task.isCompleted ? Color.accentColor : Color.primary)
+                    Button { showToolbar.toggle() } label: {
+                        Image(systemName: showToolbar ? "keyboard.chevron.compact.down" : "keyboard")
+                    }
                 }
             }
         }
-        .sheet(isPresented: $showAttachmentMenu) {
-            attachmentSheet
+        .confirmationDialog("Add to Note", isPresented: $showAttachmentMenu, titleVisibility: .hidden) {
+            Button("Scan Text")             { attachmentCoordinator.scanText() }
+            Button("Scan Documents")        { attachmentCoordinator.scanDocuments() }
+            Button("Take Photo or Video")   { attachmentCoordinator.takePhotoOrVideo() }
+            Button("Choose Photo or Video") { attachmentCoordinator.choosePhotoOrVideo() }
+            Button("Record Audio")          { attachmentCoordinator.recordAudio() }
+            Button("Attach File")           { attachmentCoordinator.attachFile() }
+            Button("Cancel", role: .cancel) { }
         }
-        .background(attachmentCoordinator.presentationHooks(html: $html))
+        .background(attachmentCoordinator.presentationHooks(attributedText: $attributedText))
         .onAppear { loadBody() }
         .onDisappear { saveBody() }
     }
 
-    // MARK: - Swipeable toolbar (single row)
+    // MARK: - Toolbar (Issues #39–#43)
 
     private var editorToolbar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                toolbarButton("textformat") {
-                    withAnimation(.spring(response: 0.3)) {
-                        showFormattingBar.toggle()
+                ForEach(toolbarItems) { item in
+                    toolbarButton(item.icon) {
+                        handleToolbarTap(item.id)
                     }
-                }
-                toolbarButton("checklist") {
-                    sendEditorCommand("toggleTaskList")
-                }
-                toolbarButton("tablecells") {
-                    withAnimation(.spring(response: 0.3)) {
-                        showTablePicker.toggle()
-                    }
-                }
-                toolbarButton("paperclip") {
-                    showAttachmentMenu = true
-                }
-                toolbarButton("pencil.tip.crop.circle") {
-                    saveBody()
-                    withAnimation { isDrawingMode = true }
-                }
-                toolbarButton("list.bullet") {
-                    sendEditorCommand("toggleBulletList")
-                }
-                toolbarButton("bold") {
-                    sendEditorCommand("toggleBold")
-                }
-                toolbarButton("italic") {
-                    sendEditorCommand("toggleItalic")
                 }
             }
             .padding(.horizontal, 8)
+            .animation(.spring(response: 0.3), value: toolbarItems.map(\.id))
         }
         .frame(height: 52)
         .background(
@@ -194,6 +247,41 @@ struct TaskDetailView: View {
         )
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+    }
+
+    private func handleToolbarTap(_ id: String) {
+        switch id {
+        case "tablecells":
+            withAnimation(.spring(response: 0.3)) { showTablePicker.toggle() }
+        case "paperclip":
+            showAttachmentMenu = true
+        case "pencil":
+            saveBody()
+            showTablePicker = false
+            withAnimation(.spring(response: 0.35)) { isDrawingMode = true }
+        case "list.bullet":
+            RichEditorCommands.toggleBulletList(
+                attributedText: &attributedText,
+                selectedRange: richTextContext.selectedRange
+            )
+        case "bold":
+            RichEditorCommands.toggleBold(context: richTextContext)
+        case "italic":
+            RichEditorCommands.toggleItalic(context: richTextContext)
+        case "underline":
+            RichEditorCommands.toggleUnderline(context: richTextContext)
+        case "strikethrough":
+            RichEditorCommands.toggleStrikethrough(context: richTextContext)
+        default:
+            break
+        }
+        // Bubble used item to front (MRU)
+        withAnimation(.spring(response: 0.35)) {
+            if let idx = toolbarItems.firstIndex(where: { $0.id == id }), idx != 0 {
+                let tool = toolbarItems.remove(at: idx)
+                toolbarItems.insert(tool, at: 0)
+            }
+        }
     }
 
     private func toolbarButton(_ icon: String, action: @escaping () -> Void) -> some View {
@@ -206,216 +294,105 @@ struct TaskDetailView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Inline formatting bar (Aa popover)
+    // MARK: - Slash Command Detection + Application (Issue #46)
 
-    private var formattingBar: some View {
-        HStack(spacing: 0) {
-            formatButton("bold") { sendEditorCommand("toggleBold") }
-            formatButton("italic") { sendEditorCommand("toggleItalic") }
-            formatButton("underline") { sendEditorCommand("toggleUnderline") }
-            formatButton("strikethrough") { sendEditorCommand("toggleStrike") }
+    private func detectSlashCommand(in text: NSAttributedString) {
+        let cursor = richTextContext.selectedRange.location
+        let state = SlashCommandEngine.evaluate(text: text.string, cursorLocation: cursor)
+        withAnimation(.easeInOut(duration: 0.15)) {
+            showSlashMenu = state.isActive
+            slashCommands = state.filteredCommands
         }
-        .frame(height: 44)
-        .background(
-            Capsule().fill(.regularMaterial)
-                .shadow(color: Color.primary.opacity(0.1), radius: 6, y: 2)
-        )
-        .padding(.horizontal, 24)
-        .padding(.bottom, 4)
     }
 
-    private func formatButton(_ icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Color.primary)
-                .frame(maxWidth: .infinity, minHeight: 44)
-        }
-        .buttonStyle(.plain)
-    }
+    private func applySlashCommand(_ cmd: SlashCommand) {
+        let cursor = richTextContext.selectedRange.location
+        let state = SlashCommandEngine.evaluate(text: attributedText.string, cursorLocation: cursor)
 
-    // MARK: - Attachment sheet (ultraThinMaterial)
-
-    private var attachmentSheet: some View {
-        ZStack {
-            Color.clear.background(.ultraThinMaterial)
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                // Pull handle
-                Capsule()
-                    .fill(Color.secondary.opacity(0.3))
-                    .frame(width: 36, height: 5)
-                    .padding(.top, 10)
-                    .padding(.bottom, 16)
-
-                Text("Add to Note")
-                    .font(.headline)
-                    .padding(.bottom, 16)
-
-                VStack(spacing: 0) {
-                    attachmentOptionRow(icon: "text.viewfinder", title: "Scan Text", color: .orange) {
-                        showAttachmentMenu = false
-                        attachmentCoordinator.scanText()
-                    }
-                    Divider().padding(.leading, 58)
-                    attachmentOptionRow(icon: "doc.viewfinder", title: "Scan Documents", color: .blue) {
-                        showAttachmentMenu = false
-                        attachmentCoordinator.scanDocuments()
-                    }
-                    Divider().padding(.leading, 58)
-                    attachmentOptionRow(icon: "camera", title: "Take Photo or Video", color: .green) {
-                        showAttachmentMenu = false
-                        attachmentCoordinator.takePhotoOrVideo()
-                    }
-                    Divider().padding(.leading, 58)
-                    attachmentOptionRow(icon: "photo.on.rectangle", title: "Choose Photo or Video", color: .purple) {
-                        showAttachmentMenu = false
-                        attachmentCoordinator.choosePhotoOrVideo()
-                    }
-                    Divider().padding(.leading, 58)
-                    attachmentOptionRow(icon: "waveform", title: "Record Audio", color: .red) {
-                        showAttachmentMenu = false
-                        attachmentCoordinator.recordAudio()
-                    }
-                    Divider().padding(.leading, 58)
-                    attachmentOptionRow(icon: "doc", title: "Attach File", color: .gray) {
-                        showAttachmentMenu = false
-                        attachmentCoordinator.attachFile()
-                    }
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(.regularMaterial)
-                )
-                .padding(.horizontal, 16)
-
-                Button("Cancel") { showAttachmentMenu = false }
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
+        // Remove the '/' + filter text
+        if state.slashLocation >= 0 {
+            let deleteLen = cursor - state.slashLocation
+            if deleteLen > 0 {
+                let deleteRange = NSRange(location: state.slashLocation, length: deleteLen)
+                let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+                mutable.deleteCharacters(in: deleteRange)
+                attributedText = mutable
             }
         }
-        .presentationDetents([.height(520)])
-        .presentationBackground(.clear)
-    }
 
-    private func attachmentOptionRow(icon: String, title: String, color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(color)
-                        .frame(width: 32, height: 32)
-                    Image(systemName: icon)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Color.white)
-                }
-                Text(title)
-                    .font(.body)
-                    .foregroundStyle(Color.primary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(Color.secondary)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+        let newCursor = state.slashLocation >= 0 ? state.slashLocation : cursor
+        let selRange = NSRange(location: max(0, newCursor), length: 0)
+
+        // Apply the selected command
+        switch cmd.id {
+        case "text":
+            RichEditorCommands.applyBodyText(attributedText: &attributedText, selectedRange: selRange)
+        case "bulletList":
+            RichEditorCommands.toggleBulletList(attributedText: &attributedText, selectedRange: selRange)
+        case "todoList":
+            RichEditorCommands.insertChecklist(attributedText: &attributedText, cursorLocation: newCursor)
+        case "quote":
+            RichEditorCommands.applyBlockquote(attributedText: &attributedText, selectedRange: selRange)
+        case "heading1":
+            RichEditorCommands.applyHeading(.h1, attributedText: &attributedText, selectedRange: selRange)
+        case "heading2":
+            RichEditorCommands.applyHeading(.h2, attributedText: &attributedText, selectedRange: selRange)
+        case "heading3":
+            RichEditorCommands.applyHeading(.h3, attributedText: &attributedText, selectedRange: selRange)
+        case "table":
+            withAnimation(.spring(response: 0.3)) { showTablePicker = true }
+        case "colorGray":   RichEditorCommands.applyTextColor(UIColor(hex: "#8e8e93"), context: richTextContext)
+        case "colorOrange": RichEditorCommands.applyTextColor(UIColor(hex: "#ff6a00"), context: richTextContext)
+        case "colorBlue":   RichEditorCommands.applyTextColor(UIColor(hex: "#0a84ff"), context: richTextContext)
+        case "colorPurple": RichEditorCommands.applyTextColor(UIColor(hex: "#bf5af2"), context: richTextContext)
+        case "colorPink":   RichEditorCommands.applyTextColor(UIColor(hex: "#ff375f"), context: richTextContext)
+        case "colorBrown":  RichEditorCommands.applyTextColor(UIColor(hex: "#ac8e68"), context: richTextContext)
+        default: break
         }
-        .buttonStyle(.plain)
+
+        withAnimation(.easeInOut(duration: 0.15)) { showSlashMenu = false }
     }
 
-    // MARK: - Drawing mode exit
-
-    private func exitDrawingMode(imageData: Data?) {
-        withAnimation { isDrawingMode = false }
-        guard let data = imageData,
-              let image = UIImage(data: data),
-              let pngData = image.pngData() else { return }
-        let base64 = pngData.base64EncodedString()
-        let js = "insertImage('data:image/png;base64,\(base64)')"
-        editorWebView?.evaluateJavaScript(js, completionHandler: nil)
-    }
-
-    // MARK: - Table insert
-
-    private func insertTable(rows: Int, cols: Int) {
-        let js = "insertTable(\(rows), \(cols))"
-        editorWebView?.evaluateJavaScript(js, completionHandler: nil)
-    }
-
-    // MARK: - JS bridge helper
-
-    private func sendEditorCommand(_ command: String) {
-        editorWebView?.evaluateJavaScript("editorCommand('\(command)')", completionHandler: nil)
-    }
-
-    // MARK: - Export
+    // MARK: - Export (Issue #45 — native, no WKWebView)
 
     private func exportAsPDF() {
-        guard let webView = editorWebView else { return }
-        let config = WKPDFConfiguration()
-        webView.createPDF(configuration: config) { result in
-            switch result {
-            case .success(let data):
-                let tempURL = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("\(task.title.isEmpty ? "Note" : task.title).pdf")
-                try? data.write(to: tempURL)
-                DispatchQueue.main.async { presentShareSheet(items: [tempURL]) }
-            case .failure:
-                break
-            }
-        }
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let root = scene.windows.first?.rootViewController else { return }
+        NativeExportService.exportAsPDF(title: task.title, content: attributedText, from: root)
     }
 
     private func exportAsWord() {
-        editorWebView?.evaluateJavaScript("exportAsDocx()") { result, _ in
-            guard let base64 = result as? String,
-                  let data = Data(base64Encoded: base64) else { return }
-            let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(task.title.isEmpty ? "Note" : task.title).docx")
-            try? data.write(to: tempURL)
-            DispatchQueue.main.async { self.presentShareSheet(items: [tempURL]) }
-        }
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let root = scene.windows.first?.rootViewController else { return }
+        NativeExportService.exportAsRTF(title: task.title, content: attributedText, from: root)
     }
 
     private func shareTask() {
-        let text = "\(task.title)\n\n\(html)"
-        presentShareSheet(items: [text])
-    }
-
-    private func presentShareSheet(items: [Any]) {
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first?.rootViewController else { return }
-        let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        root.present(vc, animated: true)
+        NativeExportService.shareText(title: task.title, content: attributedText, from: root)
     }
 
-    // MARK: - Actions
+    // MARK: - Save / Load (RTF Data — Issue #38)
 
     private func loadBody() {
-        if let data = task.body, let s = String(data: data, encoding: .utf8) {
-            html = s
+        if let data = task.body, let loaded = data.attributedStringFromRTF() {
+            log.info("loadBody: loaded \(loaded.length) chars for task '\(task.title)'")
+            attributedText = loaded
+        } else {
+            log.info("loadBody: no body stored for task '\(task.title)'")
         }
     }
 
     private func saveBody() {
-        let stripped = html
-            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "&[a-zA-Z0-9#]+;", with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        task.body = stripped.isEmpty ? nil : html.data(using: .utf8)
-    }
-
-    private func toggleComplete() {
-        withAnimation {
-            task.isCompleted.toggle()
-            task.completedAt = task.isCompleted ? Date() : nil
+        if attributedText.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            log.info("saveBody: empty — clearing body for task '\(task.title)'")
+            task.body = nil
+        } else if let data = attributedText.rtfData() {
+            log.info("saveBody: saved \(data.count) bytes for task '\(task.title)'")
+            task.body = data
+        } else {
+            log.error("saveBody: RTF conversion failed for task '\(task.title)'")
         }
     }
 }
@@ -478,10 +455,6 @@ struct TableGridPickerView: View {
 
 @Observable
 final class AttachmentCoordinator: NSObject {
-    // Used to inject the html binding for image insertion
-    private var insertImageCallback: ((String) -> Void)?
-
-    // State flags drive UIKit presenters
     var presentPhotoPickerCamera = false
     var presentPhotoPickerLibrary = false
     var presentDocumentPicker = false
@@ -489,68 +462,125 @@ final class AttachmentCoordinator: NSObject {
     var presentDataScanner = false
     var presentAudioRecorder = false
 
-    func presentationHooks(html: Binding<String>) -> some View {
-        AttachmentPresenters(coordinator: self, html: html)
+    func presentationHooks(attributedText: Binding<NSAttributedString>) -> some View {
+        AttachmentPresenters(coordinator: self, attributedText: attributedText)
     }
 
-    func scanText() { presentDataScanner = true }
-    func scanDocuments() { presentDocumentScanner = true }
-    func takePhotoOrVideo() { presentPhotoPickerCamera = true }
-    func choosePhotoOrVideo() { presentPhotoPickerLibrary = true }
-    func recordAudio() { presentAudioRecorder = true }
-    func attachFile() { presentDocumentPicker = true }
+    func scanText()             { presentDataScanner = true }
+    func scanDocuments()        { presentDocumentScanner = true }
+    func takePhotoOrVideo()     { presentPhotoPickerCamera = true }
+    func choosePhotoOrVideo()   { presentPhotoPickerLibrary = true }
+    func recordAudio()          { presentAudioRecorder = true }
+    func attachFile()           { presentDocumentPicker = true }
 }
 
-// MARK: - AttachmentPresenters (hidden presenter bridge)
+// MARK: - AttachmentPresenters
 
 struct AttachmentPresenters: View {
     @Bindable var coordinator: AttachmentCoordinator
-    @Binding var html: String
+    @Binding var attributedText: NSAttributedString
 
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
             .sheet(isPresented: $coordinator.presentPhotoPickerLibrary) {
-                PhotoPickerView { imageData in
-                    appendImageToHTML(imageData: imageData)
-                }
+                PhotoPickerView { data in appendImage(data) }
             }
             .fullScreenCover(isPresented: $coordinator.presentPhotoPickerCamera) {
-                CameraPickerView { imageData in
-                    appendImageToHTML(imageData: imageData)
-                }
+                CameraPickerView { data in appendImage(data) }
             }
             .sheet(isPresented: $coordinator.presentDocumentPicker) {
                 DocumentFilePickerView { url in
-                    // Attach file as a link
-                    let name = url.lastPathComponent
-                    html += "<p><a href=\"\(url.absoluteString)\">\(name)</a></p>"
+                    let link = NSAttributedString(
+                        string: url.lastPathComponent,
+                        attributes: [.link: url, .font: UIFont.preferredFont(forTextStyle: .body)]
+                    )
+                    let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+                    mutable.append(NSAttributedString(string: "\n"))
+                    mutable.append(link)
+                    attributedText = mutable
                 }
             }
             .sheet(isPresented: $coordinator.presentDocumentScanner) {
                 DocumentScannerView { images in
-                    for img in images {
-                        if let data = img.pngData() {
-                            appendImageToHTML(imageData: data)
-                        }
-                    }
+                    for img in images { if let d = img.pngData() { appendImage(d) } }
                 }
             }
             .sheet(isPresented: $coordinator.presentAudioRecorder) {
-                AudioRecorderView { audioURL in
-                    let name = audioURL.lastPathComponent
-                    html += "<p>[Audio: \(name)]</p>"
+                AudioRecorderView { url in
+                    let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+                    mutable.append(NSAttributedString(string: "\n[Audio: \(url.lastPathComponent)]"))
+                    attributedText = mutable
+                }
+            }
+            .sheet(isPresented: $coordinator.presentDataScanner) {
+                DataScannerWrapperView { text in
+                    let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+                    mutable.append(NSAttributedString(string: "\n" + text))
+                    attributedText = mutable
                 }
             }
     }
 
-    private func appendImageToHTML(imageData: Data) {
-        let base64 = imageData.base64EncodedString()
-        html += "<img src=\"data:image/png;base64,\(base64)\" style=\"max-width:100%;border-radius:8px;margin-top:8px;\" />"
+    private func appendImage(_ data: Data) {
+        guard let image = UIImage(data: data) else { return }
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        let maxWidth: CGFloat = 280
+        if image.size.width > maxWidth {
+            let scale = maxWidth / image.size.width
+            attachment.bounds = CGRect(x: 0, y: 0, width: maxWidth, height: image.size.height * scale)
+        }
+        let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+        mutable.append(NSAttributedString(string: "\n"))
+        mutable.append(NSAttributedString(attachment: attachment))
+        attributedText = mutable
     }
 }
 
-// MARK: - PhotoPickerView (PHPickerViewController)
+// MARK: - DataScannerWrapperView (VisionKit live text capture)
+
+struct DataScannerWrapperView: UIViewControllerRepresentable {
+    let onScan: (String) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onScan: onScan) }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        guard DataScannerViewController.isSupported && DataScannerViewController.isAvailable else {
+            return UIViewController()
+        }
+        let scanner = DataScannerViewController(
+            recognizedDataTypes: [.text()],
+            qualityLevel: .balanced,
+            recognizesMultipleItems: false,
+            isHighlightingEnabled: true
+        )
+        scanner.delegate = context.coordinator
+        context.coordinator.scanner = scanner
+        try? scanner.startScanning()
+        return scanner
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+
+    class Coordinator: NSObject, DataScannerViewControllerDelegate {
+        let onScan: (String) -> Void
+        weak var scanner: DataScannerViewController?
+
+        init(onScan: @escaping (String) -> Void) { self.onScan = onScan }
+
+        func dataScanner(_ dataScanner: DataScannerViewController, didTapOn item: RecognizedItem) {
+            if case .text(let text) = item {
+                DispatchQueue.main.async {
+                    self.onScan(text.transcript)
+                    dataScanner.dismiss(animated: true)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - PhotoPickerView
 
 struct PhotoPickerView: UIViewControllerRepresentable {
     let onPick: (Data) -> Void
@@ -584,7 +614,7 @@ struct PhotoPickerView: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - CameraPickerView (UIImagePickerController)
+// MARK: - CameraPickerView
 
 struct CameraPickerView: UIViewControllerRepresentable {
     let onCapture: (Data) -> Void
@@ -616,7 +646,7 @@ struct CameraPickerView: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - DocumentFilePickerView (UIDocumentPickerViewController)
+// MARK: - DocumentFilePickerView
 
 struct DocumentFilePickerView: UIViewControllerRepresentable {
     let onPick: (URL) -> Void
@@ -641,7 +671,7 @@ struct DocumentFilePickerView: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - DocumentScannerView (VNDocumentCameraViewController)
+// MARK: - DocumentScannerView
 
 struct DocumentScannerView: UIViewControllerRepresentable {
     let onScan: ([UIImage]) -> Void
@@ -694,16 +724,14 @@ struct AudioRecorderView: View {
                     .frame(width: 36, height: 5)
                     .padding(.top, 10)
 
-                Text("Record Audio")
-                    .font(.headline)
+                Text("Record Audio").font(.headline)
 
                 Image(systemName: isRecording ? "waveform.circle.fill" : "mic.circle")
                     .font(.system(size: 72))
                     .foregroundStyle(isRecording ? Color.red : Color.accentColor)
                     .symbolEffect(.pulse, isActive: isRecording)
 
-                Text(isRecording ? "Recording…" : "Tap to start")
-                    .foregroundStyle(Color.secondary)
+                Text(isRecording ? "Recording…" : "Tap to start").foregroundStyle(Color.secondary)
 
                 Button(isRecording ? "Stop" : "Record") {
                     isRecording ? stopRecording() : startRecording()
@@ -711,15 +739,11 @@ struct AudioRecorderView: View {
                 .buttonStyle(.borderedProminent)
 
                 if let url = audioURL {
-                    Button("Insert Audio") {
-                        onSave(url)
-                        dismiss()
-                    }
-                    .buttonStyle(.bordered)
+                    Button("Insert Audio") { onSave(url); dismiss() }
+                        .buttonStyle(.bordered)
                 }
 
-                Button("Cancel") { dismiss() }
-                    .foregroundStyle(Color.secondary)
+                Button("Cancel") { dismiss() }.foregroundStyle(Color.secondary)
             }
             .padding(32)
         }

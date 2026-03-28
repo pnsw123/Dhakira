@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AA000001AAAA000100000001 /* MarkupEditor in Frameworks */ = {isa = PBXBuildFile; productRef = AA000002AAAA000200000002 /* MarkupEditor */; };
+		AA000001AAAA000100000001 /* RichTextKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA000002AAAA000200000002 /* RichTextKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,7 +30,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA000001AAAA000100000001 /* MarkupEditor in Frameworks */,
+				AA000001AAAA000100000001 /* RichTextKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,7 +76,7 @@
 			);
 			name = "Note-taking";
 			packageProductDependencies = (
-				AA000002AAAA000200000002 /* MarkupEditor */,
+				AA000002AAAA000200000002 /* RichTextKit */,
 			);
 			productName = "Note-taking";
 			productReference = 38EED47A2F75B1CB0069B470 /* Note-taking.app */;
@@ -107,7 +107,7 @@
 			mainGroup = 38EED4712F75B1CB0069B470;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				AA000003AAAA000300000003 /* XCRemoteSwiftPackageReference "MarkupEditor" */,
+				AA000003AAAA000300000003 /* XCRemoteSwiftPackageReference "RichTextKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 38EED47B2F75B1CB0069B470 /* Products */;
@@ -368,21 +368,21 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		AA000003AAAA000300000003 /* XCRemoteSwiftPackageReference "MarkupEditor" */ = {
+		AA000003AAAA000300000003 /* XCRemoteSwiftPackageReference "RichTextKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/stevengharris/MarkupEditor";
+			repositoryURL = "https://github.com/danielsaidi/RichTextKit";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.6.1;
+				minimumVersion = 0.9.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		AA000002AAAA000200000002 /* MarkupEditor */ = {
+		AA000002AAAA000200000002 /* RichTextKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = AA000003AAAA000300000003 /* XCRemoteSwiftPackageReference "MarkupEditor" */;
-			productName = MarkupEditor;
+			package = AA000003AAAA000300000003 /* XCRemoteSwiftPackageReference "RichTextKit" */;
+			productName = RichTextKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

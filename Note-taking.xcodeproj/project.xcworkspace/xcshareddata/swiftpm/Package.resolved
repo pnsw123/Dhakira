@@ -1,13 +1,13 @@
 {
-  "originHash" : "07fe1f9f270369bfae92632ba3fade5ebbe757bd1467439d1734b6cef974f8ab",
+  "originHash" : "ad8ed9eba94f445c6483be8dcc629f3992eebe5d17fe6e4d39bf97756046289f",
   "pins" : [
     {
-      "identity" : "markupeditor",
+      "identity" : "richtextkit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/stevengharris/MarkupEditor",
+      "location" : "https://github.com/danielsaidi/RichTextKit",
       "state" : {
-        "revision" : "fd153bff3c6b69fce4d0f98ca7fad30b3f19583f",
-        "version" : "0.9.0"
+        "revision" : "e08e31b9d48f2f390f2909f5364109e93b11dede",
+        "version" : "0.9.9"
       }
     }
   ],
