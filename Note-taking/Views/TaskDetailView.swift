@@ -250,6 +250,7 @@ struct TaskDetailView: View {
             if showToolbar && !isDrawingMode {
                 ZStack(alignment: .bottom) {
                     editorToolbar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
 
                     // Table grid picker — floats above toolbar (Issue #43)
                     if showTablePicker {
@@ -289,7 +290,7 @@ struct TaskDetailView: View {
             ToolbarItemGroup(placement: .confirmationAction) {
                 if isDrawingMode {
                     Button {
-                        withAnimation(.spring(response: 0.3)) { isDrawingMode = false }
+                        withAnimation(.easeInOut(duration: 0.35)) { isDrawingMode = false }
                         // Re-focus the text editor so the keyboard area is tappable again.
                         // Delay must be longer than the animation to avoid stealing first
                         // responder from PKCanvasView if user re-enters drawing quickly.
@@ -406,7 +407,7 @@ struct TaskDetailView: View {
             richTextView?.resignFirstResponder()
             saveBody()
             showTablePicker = false
-            isDrawingMode = true
+            withAnimation(.easeInOut(duration: 0.35)) { isDrawingMode = true }
             // Show PKToolPicker explicitly — UIKit needs a moment after
             // the SwiftUI state change for the canvas to be interactable.
             showDrawingToolPicker()
@@ -702,6 +703,38 @@ struct TaskDetailView: View {
             tv.attributedText = attributedText
             tv.becomeFirstResponder()
             tv.selectedRange = NSRange(location: newCursor, length: 0)
+
+            // Set typing attributes so future keystrokes inherit the block style.
+            // This is critical when the slash was on an empty line — the paragraph has
+            // no text to format yet, but the user expects Notion-like: "the block IS a heading."
+            switch cmd.id {
+            case "heading1":
+                tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h1.font
+            case "heading2":
+                tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h2.font
+            case "heading3":
+                tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h3.font
+            case "text":
+                tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
+                tv.typingAttributes.removeValue(forKey: .paragraphStyle)
+                tv.typingAttributes.removeValue(forKey: .foregroundColor)
+            case "bulletList":
+                let bulletList = NSTextList(markerFormat: .disc, options: 0)
+                let bulletStyle = NSMutableParagraphStyle()
+                bulletStyle.textLists = [bulletList]
+                bulletStyle.firstLineHeadIndent = 15
+                bulletStyle.headIndent = 30
+                tv.typingAttributes[.paragraphStyle] = bulletStyle
+            case "quote":
+                let quoteStyle = NSMutableParagraphStyle()
+                quoteStyle.firstLineHeadIndent = 20
+                quoteStyle.headIndent = 20
+                quoteStyle.tailIndent = -20
+                tv.typingAttributes[.paragraphStyle] = quoteStyle
+                tv.typingAttributes[.foregroundColor] = UIColor.secondaryLabel
+            default:
+                break
+            }
         }
 
         // Table picker: open after TV is updated so picker appears over clean text

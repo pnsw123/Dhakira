@@ -16,3 +16,7 @@ For new features and projects, follow this sequential pipeline. Each step requir
 | 5 | `/improve-codebase-architecture` | Clean up — find and fix shallow modules | Step 4 | 
 
 when we get the issues fixed, i want you to push them into GitHub if we don't push the solved issues; otherwise, all of our effort will be gone. 
+
+Big constraint: this project uses Apple framework, Apple resources, Apple code, Apple APIs intensively. You don't need to remake the function if it's already found on Apple documentation, because that saves time, it's a better approach, and it's well engineered. You don't know shit and just rely on Apple when it comes to Apple stuff, especially like native features, because Apple does it; you just have to integrate it. 
+
+I really don't know my technical background as much, right? Don't try to be nice to me, all right? I'm not saying be a bitch, but if you say, "Oh, I think your idea is great," or you don't challenge it, or you're not making sense to me, then the entire project will collapse. If my logic isn't the best version of it and there are yet more ideas to come, then I would love to hear them 
