@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+import OSLog
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "TaskRow")
 
 /// Pennant shape — rectangle with a V-notch at the bottom
 struct PennantShape: Shape {
@@ -22,14 +25,11 @@ struct TaskRowView: View {
 
     private let priorityCycle = ["default", "medium", "high"]
 
-    /// True if task has real content beyond title and creation date
+    /// True if task has real content beyond title and creation date (Issue #53 — uses NoteBodyCodec)
     private var hasRealContent: Bool {
         if let bodyData = task.body,
-           let bodyText = String(data: bodyData, encoding: .utf8) {
-            let stripped = bodyText
-                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                .replacingOccurrences(of: "&[a-zA-Z0-9#]+;", with: "", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+           case .success(let bodyAttr) = NoteBodyCodec.decode(bodyData) {
+            let stripped = bodyAttr.string.trimmingCharacters(in: .whitespacesAndNewlines)
             if !stripped.isEmpty { return true }
         }
         if let drawingData = task.drawingData, !drawingData.isEmpty { return true }
@@ -104,10 +104,13 @@ struct TaskRowView: View {
 
     private func cyclePriority() {
         guard let currentIndex = priorityCycle.firstIndex(of: task.priority) else {
+            log.warning("cyclePriority: unknown priority '\(task.priority)' for '\(task.title)' — resetting to medium")
             task.priority = "medium"
             return
         }
         let nextIndex = (currentIndex + 1) % priorityCycle.count
-        task.priority = priorityCycle[nextIndex]
+        let newPriority = priorityCycle[nextIndex]
+        log.info("cyclePriority: '\(task.title)' \(task.priority) → \(newPriority)")
+        task.priority = newPriority
     }
 }

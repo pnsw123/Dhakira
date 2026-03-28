@@ -11,8 +11,6 @@ struct SlashCommandMenuView: View {
     let onSelect: (SlashCommand) -> Void
     let onDismiss: () -> Void
 
-    @State private var selectedIndex: Int = 0
-
     private var sections: [(String, [SlashCommand])] {
         var result: [(String, [SlashCommand])] = []
         var seen: [String] = []
@@ -41,9 +39,8 @@ struct SlashCommandMenuView: View {
                         .padding(.top, 10)
                         .padding(.bottom, 4)
 
-                    ForEach(Array(items.enumerated()), id: \.element.id) { _, cmd in
-                        let globalIdx = commands.firstIndex(where: { $0.id == cmd.id }) ?? 0
-                        commandRow(cmd, isSelected: globalIdx == selectedIndex)
+                    ForEach(items, id: \.id) { cmd in
+                        commandRow(cmd, isSelected: false)
                             .onTapGesture {
                                 onSelect(cmd)
                             }
@@ -91,7 +88,7 @@ struct SlashCommandMenuView: View {
         .padding(.vertical, 6)
         .background(
             isSelected
-                ? Color(red: 10/255, green: 132/255, blue: 255/255).opacity(0.13)
+                ? Color(uiColor: NamedColor.find(id: "colorBlue")?.uiColor ?? UIColor(hex: "#0A84FF")).opacity(0.13)
                 : Color.clear
         )
         .contentShape(Rectangle())

@@ -2,21 +2,16 @@ import SwiftUI
 import SwiftData
 import OSLog
 
-private let log = Logger(subsystem: "notes.Note-taking", category: "App")
-
 @main
 struct Note_takingApp: App {
     let container: ModelContainer
 
+    private let log = Logger(subsystem: "notes.Note-taking", category: "App")
+
     init() {
-        log.info("App init — building ModelContainer")
-        let schema = Schema([TaskItem.self, Attachment.self, Folder.self, TaskList.self])
-        let config = ModelConfiguration(
-            schema: schema,
-            cloudKitDatabase: .automatic
-        )
+        log.info("App init — building ModelContainer via AppSchemaBuilder")
         do {
-            container = try ModelContainer(for: schema, configurations: [config])
+            container = try AppSchemaBuilder.makeContainer()
             log.info("ModelContainer ready ✓")
         } catch {
             log.critical("ModelContainer FAILED to init: \(error.localizedDescription)")
@@ -28,116 +23,111 @@ struct Note_takingApp: App {
         WindowGroup {
             ContentView()
                 .task {
-                    await cleanupEmptyTasks()
-                    await seedDefaultFolderIfNeeded()
-                    await cleanup30DayDeletedTasks()
+                    // Run all startup work on a background actor so the UI renders immediately.
+                    let worker = StartupWorker(modelContainer: container)
+                    await worker.run()
                 }
         }
         .modelContainer(container)
     }
+}
 
-    @MainActor
-    private func cleanupEmptyTasks() async {
-        log.debug("cleanupEmptyTasks: scanning for empty-title tasks")
-        let context = container.mainContext
-        do {
-            var descriptor = FetchDescriptor<TaskItem>()
-            descriptor.predicate = #Predicate<TaskItem> { task in
-                task.title == ""
-            }
-            let emptyTasks = try context.fetch(descriptor)
-            guard !emptyTasks.isEmpty else {
-                log.debug("cleanupEmptyTasks: nothing to clean")
-                return
-            }
-            log.info("cleanupEmptyTasks: deleting \(emptyTasks.count) empty task(s)")
-            for task in emptyTasks {
-                context.delete(task)
-            }
-            try context.save()
-            log.info("cleanupEmptyTasks: done ✓")
-        } catch {
-            log.error("cleanupEmptyTasks FAILED: \(error.localizedDescription)")
-        }
+// MARK: - StartupWorker
+
+/// Runs one-time and recurring startup maintenance on a background actor,
+/// keeping the main thread (and the UI) completely unblocked.
+@ModelActor
+private actor StartupWorker {
+
+    private let log = Logger(subsystem: "notes.Note-taking", category: "StartupWorker")
+
+    func run() {
+        cleanupEmptyTasks()
+        seedDefaultFolderIfNeeded()
+        cleanup30DayDeletedTasks()
     }
 
-    /// Seeds a Default Folder + "Tasks" TaskList on first launch (runs only once).
-    /// Migrates any orphaned TaskItems (no taskList) into the default TaskList.
-    @MainActor
-    private func seedDefaultFolderIfNeeded() async {
-        let context = container.mainContext
-        do {
-            let folderDescriptor = FetchDescriptor<Folder>()
-            let existingFolders = try context.fetch(folderDescriptor)
-            guard existingFolders.isEmpty else {
-                log.debug("seedDefaultFolder: folders already exist, skipping seed")
-                // Still migrate orphaned tasks if needed
-                await migrateOrphanedTasks(context: context)
-                return
-            }
+    // MARK: Cleanup empty tasks
 
+    private func cleanupEmptyTasks() {
+        log.debug("cleanupEmptyTasks: scanning for empty-title tasks")
+        let descriptor = FetchDescriptor<TaskItem>(
+            predicate: #Predicate<TaskItem> { $0.title == "" }
+        )
+        guard let emptyTasks = try? modelContext.fetch(descriptor), !emptyTasks.isEmpty else {
+            log.debug("cleanupEmptyTasks: nothing to clean")
+            return
+        }
+        log.info("cleanupEmptyTasks: deleting \(emptyTasks.count) empty task(s)")
+        emptyTasks.forEach { modelContext.delete($0) }
+        try? modelContext.save()
+        log.info("cleanupEmptyTasks: done ✓")
+    }
+
+    // MARK: Seed default folder
+
+    private func seedDefaultFolderIfNeeded() {
+        guard let existingFolders = try? modelContext.fetch(FetchDescriptor<Folder>()) else { return }
+
+        if existingFolders.isEmpty {
             log.info("seedDefaultFolder: seeding Default Folder + Tasks TaskList")
             let defaultFolder = Folder(name: "Default")
-            context.insert(defaultFolder)
-
+            modelContext.insert(defaultFolder)
             let defaultTaskList = TaskList(name: "Tasks", folder: defaultFolder)
-            context.insert(defaultTaskList)
-
-            try context.save()
+            modelContext.insert(defaultTaskList)
+            try? modelContext.save()
             log.info("seedDefaultFolder: done ✓")
-
-            await migrateOrphanedTasks(context: context)
-        } catch {
-            log.error("seedDefaultFolder FAILED: \(error.localizedDescription)")
+        } else {
+            log.debug("seedDefaultFolder: folders already exist, skipping seed")
         }
+
+        migrateOrphanedTasks()
     }
 
-    /// Assigns any TaskItems without a taskList to the first available TaskList.
-    @MainActor
-    private func migrateOrphanedTasks(context: ModelContext) async {
-        do {
-            var orphanDescriptor = FetchDescriptor<TaskItem>()
-            orphanDescriptor.predicate = #Predicate<TaskItem> { task in
-                task.taskList == nil
-            }
-            let orphans = try context.fetch(orphanDescriptor)
-            guard !orphans.isEmpty else { return }
+    // MARK: Migrate orphaned tasks
 
-            var listDescriptor = FetchDescriptor<TaskList>()
-            listDescriptor.fetchLimit = 1
-            let lists = try context.fetch(listDescriptor)
-            guard let defaultList = lists.first else { return }
+    private func migrateOrphanedTasks() {
+        let orphanDescriptor = FetchDescriptor<TaskItem>(
+            predicate: #Predicate<TaskItem> { $0.taskList == nil }
+        )
+        guard let orphans = try? modelContext.fetch(orphanDescriptor), !orphans.isEmpty else { return }
 
-            log.info("migrateOrphanedTasks: migrating \(orphans.count) tasks to '\(defaultList.name)'")
-            for task in orphans {
-                task.taskList = defaultList
-            }
-            try context.save()
-        } catch {
-            log.error("migrateOrphanedTasks FAILED: \(error.localizedDescription)")
-        }
+        var listDescriptor = FetchDescriptor<TaskList>()
+        listDescriptor.fetchLimit = 1
+        guard let lists = try? modelContext.fetch(listDescriptor),
+              let defaultList = lists.first else { return }
+
+        log.info("migrateOrphanedTasks: migrating \(orphans.count) tasks to '\(defaultList.name)'")
+        orphans.forEach { $0.taskList = defaultList }
+        try? modelContext.save()
     }
 
-    /// Permanently deletes tasks soft-deleted more than 30 days ago.
-    @MainActor
-    private func cleanup30DayDeletedTasks() async {
-        let context = container.mainContext
+    // MARK: Purge 30-day deleted tasks
+
+    private func cleanup30DayDeletedTasks() {
         let cutoff = Date().addingTimeInterval(-30 * 24 * 60 * 60)
-        do {
-            var descriptor = FetchDescriptor<TaskItem>()
-            descriptor.predicate = #Predicate<TaskItem> { task in
-                task.isDeleted == true && task.deletedAt != nil
-            }
-            let deletedTasks = try context.fetch(descriptor)
-            let toRemove = deletedTasks.filter { ($0.deletedAt ?? Date()) < cutoff }
-            guard !toRemove.isEmpty else { return }
-            log.info("cleanup30DayDeletedTasks: permanently removing \(toRemove.count) expired task(s)")
-            for task in toRemove {
-                context.delete(task)
-            }
-            try context.save()
-        } catch {
-            log.error("cleanup30DayDeletedTasks FAILED: \(error.localizedDescription)")
+        let descriptor = FetchDescriptor<TaskItem>(
+            predicate: #Predicate<TaskItem> { $0.isDeleted == true }
+        )
+        guard let deletedTasks = try? modelContext.fetch(descriptor), !deletedTasks.isEmpty else { return }
+
+        // Stamp any orphaned deleted tasks that are missing a deletedAt timestamp
+        var needsSave = false
+        for task in deletedTasks where task.deletedAt == nil {
+            task.deletedAt = Date()
+            needsSave = true
         }
+        if needsSave {
+            log.info("cleanup30DayDeletedTasks: stamped \(deletedTasks.filter { $0.deletedAt != nil }.count) orphaned task(s) with deletedAt")
+        }
+
+        let toRemove = deletedTasks.filter { ($0.deletedAt ?? Date()) < cutoff }
+        guard !toRemove.isEmpty else {
+            if needsSave { try? modelContext.save() }
+            return
+        }
+        log.info("cleanup30DayDeletedTasks: permanently removing \(toRemove.count) expired task(s)")
+        toRemove.forEach { modelContext.delete($0) }
+        try? modelContext.save()
     }
 }

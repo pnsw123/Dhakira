@@ -1,5 +1,8 @@
 import Foundation
 import UIKit
+import OSLog
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "SlashCommandEngine")
 
 // MARK: - SlashCommand model
 
@@ -10,26 +13,27 @@ struct SlashCommand: Identifiable, Equatable {
     let iconText: String
     let iconColor: UIColor
 
-    static let all: [SlashCommand] = [
-        // Basic Blocks
-        SlashCommand(id: "text",         section: "Basic Blocks", label: "Text",         iconText: "T",   iconColor: .label),
-        SlashCommand(id: "bulletList",   section: "Basic Blocks", label: "Bulleted List", iconText: "•",  iconColor: .label),
-        SlashCommand(id: "todoList",     section: "Basic Blocks", label: "To-do List",   iconText: "✓",   iconColor: .label),
-        SlashCommand(id: "quote",        section: "Basic Blocks", label: "Quote",        iconText: "\"",  iconColor: .label),
-        // Headings
-        SlashCommand(id: "heading1",     section: "Headings",     label: "Heading 1",    iconText: "H1",  iconColor: .label),
-        SlashCommand(id: "heading2",     section: "Headings",     label: "Heading 2",    iconText: "H2",  iconColor: .label),
-        SlashCommand(id: "heading3",     section: "Headings",     label: "Heading 3",    iconText: "H3",  iconColor: .label),
-        // Media
-        SlashCommand(id: "table",        section: "Media",        label: "Table",        iconText: "Tbl", iconColor: .label),
-        // Colors
-        SlashCommand(id: "colorGray",    section: "Colors",       label: "Gray",         iconText: "A",   iconColor: UIColor(hex: "#8e8e93")),
-        SlashCommand(id: "colorOrange",  section: "Colors",       label: "Orange",       iconText: "A",   iconColor: UIColor(hex: "#ff6a00")),
-        SlashCommand(id: "colorBlue",    section: "Colors",       label: "Blue",         iconText: "A",   iconColor: UIColor(hex: "#0a84ff")),
-        SlashCommand(id: "colorPurple",  section: "Colors",       label: "Purple",       iconText: "A",   iconColor: UIColor(hex: "#bf5af2")),
-        SlashCommand(id: "colorPink",    section: "Colors",       label: "Pink",         iconText: "A",   iconColor: UIColor(hex: "#ff375f")),
-        SlashCommand(id: "colorBrown",   section: "Colors",       label: "Brown",        iconText: "A",   iconColor: UIColor(hex: "#ac8e68")),
-    ]
+    static let all: [SlashCommand] = {
+        var commands: [SlashCommand] = [
+            // Basic Blocks
+            SlashCommand(id: "text",       section: "Basic Blocks", label: "Text",         iconText: "T",   iconColor: .label),
+            SlashCommand(id: "bulletList", section: "Basic Blocks", label: "Bulleted List", iconText: "•",  iconColor: .label),
+            SlashCommand(id: "todoList",   section: "Basic Blocks", label: "To-do List",   iconText: "✓",   iconColor: .label),
+            SlashCommand(id: "quote",      section: "Basic Blocks", label: "Quote",        iconText: "\"",  iconColor: .label),
+            // Headings
+            SlashCommand(id: "heading1",   section: "Headings",     label: "Heading 1",    iconText: "H1",  iconColor: .label),
+            SlashCommand(id: "heading2",   section: "Headings",     label: "Heading 2",    iconText: "H2",  iconColor: .label),
+            SlashCommand(id: "heading3",   section: "Headings",     label: "Heading 3",    iconText: "H3",  iconColor: .label),
+            // Media
+            SlashCommand(id: "table",      section: "Media",        label: "Table",        iconText: "Tbl", iconColor: .label),
+        ]
+        // Colors — generated from NamedColor.forEditor (single source of truth)
+        let colorCommands = NamedColor.forEditor.map { nc in
+            SlashCommand(id: nc.id, section: "Colors", label: nc.label, iconText: "A", iconColor: nc.uiColor)
+        }
+        commands.append(contentsOf: colorCommands)
+        return commands
+    }()
 }
 
 // MARK: - SlashCommandEngine
@@ -52,30 +56,33 @@ struct SlashCommandEngine {
         }
 
         let nsText = text as NSString
-        // Search backward from cursor for a '/' on the same line
+        // Search backward from cursor for a '/' on the same line.
+        // Use direct unichar (UInt16) literals to avoid any UnicodeScalar conversion issues.
         var slashLoc = -1
         var idx = cursorLocation - 1
-        let slashCharVal = Character("/").asciiValue.map { UInt16($0) } ?? 47
-        let newlineCharVal = Character("\n").asciiValue.map { UInt16($0) } ?? 10
+        let slashChar: unichar = 0x2F   // '/'
+        let newlineChar: unichar = 0x0A // '\n'
         while idx >= 0 {
             let char = nsText.character(at: idx)
-            if char == slashCharVal {
+            if char == slashChar {
                 slashLoc = idx
                 break
             }
             // Stop at newline — slash must be on the same line
-            if char == newlineCharVal {
+            if char == newlineChar {
                 break
             }
             idx -= 1
         }
 
         guard slashLoc >= 0 else {
+            log.debug("evaluate: no slash found on current line — inactive")
             return State(isActive: false, filterText: "", filteredCommands: [], slashLocation: -1)
         }
 
         let filterRange = NSRange(location: slashLoc + 1, length: cursorLocation - slashLoc - 1)
         guard filterRange.length >= 0, filterRange.location + filterRange.length <= nsText.length else {
+            log.error("evaluate: invalid filterRange \(filterRange.location)+\(filterRange.length) for text length \(nsText.length)")
             return State(isActive: false, filterText: "", filteredCommands: [], slashLocation: -1)
         }
 
@@ -90,6 +97,8 @@ struct SlashCommandEngine {
             }
         }
 
+        log.debug("evaluate: slashLoc=\(slashLoc), filter='\(filter)', \(filtered.count)/\(SlashCommand.all.count) command(s) matched")
+
         return State(
             isActive: !filtered.isEmpty,
             filterText: filter,
@@ -99,16 +108,4 @@ struct SlashCommandEngine {
     }
 }
 
-// MARK: - UIColor hex initialiser
-
-extension UIColor {
-    convenience init(hex: String) {
-        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "#", with: "")
-        var rgb: UInt64 = 0
-        Scanner(string: hexSanitized).scanHexInt64(&rgb)
-        let r = CGFloat((rgb & 0xFF0000) >> 16) / 255
-        let g = CGFloat((rgb & 0x00FF00) >> 8) / 255
-        let b = CGFloat(rgb & 0x0000FF) / 255
-        self.init(red: r, green: g, blue: b, alpha: 1)
-    }
-}
+// UIColor(hex:) is defined in Color+App.swift (single shared definition)

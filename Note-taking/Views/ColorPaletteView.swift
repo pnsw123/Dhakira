@@ -20,23 +20,14 @@ struct ColorPaletteView: View {
     @State private var activeHighlightName: String? = nil
     @State private var showMoreColors = false
 
-    private let mainColors: [(String, UIColor)] = [
-        ("Yellow", UIColor(hex: "#FFCC02")),
-        ("Red",    UIColor(hex: "#FF3B30")),
-        ("Blue",   UIColor(hex: "#007AFF")),
-        ("Green",  UIColor(hex: "#34C759")),
-    ]
+    // Derived from NamedColor — single source of truth (Issue #51)
+    private var mainColors: [(String, UIColor)] {
+        NamedColor.paletteMain.map { ($0.label, $0.uiColor) }
+    }
 
-    private let extraColors: [(String, UIColor)] = [
-        ("Orange", UIColor(hex: "#FF9500")),
-        ("Pink",   UIColor(hex: "#FF375F")),
-        ("Purple", UIColor(hex: "#BF5AF2")),
-        ("Teal",   UIColor(hex: "#5AC8FA")),
-        ("Brown",  UIColor(hex: "#AC8E68")),
-        ("Gray",   UIColor(hex: "#8E8E93")),
-        ("Black",  UIColor(hex: "#1C1C1E")),
-        ("White",  UIColor(hex: "#FFFFFF")),
-    ]
+    private var extraColors: [(String, UIColor)] {
+        NamedColor.paletteExtra.map { ($0.label, $0.uiColor) }
+    }
 
     private let dot: CGFloat       = 26
     private let pillH: CGFloat     = 44

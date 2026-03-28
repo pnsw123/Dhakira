@@ -4,6 +4,76 @@ import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "RichEditorCommands")
 
+// MARK: - EditorContext (Issue #50)
+// Bundles UITextView + RichTextContext into one value — passed into the dispatcher.
+
+struct EditorContext {
+    let textView: UITextView
+    let richTextContext: RichTextContext
+    var selectedRange: NSRange { textView.selectedRange }
+}
+
+// MARK: - ToolbarCommand (Issue #50)
+// Typed enum for all toolbar button IDs — replaces stringly-typed switch.
+
+enum ToolbarCommand: String, CaseIterable {
+    case bold            = "bold"
+    case italic          = "italic"
+    case underline       = "underline"
+    case strikethrough   = "strikethrough"
+    case alignLeft       = "text.alignleft"
+    case alignCenter     = "text.aligncenter"
+    case alignRight      = "text.alignright"
+    case bulletList      = "list.bullet"
+}
+
+// MARK: - RichEditorCommandDispatcher (Issue #50)
+// Single dispatch point for all toolbar formatting commands.
+// Focus is restored unconditionally inside the dispatcher — callers need no refocusAndApply.
+
+enum RichEditorCommandDispatcher {
+
+    /// Dispatch a toolbar command. Focus is restored before the command runs.
+    /// Returns the updated NSAttributedString when the command mutates it directly.
+    @discardableResult
+    static func dispatch(
+        _ command: ToolbarCommand,
+        context: inout EditorContext,
+        attributedText: inout NSAttributedString
+    ) -> NSAttributedString? {
+        // Restore focus unconditionally — toolbar taps always steal first-responder
+        let range = context.selectedRange
+        context.textView.becomeFirstResponder()
+        if range.length > 0 {
+            context.textView.selectedRange = range
+        }
+
+        log.info("RichEditorCommandDispatcher.dispatch: \(command.rawValue)")
+
+        switch command {
+        case .bold:
+            RichEditorCommands.toggleBold(context: context.richTextContext)
+        case .italic:
+            RichEditorCommands.toggleItalic(context: context.richTextContext)
+        case .underline:
+            RichEditorCommands.toggleUnderline(context: context.richTextContext)
+        case .strikethrough:
+            RichEditorCommands.toggleStrikethrough(context: context.richTextContext)
+        case .alignLeft:
+            RichEditorCommands.setAlignment(.left, context: context.richTextContext)
+        case .alignCenter:
+            RichEditorCommands.setAlignment(.center, context: context.richTextContext)
+        case .alignRight:
+            RichEditorCommands.setAlignment(.right, context: context.richTextContext)
+        case .bulletList:
+            RichEditorCommands.toggleBulletList(attributedText: &attributedText,
+                                                selectedRange: range)
+            return attributedText
+        }
+        return nil
+    }
+}
+
 // MARK: - RichEditorCommands
 // Centralised formatting commands for the native editor (Issues #39–#43).
 // High-level style commands go through RichTextContext.
