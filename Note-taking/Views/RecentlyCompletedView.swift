@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+import OSLog
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "RecentlyCompleted")
 
 struct RecentlyCompletedView: View {
     @Environment(\.dismiss) private var dismiss
@@ -23,6 +26,7 @@ struct RecentlyCompletedView: View {
             Group {
                 if completedTasks.isEmpty {
                     emptyState
+                        .onAppear { log.info("RecentlyCompletedView: empty state shown") }
                 } else {
                     List(completedTasks) { task in
                         VStack(alignment: .leading, spacing: 4) {
@@ -52,6 +56,10 @@ struct RecentlyCompletedView: View {
                                     Text(Self.dateFormatter.string(from: completedAt))
                                         .font(.system(size: 12))
                                         .foregroundStyle(Color.secondary.opacity(0.6))
+                                } else {
+                                    Text("Unknown time")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.secondary.opacity(0.4))
                                 }
                             }
                         }

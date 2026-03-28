@@ -1,34 +1,72 @@
 #if canImport(UIKit)
 import SwiftUI
 import PencilKit
+import OSLog
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "DrawingCanvas")
+
+#Preview("Drawing Canvas") {
+    @Previewable @State var drawingData: Data? = nil
+    @Previewable @State var isActive: Bool = true
+    DrawingCanvasView(drawingData: $drawingData, isActive: $isActive)
+        .background(Color(.systemGray6))
+}
 
 struct DrawingCanvasView: UIViewRepresentable {
     @Binding var drawingData: Data?
-    /// Called when the user taps Done — passes back PNG data of the rendered drawing
-    var onDone: ((Data?) -> Void)?
+    /// When true, the PKToolPicker is shown. When false, it is hidden (drawing stays).
+    @Binding var isActive: Bool
 
     func makeUIView(context: Context) -> PKCanvasView {
+        log.info("DrawingCanvasView.makeUIView: creating canvas, hasExistingData=\(drawingData != nil)")
         let canvasView = PKCanvasView()
         canvasView.drawingPolicy = .anyInput
         canvasView.backgroundColor = .clear
+        canvasView.isScrollEnabled = false
         canvasView.delegate = context.coordinator
         context.coordinator.canvasView = canvasView
 
-        if let data = drawingData, let drawing = try? PKDrawing(data: data) {
-            canvasView.drawing = drawing
+        if let data = drawingData {
+            if let drawing = try? PKDrawing(data: data) {
+                canvasView.drawing = drawing
+                log.debug("DrawingCanvasView.makeUIView: restored drawing with \(drawing.strokes.count) stroke(s)")
+            } else {
+                log.error("DrawingCanvasView.makeUIView: failed to deserialize PKDrawing from \(data.count) bytes")
+            }
         }
 
-        // Show tool picker
         let toolPicker = PKToolPicker()
-        toolPicker.setVisible(true, forFirstResponder: canvasView)
         toolPicker.addObserver(canvasView)
-        canvasView.becomeFirstResponder()
         context.coordinator.toolPicker = toolPicker
+        log.debug("DrawingCanvasView.makeUIView: PKToolPicker created")
 
         return canvasView
     }
 
-    func updateUIView(_ uiView: PKCanvasView, context: Context) {}
+    func updateUIView(_ uiView: PKCanvasView, context: Context) {
+        // Explicitly disable touch so PKCanvasView's internal gesture recognizers
+        // don't swallow taps when the canvas is visible but drawing is inactive.
+        uiView.isUserInteractionEnabled = isActive
+        log.debug("DrawingCanvasView.updateUIView: isActive=\(isActive)")
+
+        // PKToolPicker requires a real window — skip in Xcode previews
+        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
+        let picker = context.coordinator.toolPicker
+        if isActive {
+            // Defer until the next run-loop tick so the canvas is fully in the
+            // window hierarchy before we ask it to become first responder.
+            // Without this, PKToolPicker silently fails to appear.
+            DispatchQueue.main.async {
+                picker?.setVisible(true, forFirstResponder: uiView)
+                uiView.becomeFirstResponder()
+            }
+            log.debug("DrawingCanvasView.updateUIView: tool picker show queued")
+        } else {
+            picker?.setVisible(false, forFirstResponder: uiView)
+            uiView.resignFirstResponder()
+            log.debug("DrawingCanvasView.updateUIView: tool picker hidden")
+        }
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -44,98 +82,10 @@ struct DrawingCanvasView: UIViewRepresentable {
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            parent.drawingData = canvasView.drawing.dataRepresentation()
+            let data = canvasView.drawing.dataRepresentation()
+            log.debug("canvasViewDrawingDidChange: \(canvasView.drawing.strokes.count) stroke(s), \(data.count) bytes")
+            parent.drawingData = data
         }
-
-        /// Render the current drawing to PNG and call onDone
-        func finishDrawing() {
-            guard let canvasView else {
-                parent.onDone?(nil)
-                return
-            }
-            let image = canvasView.drawing.image(
-                from: canvasView.drawing.bounds.isEmpty
-                    ? CGRect(x: 0, y: 0, width: 100, height: 100)
-                    : canvasView.drawing.bounds,
-                scale: UIScreen.main.scale
-            )
-            parent.onDone?(image.pngData())
-        }
-    }
-}
-
-// MARK: - Done button overlay
-
-/// Wraps DrawingCanvasView with a visible Done (checkmark) button at the top-right
-struct DrawingCanvasViewWithDoneButton: View {
-    @Binding var drawingData: Data?
-    var onDone: ((Data?) -> Void)?
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            InternalCanvas(drawingData: $drawingData, onDone: onDone)
-            Button {
-                // Trigger done by calling onDone with current drawing rendered
-                NotificationCenter.default.post(name: .drawingDoneTapped, object: nil)
-            } label: {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(Color.accentColor)
-                    .background(Circle().fill(Color.white).padding(4))
-                    .shadow(radius: 4)
-            }
-            .padding(.top, 12)
-            .padding(.trailing, 16)
-        }
-    }
-}
-
-private struct InternalCanvas: UIViewRepresentable {
-    @Binding var drawingData: Data?
-    var onDone: ((Data?) -> Void)?
-
-    func makeCoordinator() -> DrawingCanvasView.Coordinator {
-        let view = DrawingCanvasView(drawingData: $drawingData, onDone: onDone)
-        return DrawingCanvasView.Coordinator(view)
-    }
-
-    func makeUIView(context: Context) -> PKCanvasView {
-        let canvasView = PKCanvasView()
-        canvasView.drawingPolicy = .anyInput
-        canvasView.backgroundColor = .clear
-        canvasView.delegate = context.coordinator
-        context.coordinator.canvasView = canvasView
-
-        if let data = drawingData, let drawing = try? PKDrawing(data: data) {
-            canvasView.drawing = drawing
-        }
-
-        let toolPicker = PKToolPicker()
-        toolPicker.setVisible(true, forFirstResponder: canvasView)
-        toolPicker.addObserver(canvasView)
-        canvasView.becomeFirstResponder()
-        context.coordinator.toolPicker = toolPicker
-
-        NotificationCenter.default.addObserver(
-            context.coordinator,
-            selector: #selector(DrawingCanvasView.Coordinator.doneTapped),
-            name: .drawingDoneTapped,
-            object: nil
-        )
-
-        return canvasView
-    }
-
-    func updateUIView(_ uiView: PKCanvasView, context: Context) {}
-}
-
-extension Notification.Name {
-    static let drawingDoneTapped = Notification.Name("drawingDoneTapped")
-}
-
-extension DrawingCanvasView.Coordinator {
-    @objc func doneTapped() {
-        finishDrawing()
     }
 }
 
@@ -144,21 +94,12 @@ import SwiftUI
 
 struct DrawingCanvasView: View {
     @Binding var drawingData: Data?
-    var onDone: ((Data?) -> Void)?
+    @Binding var isActive: Bool
 
     var body: some View {
         Text("Drawing is only available on iOS/iPadOS")
             .foregroundStyle(Color.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-struct DrawingCanvasViewWithDoneButton: View {
-    @Binding var drawingData: Data?
-    var onDone: ((Data?) -> Void)?
-
-    var body: some View {
-        DrawingCanvasView(drawingData: $drawingData, onDone: onDone)
     }
 }
 #endif

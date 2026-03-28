@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "NoteBodyCodec")

@@ -21,6 +21,7 @@ struct TaskListView: View {
     @State private var recentlyCompletedIds: Set<UUID> = []
     @State private var isEditingName: Bool = false
     @State private var editedName: String = ""
+    @State private var showHome: Bool = false
 
     /// Tasks belonging to this task list (not soft-deleted).
     private var filteredTasks: [TaskItem] {
@@ -91,8 +92,18 @@ struct TaskListView: View {
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top) {
                 HStack(spacing: 0) {
-                    // Back button — only shown when launched from HomeView (taskList != nil)
-                    if taskList != nil {
+                    if taskList == nil {
+                        // Root view — back chevron navigates to HomeView
+                        Button(action: { showHome = true }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                                .frame(width: 36, height: 36)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.leading, 8)
+                    } else {
+                        // Pushed from HomeView — chevron goes back
                         Button(action: { dismiss() }) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 20, weight: .semibold))
@@ -146,6 +157,9 @@ struct TaskListView: View {
                 .padding(.trailing, 6)
                 .padding(.bottom, 8)
             }
+            .navigationDestination(isPresented: $showHome) {
+                HomeView(isPresented: $showHome)
+            }
             .navigationDestination(item: $selectedTask) { task in
                 TaskDetailView(task: task)
             }
@@ -186,7 +200,7 @@ struct TaskListView: View {
         newTask.sortOrder = maxOrder
         modelContext.insert(newTask)
         log.info("addTask: inserted new task (sortOrder=\(maxOrder))")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             focusedTaskId = newTask.id
         }
     }

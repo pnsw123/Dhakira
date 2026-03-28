@@ -56,6 +56,10 @@ struct RecentlyDeletedView: View {
                                         Text("Deleted \(Self.dateFormatter.string(from: deletedAt))")
                                             .font(.system(size: 12))
                                             .foregroundStyle(Color.secondary.opacity(0.6))
+                                    } else {
+                                        Text("Deleted (unknown time)")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Color.secondary.opacity(0.4))
                                     }
                                 }
                             }

@@ -18,9 +18,9 @@ struct NoteBodyBinding {
     static func load(
         from task: TaskItem,
         into attributedText: inout NSAttributedString,
-        onLoadError: ((NoteBodyError) -> Void)? = nil,
-        logger: Logger = log
+        onLoadError: ((NoteBodyError) -> Void)? = nil
     ) {
+        let logger = Logger(subsystem: "notes.Note-taking", category: "NoteBodyBinding")
         guard let data = task.body else {
             logger.info("NoteBodyBinding.load: no body for task '\(task.title)'")
             return
@@ -45,9 +45,9 @@ struct NoteBodyBinding {
     static func save(
         _ attributedText: NSAttributedString,
         into task: TaskItem,
-        onSaveError: ((NoteBodyError) -> Void)? = nil,
-        logger: Logger = log
+        onSaveError: ((NoteBodyError) -> Void)? = nil
     ) {
+        let logger = Logger(subsystem: "notes.Note-taking", category: "NoteBodyBinding")
         let trimmed = attributedText.string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             logger.info("NoteBodyBinding.save: empty — clearing body for task '\(task.title)'")

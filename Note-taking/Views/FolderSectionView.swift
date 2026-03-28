@@ -10,8 +10,10 @@ struct FolderSectionView: View {
     let allTaskLists: [TaskList]
     var onSelectTaskList: (TaskList) -> Void
     var indentLevel: Int = 0
+    var autoRenameId: UUID? = nil
 
-    /// Shared expand state so all levels share the same expanded set.
+    /// Expanded folder IDs persisted in UserDefaults so state survives data refreshes.
+    @AppStorage("expandedFolderIds") private var expandedFolderIdsStorage: String = ""
     @State private var expandedFolderIds: Set<UUID> = []
 
     var body: some View {
@@ -23,7 +25,8 @@ struct FolderSectionView: View {
                     isExpanded: expandedFolderIds.contains(folder.id),
                     onToggle: { toggleFolder(folder) },
                     onSelectTaskList: onSelectTaskList,
-                    indentLevel: indentLevel
+                    indentLevel: indentLevel,
+                    startEditingOnAppear: folder.id == autoRenameId
                 )
 
                 if index < folders.count - 1 {
@@ -33,14 +36,34 @@ struct FolderSectionView: View {
             }
         }
         .onAppear {
-            // Pre-expand Default Folder if it has contents
-            for folder in folders where folder.name == "Default" {
-                let hasContents = !(folder.subfolders?.isEmpty ?? true) ||
-                    !allTaskLists.filter({ $0.folder?.id == folder.id }).isEmpty
-                if hasContents {
-                    expandedFolderIds.insert(folder.id)
+            // Restore persisted expanded state
+            let persisted = Set(expandedFolderIdsStorage.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
+            expandedFolderIds = persisted
+
+            // Pre-expand Default Folder if it has contents and no saved state exists
+            if persisted.isEmpty {
+                for folder in folders where folder.name == "Default" {
+                    let hasContents = !(folder.subfolders?.isEmpty ?? true) ||
+                        !allTaskLists.filter({ $0.folder?.id == folder.id }).isEmpty
+                    if hasContents {
+                        expandedFolderIds.insert(folder.id)
+                    }
                 }
             }
+            // Auto-expand newly created folder so user sees Add List immediately
+            if let id = autoRenameId {
+                expandedFolderIds.insert(id)
+            }
+            saveExpandedState()
+        }
+        .onChange(of: autoRenameId) { _, newId in
+            if let id = newId {
+                expandedFolderIds.insert(id)
+                saveExpandedState()
+            }
+        }
+        .onChange(of: expandedFolderIds) { _, _ in
+            saveExpandedState()
         }
     }
 
@@ -53,6 +76,11 @@ struct FolderSectionView: View {
             }
         }
         log.debug("toggleFolder: '\(folder.name)' → \(expandedFolderIds.contains(folder.id) ? "expanded" : "collapsed")")
+        saveExpandedState()
+    }
+
+    private func saveExpandedState() {
+        expandedFolderIdsStorage = expandedFolderIds.map(\.uuidString).joined(separator: ",")
     }
 }
 
@@ -67,10 +95,12 @@ struct FolderRowView: View {
     let onToggle: () -> Void
     let onSelectTaskList: (TaskList) -> Void
     var indentLevel: Int = 0
+    var startEditingOnAppear: Bool = false
 
     @State private var isRenaming: Bool = false
     @State private var renameText: String = ""
     @State private var showDeleteConfirm: Bool = false
+    @State private var autoRenameListId: UUID? = nil
 
     private var taskListsForFolder: [TaskList] {
         allTaskLists.filter { $0.folder?.id == folder.id }
@@ -90,7 +120,7 @@ struct FolderRowView: View {
             HStack(spacing: 10) {
                 Spacer().frame(width: CGFloat(indentLevel * 20))
 
-                Image(systemName: isExpanded ? "folder.fill" : "folder")
+                Image(systemName: "folder.fill")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 22)
@@ -105,20 +135,22 @@ struct FolderRowView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                // Expand chevron — only shown when folder has contents
-                if hasContents {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .animation(.easeInOut(duration: 0.2), value: isExpanded)
-                }
+                // Expand chevron — always shown so any folder can be opened
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .animation(.easeInOut(duration: 0.2), value: isExpanded)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .contentShape(Rectangle())
-            .onTapGesture {
-                if hasContents { onToggle() }
+            .onTapGesture { onToggle() }
+            .onAppear {
+                if startEditingOnAppear {
+                    renameText = folder.name
+                    isRenaming = true
+                }
             }
             .contextMenu {
                 Button(action: startRename) {
@@ -141,17 +173,19 @@ struct FolderRowView: View {
             } message: {
                 Text("All task lists and tasks inside this folder will be permanently removed.")
             }
+            .swipeToDelete { showDeleteConfirm = true }
 
             // Expanded content: subfolders + task lists
             if isExpanded {
-                // Subfolders (recursive)
-                if !subfolders.isEmpty {
+                // Subfolders (recursive) — capped at depth 10 to prevent stack overflow
+                if !subfolders.isEmpty && indentLevel < 10 {
                     Divider().padding(.leading, CGFloat(16 + (indentLevel + 1) * 20))
                     FolderSectionView(
                         folders: subfolders,
                         allTaskLists: allTaskLists,
                         onSelectTaskList: onSelectTaskList,
-                        indentLevel: indentLevel + 1
+                        indentLevel: indentLevel + 1,
+                        autoRenameId: nil
                     )
                 }
 
@@ -161,22 +195,23 @@ struct FolderRowView: View {
                     TaskListRowView(
                         taskList: taskList,
                         indentLevel: indentLevel + 1,
-                        onTap: { onSelectTaskList(taskList) }
+                        onTap: { onSelectTaskList(taskList) },
+                        startEditingOnAppear: taskList.id == autoRenameListId
                     )
                 }
 
-                // "Add List" inline button
+                // "Add List" inline button — neutral color, no blue
                 Divider().padding(.leading, CGFloat(16 + (indentLevel + 1) * 20))
                 Button(action: addTaskList) {
                     HStack(spacing: 10) {
                         Spacer().frame(width: CGFloat((indentLevel + 1) * 20))
                         Image(systemName: "plus.circle")
                             .font(.system(size: 14))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.primary)
                             .frame(width: 22)
                         Text("Add List")
                             .font(.system(size: 14))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.primary)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
@@ -194,7 +229,9 @@ struct FolderRowView: View {
 
     private func commitRename() {
         let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
+        if trimmed.isEmpty {
+            deleteFolder()
+        } else {
             folder.name = trimmed
             log.info("commitRename: folder renamed to '\(trimmed)'")
         }
@@ -216,8 +253,9 @@ struct FolderRowView: View {
 
     private func addTaskList() {
         log.info("addTaskList: adding to folder '\(folder.name)'")
-        let newList = TaskList(name: "New List", folder: folder)
+        let newList = TaskList(name: "", folder: folder)
         modelContext.insert(newList)
+        autoRenameListId = newList.id
     }
 
     private func addSubfolder() {
@@ -235,6 +273,7 @@ struct TaskListRowView: View {
     @Bindable var taskList: TaskList
     var indentLevel: Int = 0
     let onTap: () -> Void
+    var startEditingOnAppear: Bool = false
 
     @State private var isRenaming: Bool = false
     @State private var renameText: String = ""
@@ -266,23 +305,124 @@ struct TaskListRowView: View {
         .padding(.vertical, 11)
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
+        .onAppear {
+            if startEditingOnAppear {
+                renameText = taskList.name
+                isRenaming = true
+            }
+        }
         .contextMenu {
             Button(action: startRename) {
                 Label("Rename", systemImage: "pencil")
             }
+            Divider()
+            Button(role: .destructive, action: deleteTaskList) {
+                Label("Delete", systemImage: "trash")
+            }
         }
+        .swipeToDelete(perform: deleteTaskList)
     }
 
     private func startRename() {
+        log.info("TaskListRowView.startRename: '\(taskList.name)'")
         renameText = taskList.name
         isRenaming = true
     }
 
     private func commitRename() {
         let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
+        if trimmed.isEmpty {
+            log.info("TaskListRowView.commitRename: empty name — deleting list '\(taskList.name)'")
+            deleteTaskList()
+        } else {
+            log.info("TaskListRowView.commitRename: renamed '\(taskList.name)' → '\(trimmed)'")
             taskList.name = trimmed
         }
         isRenaming = false
+    }
+
+    private func deleteTaskList() {
+        let taskCount = taskList.tasks?.count ?? 0
+        log.info("TaskListRowView.deleteTaskList: '\(taskList.name)' with \(taskCount) task(s)")
+        for task in (taskList.tasks ?? []) {
+            modelContext.delete(task)
+        }
+        modelContext.delete(taskList)
+    }
+}
+
+// MARK: - Swipe to Delete
+
+private struct SwipeToDeleteModifier: ViewModifier {
+    let onDelete: () -> Void
+
+    /// Live drag delta — auto-resets to 0 when gesture ends.
+    @GestureState private var dragDelta: CGFloat = 0
+    /// Settled offset after each gesture completes.
+    @State private var settled: CGFloat = 0
+
+    private let snapWidth: CGFloat = 80
+
+    private var currentOffset: CGFloat {
+        max(min(0, settled + dragDelta), -snapWidth * 2.5)
+    }
+
+    func body(content: Content) -> some View {
+        ZStack(alignment: .trailing) {
+            // Red delete button — fixed on the right, revealed as content slides left
+            Color.red
+                .frame(width: snapWidth)
+                .overlay(
+                    Image(systemName: "trash")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                )
+                .opacity(currentOffset < -10 ? 1 : 0)
+                .onTapGesture {
+                    withAnimation(.easeOut(duration: 0.2)) { settled = -500 }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { onDelete() }
+                }
+
+            // Row content — slides left on swipe
+            content
+                .offset(x: currentOffset)
+                .gesture(
+                    DragGesture(minimumDistance: 15, coordinateSpace: .local)
+                        .updating($dragDelta) { value, state, _ in
+                            state = value.translation.width
+                        }
+                        .onEnded { value in
+                            let tentative = settled + value.translation.width
+                            let predicted = settled + value.predictedEndTranslation.width
+                            let isFullSwipe = predicted < -300 || tentative < -snapWidth * 1.3
+
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                settled = isFullSwipe ? -500 :
+                                          tentative < -snapWidth * 0.4 ? -snapWidth : 0
+                            }
+                            if isFullSwipe {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { onDelete() }
+                            }
+                        }
+                )
+
+            // Transparent overlay on top of content when button is showing —
+            // absorbs taps to reset the swipe without triggering the row action.
+            if settled < -snapWidth * 0.3 {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .offset(x: currentOffset)
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { settled = 0 }
+                    }
+            }
+        }
+        .clipped()
+    }
+}
+
+private extension View {
+    func swipeToDelete(perform action: @escaping () -> Void) -> some View {
+        modifier(SwipeToDeleteModifier(onDelete: action))
     }
 }

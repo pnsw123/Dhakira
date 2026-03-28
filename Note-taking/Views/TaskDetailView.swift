@@ -503,12 +503,12 @@ struct TaskDetailView: View {
 
     private func loadBody() {
         NoteBodyBinding.load(from: task, into: &attributedText,
-                             onLoadError: { loadError = $0 }, logger: log)
+                             onLoadError: { loadError = $0 })
     }
 
     private func saveBody() {
         NoteBodyBinding.save(attributedText, into: task,
-                             onSaveError: { saveError = $0 }, logger: log)
+                             onSaveError: { saveError = $0 })
     }
 }
 

@@ -6,25 +6,32 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "NativeEditor
 
 // MARK: - NativeEditorView
 // Thin SwiftUI wrapper around RichTextKit's RichTextEditor.
-// Exposes the RichTextContext so parent views can issue formatting commands.
-// Content is stored as NSAttributedString and serialised to/from RTF Data.
+// Exposes the underlying UITextView via onEditorReady so the parent
+// can manage focus (becomeFirstResponder / resignFirstResponder)
+// before issuing formatting commands — without this, tapping a
+// toolbar button causes the text view to lose focus and the formatting
+// action lands on an empty {0,0} selection and does nothing.
 
 struct NativeEditorView: View {
-    /// Two-way binding to the attributed string (RTF content)
     @Binding var attributedText: NSAttributedString
-    /// Shared context — parent must hold onto this as @StateObject or pass it in
     @ObservedObject var context: RichTextContext
+    /// Fires once when the underlying UITextView is ready.
+    /// Store the reference to call becomeFirstResponder() before formatting commands.
+    var onEditorReady: ((UITextView) -> Void)?
 
     var body: some View {
         RichTextEditor(
             text: $attributedText,
             context: context,
             format: .rtf
-        )
-        .background(Color(uiColor: .systemBackground))
-        .onChange(of: attributedText) { _, _ in
-            log.debug("NativeEditorView: text changed (\(attributedText.length) chars)")
+        ) { view in
+            // viewConfiguration fires once inside makeUIView — safe to capture here.
+            if let tv = view as? UITextView {
+                log.debug("NativeEditorView: UITextView ready")
+                DispatchQueue.main.async { onEditorReady?(tv) }
+            }
         }
+        .background(Color(uiColor: .systemBackground))
     }
 }
 

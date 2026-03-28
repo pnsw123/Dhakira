@@ -51,9 +51,6 @@ final class NativeExportService {
             // Body content
             let framesetter = CTFramesetterCreateWithAttributedString(content)
             let remainingHeight = pageHeight - yOffset + margin
-            let bodyRect = CGRect(x: margin, y: yOffset, width: pageWidth, height: remainingHeight)
-            let path2 = CGPath(rect: bodyRect, transform: nil)
-            let frame = CTFramesetterCreateFrame(framesetter, CFRangeMake(0, 0), path2, nil)
 
             let cgCtx = ctx.cgContext
             cgCtx.saveGState()
@@ -110,8 +107,10 @@ final class NativeExportService {
     // MARK: - Share plain text
 
     static func shareText(title: String, content: NSAttributedString, from viewController: UIViewController) {
+        log.info("shareText: sharing '\(title)', \(content.length) chars")
         let plainText = content.string
         let shareText = title.isEmpty ? plainText : "\(title)\n\n\(plainText)"
+        log.debug("shareText: plain text length=\(shareText.count) chars")
         presentShareSheet(items: [shareText], from: viewController)
     }
 
@@ -119,10 +118,15 @@ final class NativeExportService {
 
     private static func sanitizeFilename(_ name: String) -> String {
         let invalid = CharacterSet(charactersIn: "/\\:*?\"<>|")
-        return name.components(separatedBy: invalid).joined(separator: "_")
+        let sanitized = name.components(separatedBy: invalid).joined(separator: "_")
+        if sanitized != name {
+            log.debug("sanitizeFilename: '\(name)' → '\(sanitized)'")
+        }
+        return sanitized
     }
 
     static func presentShareSheet(items: [Any], from viewController: UIViewController) {
+        log.info("presentShareSheet: presenting with \(items.count) item(s)")
         let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
         vc.modalPresentationStyle = .formSheet
         viewController.present(vc, animated: true)
