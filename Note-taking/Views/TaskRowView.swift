@@ -25,17 +25,9 @@ struct TaskRowView: View {
 
     private let priorityCycle = ["default", "medium", "high"]
 
-    /// True if task has real content beyond title and creation date (Issue #53 — uses NoteBodyCodec)
-    private var hasRealContent: Bool {
-        if let bodyData = task.body,
-           case .success(let bodyAttr) = NoteBodyCodec.decode(bodyData) {
-            let stripped = bodyAttr.string.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !stripped.isEmpty { return true }
-        }
-        if let drawingData = task.drawingData, !drawingData.isEmpty { return true }
-        if let attachments = task.attachments, !attachments.isEmpty { return true }
-        return false
-    }
+    /// Cached result — recomputed only when task.body / drawingData / attachments change,
+    /// not on every render. Avoids synchronous SwiftData relationship faults during body eval.
+    @State private var hasRealContent: Bool = false
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -100,6 +92,22 @@ struct TaskRowView: View {
         }
         .opacity(task.isCompleted ? 0.35 : 1.0)
         .sensoryFeedback(.success, trigger: task.isCompleted)
+        .task(id: task.body) {
+            let bodyData = task.body
+            let drawingData = task.drawingData
+            let attachments = task.attachments
+            let result: Bool
+            if let bodyData, case .success(let attr) = NoteBodyCodec.decode(bodyData) {
+                result = !attr.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            } else if let drawingData, !drawingData.isEmpty {
+                result = true
+            } else if let attachments, !attachments.isEmpty {
+                result = true
+            } else {
+                result = false
+            }
+            hasRealContent = result
+        }
     }
 
     private func cyclePriority() {
