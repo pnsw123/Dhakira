@@ -147,13 +147,14 @@ final class VoiceRecordingE2ETests: XCTestCase {
         let recordOption = app.buttons["Record Audio"]
         guard recordOption.waitForExistence(timeout: 3) else { XCTSkip("No Record Audio"); return }
         recordOption.tap()
-        handleMicrophonePermission()
 
         let recordBtn = app.buttons["btn-record"]
         guard recordBtn.waitForExistence(timeout: 5) else { XCTSkip("Record button not found"); return }
 
         screenshot("before-record")
         recordBtn.tap()
+        // Permission dialog fires WHEN record is tapped — handle it here, not before.
+        handleMicrophonePermission()
         screenshot("after-record-tap")
 
         // After tapping record, the stop button should appear.
@@ -182,7 +183,6 @@ final class VoiceRecordingE2ETests: XCTestCase {
         let recordOption = app.buttons["Record Audio"]
         guard recordOption.waitForExistence(timeout: 3) else { XCTSkip("No Record Audio option"); return }
         recordOption.tap()
-        handleMicrophonePermission()
 
         // Wait for recorder to appear
         let recordBtn = app.buttons["btn-record"]
@@ -191,6 +191,8 @@ final class VoiceRecordingE2ETests: XCTestCase {
         // --- Start recording ---
         screenshot("step1-ready-to-record")
         recordBtn.tap()
+        // Permission dialog fires WHEN record is tapped — handle it here, not before.
+        handleMicrophonePermission()
 
         // --- Record for 2 seconds ---
         let stopBtn = app.buttons["btn-stop-recording"]

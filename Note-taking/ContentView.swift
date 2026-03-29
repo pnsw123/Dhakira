@@ -41,37 +41,48 @@ struct ContentView: View {
 
     @State private var homeNav: HomeNav? = nil
 
+    // Detect layout width for iPad split-view decision.
+    // Using horizontalSizeClass instead of UIDevice.userInterfaceIdiom — works correctly
+    // in Slide Over and Stage Manager. Issue #79.
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(ThemeManager.self) private var themeManager
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if showHome {
-                    HomeView(
-                        onClose: { showHome = false },
-                        onSelectTaskList: { list in
-                            // Switch the active list and navigate back to the Tasks page.
-                            activeTaskListIdString = list.id.uuidString
-                            showHome = false
-                        },
-                        onShowRecentlyCompleted: { homeNav = .recentlyCompleted },
-                        onShowRecentlyDeleted: { homeNav = .recentlyDeleted }
-                    )
-                    .transition(.opacity)
-                } else {
-                    TaskListView(
-                        taskList: activeTaskList,
-                        onShowHome: { showHome = true },
-                        pendingDeepLinkTaskId: $pendingDeepLinkTaskId
-                    )
-                    .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.25), value: showHome)
+        // NavigationSplitView collapses to a single column on compact width (iPhone + iPad
+        // Slide Over). On full-width iPad it shows sidebar + detail columns automatically.
+        // Issue #79 — https://github.com/pnsw123/prod-note/issues/79
+        NavigationSplitView {
+            HomeView(
+                onClose: { showHome = false },
+                onSelectTaskList: { list in
+                    activeTaskListIdString = list.id.uuidString
+                    showHome = false
+                },
+                onShowRecentlyCompleted: { homeNav = .recentlyCompleted },
+                onShowRecentlyDeleted: { homeNav = .recentlyDeleted }
+            )
+            .withAppBackground()
+            .scrollContentBackground(.hidden)
             .navigationDestination(item: $homeNav) { nav in
                 switch nav {
-                case .recentlyCompleted: RecentlyCompletedView()
-                case .recentlyDeleted:   RecentlyDeletedView()
+                case .recentlyCompleted:
+                    RecentlyCompletedView()
+                        .withAppBackground()
+                case .recentlyDeleted:
+                    RecentlyDeletedView()
+                        .withAppBackground()
                 }
             }
+        } detail: {
+            TaskListView(
+                taskList: activeTaskList,
+                onShowHome: { showHome = true },
+                pendingDeepLinkTaskId: $pendingDeepLinkTaskId
+            )
+            .withAppBackground()
+        }
+        .onChange(of: pendingDeepLinkTaskId) { _, _ in
+            // Deep link navigation handled inside TaskListView via the binding.
         }
     }
 }

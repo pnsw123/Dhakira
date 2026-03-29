@@ -112,24 +112,18 @@ extension Color {
         }
     }
 
-    // MARK: - Theme tokens (light/dark adaptive)
-    /// Main screen background — warm off-white in light mode, deep charcoal in dark mode
-    static let screenBackground = Color(
-        light: Color(red: 0.969, green: 0.969, blue: 0.961),   // #F7F7F5
-        dark:  Color(red: 0.098, green: 0.098, blue: 0.102)    // #191919
-    )
-    /// Row/card background — slightly lighter than screen in both modes
-    static let rowBackground = Color(
-        light: Color(red: 0.980, green: 0.980, blue: 0.976),   // #FAFAF9
-        dark:  Color(red: 0.133, green: 0.133, blue: 0.137)    // #222223
-    )
+    // MARK: - Theme tokens — forwarded from active ThemeManager
+    // Computed vars so every Color.screenBackground call picks up theme changes instantly.
+    // Issue #70 — https://github.com/pnsw123/prod-note/issues/70
 
-    /// FAB button background — warm charcoal (light), white (dark)
-    static let fabColor = Color(light: Color(red: 0.235, green: 0.227, blue: 0.212),
-                                dark: Color.white)
-
-    /// FAB icon color — white (light), black (dark)
-    static let fabIcon = Color(light: Color.white, dark: Color.black)
+    /// Main screen background — comes from the active theme
+    static var screenBackground: Color { Color(ThemeManager.shared.current.screenBackground) }
+    /// Row/card background — comes from the active theme
+    static var rowBackground: Color    { Color(ThemeManager.shared.current.surfaceBackground) }
+    /// FAB button background — comes from the active theme
+    static var fabColor: Color         { Color(ThemeManager.shared.current.fabBackground) }
+    /// FAB icon color — comes from the active theme
+    static var fabIcon: Color          { Color(ThemeManager.shared.current.fabIcon) }
 }
 
 // MARK: - Light/dark adaptive color helper

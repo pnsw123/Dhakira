@@ -12,6 +12,14 @@ struct Note_takingApp: App {
     /// Passed into ContentView so it can navigate to the correct task detail page.
     @State private var pendingDeepLinkTaskId: UUID? = nil
 
+    // Use the singleton so Color+App.swift and the environment share the same instance.
+    // Issue #70 — https://github.com/pnsw123/prod-note/issues/70
+    @State private var themeManager = ThemeManager.shared
+
+    // StoreKit manager — injected alongside ThemeManager.
+    // Issue #76 — https://github.com/pnsw123/prod-note/issues/76
+    @State private var storeKitManager = StoreKitManager.shared
+
     init() {
         log.info("App init — building ModelContainer via AppSchemaBuilder")
         do {
@@ -26,6 +34,9 @@ struct Note_takingApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(pendingDeepLinkTaskId: $pendingDeepLinkTaskId)
+                .environment(themeManager)
+                .environment(storeKitManager)
+                .preferredColorScheme(themeManager.current.preferredScheme)
                 .task {
                     // Request calendar permission once on first launch (Issue #60).
                     await CalendarPermissionService.shared.requestIfNeeded()
