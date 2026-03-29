@@ -4,6 +4,34 @@ import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "RichEditorCommands")
 
+// MARK: - CheckboxAttachment
+// A typed NSTextAttachment subclass that renders an SF Symbol checkbox.
+// Using a subclass lets us identify checkboxes by type (vs any other attachment)
+// and toggle them without storing external state.
+// The image uses .alwaysTemplate rendering so UITextView tints it with the
+// paragraph's .foregroundColor attribute — automatically adapts to light/dark mode.
+
+final class CheckboxAttachment: NSTextAttachment {
+    private(set) var isChecked: Bool
+
+    init(checked: Bool = false) {
+        self.isChecked = checked
+        super.init(data: nil, ofType: nil)
+        refresh()
+    }
+    required init?(coder: NSCoder) { fatalError("CheckboxAttachment does not support NSCoding") }
+
+    func toggle() { isChecked.toggle(); refresh() }
+
+    private func refresh() {
+        let name   = isChecked ? "checkmark.square.fill" : "square"
+        let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+        image  = UIImage(systemName: name, withConfiguration: config)?
+                     .withRenderingMode(.alwaysTemplate)
+        bounds = CGRect(x: 0, y: -3, width: 16, height: 16)
+    }
+}
+
 // MARK: - EditorContext (Issue #50)
 // Bundles UITextView + RichTextContext into one value — passed into the dispatcher.
 
@@ -170,90 +198,161 @@ final class RichEditorCommands {
     }
 
     // MARK: - Lists (#40)
+    // NSTextList is unreliable in UITextView (TextKit 1) on iOS — list markers
+    // never render and can crash the layout engine.  We use a "• " text-prefix
+    // approach instead: bullet is real text, wrapped lines hang-indent to align.
 
     static func toggleBulletList(attributedText: inout NSAttributedString, selectedRange: NSRange) {
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
-        let paragraphRange = (mutable.string as NSString).paragraphRange(for: selectedRange)
-
-        // Same NSRangeException guard as applyHeading — attribute(_:at:) crashes on empty string.
         guard mutable.length > 0 else { return }
 
-        let existingStyle = mutable.attribute(.paragraphStyle, at: paragraphRange.location, effectiveRange: nil) as? NSParagraphStyle
-        let hasList = (existingStyle?.textLists.isEmpty == false)
-        log.debug("toggleBulletList: hasList=\(hasList), range=\(paragraphRange.location)-\(paragraphRange.length)")
+        // Allow safeLoc == mutable.length so an insertion point past the last character
+        // (e.g. cursor at end of string after a slash command deleted its text) maps to
+        // the implicit empty paragraph at the end instead of to the previous paragraph's \n.
+        let safeLoc = min(selectedRange.location, mutable.length)
+        let parRange = (mutable.string as NSString).paragraphRange(
+            for: NSRange(location: safeLoc, length: 0))
+        // parRange.length == 0 is valid: it means an empty paragraph at end-of-string.
+        guard parRange.location <= mutable.length else { return }
 
-        if hasList {
-            let style = NSMutableParagraphStyle()
-            mutable.addAttribute(.paragraphStyle, value: style, range: paragraphRange)
-            log.debug("toggleBulletList: removed bullet list")
+        let parText = (mutable.string as NSString).substring(with: parRange)
+        let hasBullet = parText.hasPrefix("• ")
+        log.debug("toggleBulletList: hasBullet=\(hasBullet), parRange=\(parRange.location)-\(parRange.length)")
+
+        if hasBullet {
+            // Remove "• " (2 UTF-16 code units) and clear hanging indent.
+            let delRange = NSRange(location: parRange.location, length: 2)
+            mutable.deleteCharacters(in: delRange)
+            let cleared = NSRange(location: parRange.location,
+                                  length: max(0, parRange.length - 2))
+            if cleared.length > 0 {
+                mutable.addAttribute(.paragraphStyle, value: NSMutableParagraphStyle(),
+                                     range: cleared)
+            }
+            log.debug("toggleBulletList: removed bullet prefix")
         } else {
-            let list = NSTextList(markerFormat: .disc, options: 0)
-            let style = NSMutableParagraphStyle()
-            style.textLists = [list]
-            style.firstLineHeadIndent = 15
-            style.headIndent = 30
-            mutable.addAttribute(.paragraphStyle, value: style, range: paragraphRange)
-            log.debug("toggleBulletList: applied bullet list")
+            // Insert "• " at the paragraph start with adaptive colour.
+            let bullet = NSAttributedString(string: "• ", attributes: [
+                .font:            UIFont.preferredFont(forTextStyle: .body),
+                .foregroundColor: UIColor.label,
+            ])
+            mutable.insert(bullet, at: parRange.location)
+
+            // Apply hanging indent so wrapped lines align under the text (not the bullet).
+            let newLen = min(parRange.length + 2, mutable.length - parRange.location)
+            if newLen > 0 {
+                let hangStyle = NSMutableParagraphStyle()
+                hangStyle.headIndent = 14           // aligns second+ lines under text after "• "
+                mutable.addAttribute(.paragraphStyle, value: hangStyle,
+                                     range: NSRange(location: parRange.location, length: newLen))
+            }
+            log.debug("toggleBulletList: inserted bullet prefix")
         }
         attributedText = mutable
     }
 
+    // MARK: - Blockquote
+    // Uses a "│ " (BOX DRAWINGS LIGHT VERTICAL + space) text prefix in the accent
+    // colour as a visible left bar — no UITextView subclassing required.
+    // Wrapped lines hang-indent to align under the quoted text.
+
     static func applyBlockquote(attributedText: inout NSAttributedString, selectedRange: NSRange) {
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
-        let paragraphRange = (mutable.string as NSString).paragraphRange(for: selectedRange)
-        log.debug("applyBlockquote: range=\(paragraphRange.location)-\(paragraphRange.length)")
+        guard mutable.length > 0 else { return }
 
-        let style = NSMutableParagraphStyle()
-        style.firstLineHeadIndent = 16
-        style.headIndent = 16
-        style.tailIndent = -16
+        // Same end-of-string fix as toggleBulletList: allow safeLoc == mutable.length.
+        let safeLoc = min(selectedRange.location, mutable.length)
+        let parRange = (mutable.string as NSString).paragraphRange(
+            for: NSRange(location: safeLoc, length: 0))
+        guard parRange.location <= mutable.length else { return }
 
-        mutable.addAttribute(.paragraphStyle, value: style, range: paragraphRange)
-        // Use .label (adaptive) so text is always readable in both light and dark mode.
-        // A subtle systemFill background gives the block a visual distinction (acts as the "quote bar" effect).
-        mutable.addAttribute(.foregroundColor, value: UIColor.label, range: paragraphRange)
-        mutable.addAttribute(.backgroundColor, value: UIColor.systemFill, range: paragraphRange)
+        let parText = (mutable.string as NSString).substring(with: parRange)
+        let hasBar  = parText.hasPrefix("│ ")
+        log.debug("applyBlockquote: hasBar=\(hasBar), parRange=\(parRange.location)-\(parRange.length)")
+
+        if hasBar {
+            // Toggle off — remove "│ " (2 UTF-16 units) and clear style.
+            let delRange = NSRange(location: parRange.location, length: 2)
+            mutable.deleteCharacters(in: delRange)
+            let cleared = NSRange(location: parRange.location,
+                                  length: max(0, parRange.length - 2))
+            if cleared.length > 0 {
+                mutable.addAttribute(.paragraphStyle, value: NSMutableParagraphStyle(),
+                                     range: cleared)
+                mutable.removeAttribute(.foregroundColor, range: cleared)
+            }
+            log.debug("applyBlockquote: removed quote bar")
+        } else {
+            // Insert "│ " at paragraph start styled in the system accent colour.
+            let bar = NSAttributedString(string: "│ ", attributes: [
+                .font:            UIFont.preferredFont(forTextStyle: .body),
+                .foregroundColor: UIColor.systemBlue,
+            ])
+            mutable.insert(bar, at: parRange.location)
+
+            // Hang-indent wrapped lines so they start under the quoted text, not under "│".
+            let newLen = min(parRange.length + 2, mutable.length - parRange.location)
+            if newLen > 0 {
+                let quoteStyle = NSMutableParagraphStyle()
+                quoteStyle.headIndent  = 16
+                quoteStyle.tailIndent  = -16
+                mutable.addAttribute(.paragraphStyle, value: quoteStyle,
+                                     range: NSRange(location: parRange.location, length: newLen))
+            }
+            log.debug("applyBlockquote: inserted quote bar")
+        }
         attributedText = mutable
     }
 
     // MARK: - To-do Checklists (#41)
+    // Uses CheckboxAttachment (SF Symbol) instead of Unicode glyphs so the checkbox
+    // is correctly sized, tinted adaptively, and identifiable by type at tap time.
 
-    /// Insert a checklist item at the current cursor position.
-    /// Returns the new cursor location (right after the inserted "☐ ").
+    /// Insert a CheckboxAttachment + space at cursorLocation.
+    /// Returns the new cursor location (attachment char + space = +2).
     @discardableResult
     static func insertChecklist(attributedText: inout NSAttributedString, cursorLocation: Int) -> Int {
-        let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
-        // Clamp so replaceCharacters never throws an NSRangeException.
+        let mutable     = attributedText.mutableCopy() as! NSMutableAttributedString
         let safeLocation = max(0, min(cursorLocation, mutable.length))
         log.debug("insertChecklist: inserting at \(safeLocation) (requested \(cursorLocation), length \(mutable.length))")
-        let item = NSAttributedString(
-            string: "☐ ",
-            attributes: [
-                .font: UIFont.preferredFont(forTextStyle: .body),
-                .foregroundColor: UIColor.label   // explicit adaptive color so it's never invisible
-            ]
-        )
-        mutable.replaceCharacters(in: NSRange(location: safeLocation, length: 0), with: item)
+
+        let checkbox    = CheckboxAttachment(checked: false)
+        let attachStr   = NSMutableAttributedString(attachment: checkbox)
+        // Set foreground color on the attachment character so .alwaysTemplate
+        // rendering picks up the adaptive colour in both light and dark mode.
+        attachStr.addAttribute(.foregroundColor, value: UIColor.label,
+                                range: NSRange(location: 0, length: attachStr.length))
+
+        let space = NSAttributedString(string: " ", attributes: [
+            .font:            UIFont.preferredFont(forTextStyle: .body),
+            .foregroundColor: UIColor.label,
+        ])
+        attachStr.append(space)
+
+        mutable.replaceCharacters(in: NSRange(location: safeLocation, length: 0), with: attachStr)
         attributedText = mutable
-        return safeLocation + 2   // "☐" (1 UTF-16 unit) + space (1) = 2
+        return safeLocation + 2   // attachment U+FFFC (1) + space (1) = 2
     }
 
-    /// Toggle ☐/☑ on the line at the given location
+    /// Toggle the CheckboxAttachment on the line at the given tap location.
     static func toggleCheckbox(at location: Int, attributedText: inout NSAttributedString) {
-        let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
-        let str = mutable.string as NSString
-        let lineRange = str.lineRange(for: NSRange(location: location, length: 0))
-        let lineText = str.substring(with: lineRange)
+        let mutable  = attributedText.mutableCopy() as! NSMutableAttributedString
+        guard mutable.length > 0 else { return }
+        let safeLoc  = max(0, min(location, mutable.length - 1))
+        let lineRange = (mutable.string as NSString).lineRange(
+            for: NSRange(location: safeLoc, length: 0))
 
-        if lineText.hasPrefix("☐") {
-            log.debug("toggleCheckbox: ☐ → ☑ at location=\(location)")
-            mutable.replaceCharacters(in: NSRange(location: lineRange.location, length: 1), with: "☑")
-        } else if lineText.hasPrefix("☑") {
-            log.debug("toggleCheckbox: ☑ → ☐ at location=\(location)")
-            mutable.replaceCharacters(in: NSRange(location: lineRange.location, length: 1), with: "☐")
-        } else {
-            log.debug("toggleCheckbox: no checkbox found at location=\(location)")
+        var found = false
+        mutable.enumerateAttribute(.attachment, in: lineRange, options: []) { value, range, stop in
+            guard let cb = value as? CheckboxAttachment else { return }
+            cb.toggle()
+            // Re-set the attribute to force UITextView to redraw the attachment.
+            mutable.removeAttribute(.attachment, range: range)
+            mutable.addAttribute(.attachment, value: cb, range: range)
+            found = true
+            stop.pointee = true
         }
+        log.debug("toggleCheckbox: found=\(found) at location=\(location)")
         attributedText = mutable
     }
 

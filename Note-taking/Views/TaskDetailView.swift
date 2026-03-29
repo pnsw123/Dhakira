@@ -33,6 +33,9 @@ struct TaskDetailView: View {
     @State private var pkToolPicker: PKToolPicker?
     // Slash command coordinator — replaces 3 @State vars + double evaluate() (Issue #48)
     @StateObject private var slashCoordinator = SlashCommandCoordinator()
+    // Checkbox tap coordinator — wires a UITapGestureRecognizer to the UITextView
+    // so users can tap checkbox attachments to toggle them checked/unchecked.
+    @StateObject private var checkboxCoordinator = CheckboxTapCoordinator()
 
     // Color palette state — shown automatically when text is selected
     /// Persisted across palette appearances so the last-used mode (text color / highlight) is remembered.
@@ -66,7 +69,6 @@ struct TaskDetailView: View {
         .init(id: "text.alignleft",  icon: "text.alignleft"),
         .init(id: "text.aligncenter",icon: "text.aligncenter"),
         .init(id: "text.alignright", icon: "text.alignright"),
-        .init(id: "list.bullet",     icon: "list.bullet"),
     ]
     @State private var toolbarItems: [EditorTool] = TaskDetailView.defaultToolbarItems
     @AppStorage("editorToolbarOrder") private var savedToolbarOrder: String = ""
@@ -104,8 +106,8 @@ struct TaskDetailView: View {
                 .padding(.bottom, 8)
 
             Rectangle()
-                .fill(Color(uiColor: .separator))
-                .frame(height: 0.5)
+                .fill(Color(uiColor: .opaqueSeparator))
+                .frame(height: 1)
                 .padding(.horizontal, 20)
 
             ZStack(alignment: .topLeading) {
@@ -115,6 +117,13 @@ struct TaskDetailView: View {
                     context: richTextContext,
                     onEditorReady: { tv in
                         richTextView = tv
+                        // Attach checkbox tap handler (Bug #1 fix)
+                        let tap = UITapGestureRecognizer(
+                            target: checkboxCoordinator,
+                            action: #selector(CheckboxTapCoordinator.handleTap(_:))
+                        )
+                        tap.delegate = checkboxCoordinator
+                        tv.addGestureRecognizer(tap)
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -228,17 +237,29 @@ struct TaskDetailView: View {
             }
             // Slash command menu — uses the same global-rect approach as the color palette
             // so it always appears directly below the caret regardless of scroll or insets.
+            // When the menu would clip below the bottom of the ZStack (e.g. keyboard up,
+            // cursor near the last line), it flips to appear ABOVE the caret instead.
             .overlay(alignment: .topLeading) {
                 if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty {
                     GeometryReader { geo in
                         let gf = geo.frame(in: .global)
-                        let localY: CGFloat = slashCursorGlobalRect == .zero
-                            ? 40
-                            : slashCursorGlobalRect.maxY - gf.minY + 6
+                        let caretMaxY: CGFloat = slashCursorGlobalRect == .zero
+                            ? gf.minY + 40
+                            : slashCursorGlobalRect.maxY
+                        let caretMinY: CGFloat = slashCursorGlobalRect == .zero
+                            ? gf.minY + 20
+                            : slashCursorGlobalRect.minY
                         let localX: CGFloat = slashCursorGlobalRect == .zero
                             ? 16
                             : max(0, min(slashCursorGlobalRect.minX - gf.minX, geo.size.width - 264))
-                        if localY > 0 && localY < geo.size.height {
+                        // Menu max height is 320; show above caret if it would clip below.
+                        let menuMaxH: CGFloat = 320
+                        let belowY = caretMaxY - gf.minY + 6
+                        let wouldClip = belowY + menuMaxH > geo.size.height
+                        let localY: CGFloat = wouldClip
+                            ? caretMinY - gf.minY - menuMaxH - 6   // above caret
+                            : belowY                                  // below caret (default)
+                        if localY > -menuMaxH && localY < geo.size.height {
                             SlashCommandMenuView(
                                 commands: slashCoordinator.filteredCommands,
                                 onSelect: { cmd in applySlashCommand(cmd) },
@@ -313,6 +334,12 @@ struct TaskDetailView: View {
         .background(attachmentService.presentationHooks(attributedText: $attributedText))
         .onAppear { loadToolbarOrder(); loadBody() }
         .onDisappear { saveBody() }
+        // Sync checkbox toggle back to the @State binding (Bug #1 fix)
+        .onChange(of: checkboxCoordinator.toggleVersion) { _, _ in
+            if let toggled = checkboxCoordinator.lastToggledText {
+                attributedText = toggled
+            }
+        }
     }
 
     // MARK: - Toolbar (Issues #39–#43)
@@ -349,10 +376,19 @@ struct TaskDetailView: View {
         switch item.id {
         case "paperclip":
             attachmentMenuButton
+        case "fontSizeUp", "fontSizeDown":
+            fontSizeHoldButton(item.icon, toolId: item.id)
         default:
             toolbarButton(item.icon) {
                 handleToolbarTap(item.id)
             }
+        }
+    }
+
+    /// Font-size button that fires once on tap AND continuously while held.
+    private func fontSizeHoldButton(_ icon: String, toolId: String) -> some View {
+        FontSizeHoldButton(icon: icon) {
+            handleToolbarTap(toolId)
         }
     }
 
@@ -637,6 +673,8 @@ struct TaskDetailView: View {
 
     // MARK: - Slash Command Application (Issue #46 / #48)
 
+
+
     private func applySlashCommand(_ cmd: SlashCommand) {
         log.info("applySlashCommand: '\(cmd.id)' (\(cmd.label))")
 
@@ -663,14 +701,19 @@ struct TaskDetailView: View {
         let selRange = NSRange(location: newCursor, length: 0)
 
         // Step 2: apply the chosen command to workingText.
+        // bulletList and quote insert a text prefix ("• " / "│ ") at the paragraph
+        // start — newCursor shifts +2 to land after the prefix.
         var isColorCommand = false
         switch cmd.id {
         case "bulletList":
             RichEditorCommands.toggleBulletList(attributedText: &workingText, selectedRange: selRange)
+            newCursor += 2   // past the inserted "• "
         case "todoList":
-            newCursor = RichEditorCommands.insertChecklist(attributedText: &workingText, cursorLocation: newCursor)
+            newCursor = RichEditorCommands.insertChecklist(attributedText: &workingText,
+                                                            cursorLocation: newCursor)
         case "quote":
             RichEditorCommands.applyBlockquote(attributedText: &workingText, selectedRange: selRange)
+            newCursor += 2   // past the inserted "│ "
         case "heading1":
             RichEditorCommands.applyHeading(.h1, attributedText: &workingText, selectedRange: selRange)
         case "heading2":
@@ -684,40 +727,41 @@ struct TaskDetailView: View {
         }
 
         // Step 3: push result to UITextView synchronously, then sync the binding.
-        // Synchronous = no state-divergence window between binding and TV.
-        // Two-step (tv then binding) mirrors how handleToolbarTap works.
         tv.attributedText = workingText
         tv.becomeFirstResponder()
         let safeCursor = max(0, min(newCursor, (tv.text as NSString).length))
         tv.selectedRange = NSRange(location: safeCursor, length: 0)
-        attributedText = workingText   // keep SwiftUI binding in sync
+        attributedText = workingText
+        // Keep prevTextLength in sync so handleReturnKey doesn't see a false +N delta.
+        prevTextLength = workingText.length
 
         // Step 4: typing attributes — next keystroke inherits the block style.
+        // NOTE: No NSTextList here — we use text-prefix bullets now.
         switch cmd.id {
         case "heading1":
             tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h1.font
+            tv.typingAttributes[.foregroundColor] = UIColor.label
         case "heading2":
             tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h2.font
+            tv.typingAttributes[.foregroundColor] = UIColor.label
         case "heading3":
             tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h3.font
+            tv.typingAttributes[.foregroundColor] = UIColor.label
         case "todoList":
-            tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
+            tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
             tv.typingAttributes[.foregroundColor] = UIColor.label
         case "bulletList":
-            let bulletList = NSTextList(markerFormat: .disc, options: 0)
-            let bulletStyle = NSMutableParagraphStyle()
-            bulletStyle.textLists = [bulletList]
-            bulletStyle.firstLineHeadIndent = 15
-            bulletStyle.headIndent = 30
-            tv.typingAttributes[.paragraphStyle] = bulletStyle
+            let hangStyle = NSMutableParagraphStyle()
+            hangStyle.headIndent = 14
+            tv.typingAttributes[.paragraphStyle]  = hangStyle
+            tv.typingAttributes[.foregroundColor] = UIColor.label
+            tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
         case "quote":
             let quoteStyle = NSMutableParagraphStyle()
-            quoteStyle.firstLineHeadIndent = 16
-            quoteStyle.headIndent = 16
-            quoteStyle.tailIndent = -16
-            tv.typingAttributes[.paragraphStyle] = quoteStyle
+            quoteStyle.headIndent  = 16
+            quoteStyle.tailIndent  = -16
+            tv.typingAttributes[.paragraphStyle]  = quoteStyle
             tv.typingAttributes[.foregroundColor] = UIColor.label
-            tv.typingAttributes[.backgroundColor] = UIColor.systemFill
         default:
             break
         }
@@ -745,6 +789,24 @@ struct TaskDetailView: View {
         let str = tvText.string as NSString
         let textLen = str.length
 
+        // Slash menu + Return key: if the menu is visible and the user pressed Return,
+        // apply the top item instead of inserting a newline.
+        if slashCoordinator.isMenuVisible,
+           let firstCmd = slashCoordinator.filteredCommands.first,
+           textLen == prevTextLength + 1,
+           cursorLoc > 0,
+           str.character(at: cursorLoc - 1) == 0x0A {
+            // Remove the \n that was just inserted.
+            let mutable = NSMutableAttributedString(attributedString: tvText)
+            mutable.deleteCharacters(in: NSRange(location: cursorLoc - 1, length: 1))
+            tv.attributedText = mutable
+            tv.selectedRange  = NSRange(location: cursorLoc - 1, length: 0)
+            attributedText    = mutable
+            prevTextLength    = mutable.length
+            applySlashCommand(firstCmd)
+            return
+        }
+
         // Always sync — even on early exits — so the next call has a correct baseline.
         // Updated LAST (after any mutations), so we read the live UITextView length.
         // NOTE: do NOT use `defer` here — continueTodoLine inserts extra characters,
@@ -767,117 +829,156 @@ struct TaskDetailView: View {
 
         // Find the paragraph BEFORE the just-inserted newline.
         // cursorLoc - 1 is the '\n'; cursorLoc - 2 is the last char of the previous line.
-        let prevCharLoc = cursorLoc - 2
+        let prevCharLoc  = cursorLoc - 2
         let prevParRange = str.paragraphRange(for: NSRange(location: prevCharLoc, length: 0))
 
         var prevLineText = str.substring(with: prevParRange)
         if prevLineText.hasSuffix("\n") { prevLineText = String(prevLineText.dropLast()) }
-        let isEmptyPrevLine = prevLineText.isEmpty
 
-        // Determine block type from the previous paragraph's style.
-        guard prevParRange.location < tvText.length else {
-            prevTextLength = textLen
-            return
-        }
-        let existingStyle = tvText.attribute(.paragraphStyle, at: prevParRange.location, effectiveRange: nil) as? NSParagraphStyle
-        let hasBullet = !(existingStyle?.textLists.isEmpty ?? true)
-        let hasQuote  = !hasBullet && (existingStyle?.firstLineHeadIndent ?? 0) >= 16
-        let isTodo    = prevLineText.hasPrefix("☐ ") || prevLineText.hasPrefix("☑ ")
+        // Detect block type by TEXT PREFIX — no NSTextList dependency.
+        // Todo is identified by a CheckboxAttachment at the paragraph start.
+        let hasBullet: Bool = prevLineText.hasPrefix("• ")
+        let hasQuote:  Bool = prevLineText.hasPrefix("│ ")
+        let isTodo:    Bool = {
+            guard prevParRange.location < tvText.length else { return false }
+            return tvText.attribute(.attachment, at: prevParRange.location,
+                                    effectiveRange: nil) is CheckboxAttachment
+        }()
 
         guard hasBullet || isTodo || hasQuote else {
             prevTextLength = textLen
             return
         }
 
-        if isEmptyPrevLine {
-            // Double-Enter: exit the block by clearing formatting on both the previous
-            // empty paragraph and the newly created paragraph.
-            exitBlock(tv: tv, prevParRange: prevParRange, cursorLoc: cursorLoc)
+        // Double-Enter: the "content" of the previous line is ONLY the block prefix
+        // (nothing typed after it). Remove the prefix and exit the block.
+        let isEmptyBullet = prevLineText == "• "
+        let isEmptyQuote  = prevLineText == "│ "
+        let isEmptyTodo   = isTodo && (prevLineText == "\u{FFFC} " || prevLineText == "\u{FFFC}")
+        let isDoubleEnter = prevLineText.isEmpty || isEmptyBullet || isEmptyQuote || isEmptyTodo
+
+        if isDoubleEnter {
+            exitBlock(tv: tv, prevParRange: prevParRange, cursorLoc: cursorLoc,
+                      blockType: hasBullet ? .bullet : (hasQuote ? .quote : .todo))
         } else if hasBullet {
-            continueBulletLine(tv: tv, cursorLoc: cursorLoc, style: existingStyle)
+            continueBulletLine(tv: tv, cursorLoc: cursorLoc)
         } else if isTodo {
             continueTodoLine(tv: tv, cursorLoc: cursorLoc)
         } else if hasQuote {
-            continueQuoteLine(tv: tv, cursorLoc: cursorLoc, style: existingStyle)
+            continueQuoteLine(tv: tv, cursorLoc: cursorLoc)
         }
 
-        // Read the LIVE length AFTER any mutations (e.g. continueTodoLine inserted "☐ ").
+        // Read the LIVE length AFTER any mutations so the next call has a correct baseline.
         prevTextLength = tv.attributedText?.length ?? textLen
     }
 
-    /// Remove block formatting from the last empty continuation line and the new cursor line,
-    /// returning the user to plain body text.
-    private func exitBlock(tv: UITextView, prevParRange: NSRange, cursorLoc: Int) {
+    private enum BlockType: CustomStringConvertible {
+        case bullet, quote, todo
+        var description: String {
+            switch self { case .bullet: "bullet"; case .quote: "quote"; case .todo: "todo" }
+        }
+    }
+
+    /// Double-Enter: delete the empty prefix line and return to body text.
+    private func exitBlock(tv: UITextView, prevParRange: NSRange,
+                           cursorLoc: Int, blockType: BlockType) {
         guard let tvText = tv.attributedText else { return }
         let mutable = NSMutableAttributedString(attributedString: tvText)
-        let plainStyle = NSMutableParagraphStyle()
 
-        func clearRange(_ r: NSRange) {
-            guard r.length > 0, r.location < mutable.length else { return }
-            let safe = NSRange(location: r.location, length: min(r.length, mutable.length - r.location))
-            guard safe.length > 0 else { return }
-            mutable.addAttribute(.paragraphStyle, value: plainStyle, range: safe)
-            mutable.removeAttribute(.backgroundColor, range: safe)
-            mutable.removeAttribute(.foregroundColor, range: safe)
+        // How many characters to delete from the start of the previous (empty) paragraph.
+        // "• " → 2, "│ " → 2, CheckboxAttachment+space → 2
+        let prefixLen: Int
+        switch blockType {
+        case .bullet: prefixLen = prevParRange.length >= 3 ? 2 : 0   // "• \n" = 3 chars
+        case .quote:  prefixLen = prevParRange.length >= 3 ? 2 : 0   // "│ \n" = 3 chars
+        case .todo:   prefixLen = prevParRange.length >= 3 ? 2 : 0   // <att> + space + \n
         }
 
-        clearRange(prevParRange)
-        let currentParRange = (mutable.string as NSString).paragraphRange(for: NSRange(location: cursorLoc, length: 0))
-        clearRange(currentParRange)
+        if prefixLen > 0, prevParRange.location + prefixLen <= mutable.length {
+            mutable.deleteCharacters(in: NSRange(location: prevParRange.location,
+                                                  length: prefixLen))
+        }
+
+        // Clear paragraph style on both paragraphs (cursor shifted back by prefixLen).
+        let adjusted = max(0, cursorLoc - prefixLen)
+        let safeAdjusted = min(adjusted, max(0, mutable.length - 1))
+        let curParRange  = safeAdjusted < mutable.length
+            ? (mutable.string as NSString).paragraphRange(
+                for: NSRange(location: safeAdjusted, length: 0))
+            : NSRange(location: safeAdjusted, length: 0)
+
+        func clear(_ r: NSRange) {
+            guard r.length > 0, r.location < mutable.length else { return }
+            let safe = NSRange(location: r.location,
+                               length: min(r.length, mutable.length - r.location))
+            guard safe.length > 0 else { return }
+            mutable.addAttribute(.paragraphStyle, value: NSMutableParagraphStyle(), range: safe)
+            mutable.removeAttribute(.foregroundColor, range: safe)
+        }
+        clear(NSRange(location: prevParRange.location,
+                      length: max(0, prevParRange.length - prefixLen)))
+        clear(curParRange)
 
         tv.attributedText = mutable
-        tv.selectedRange  = NSRange(location: cursorLoc, length: 0)
+        tv.selectedRange  = NSRange(location: min(adjusted, mutable.length), length: 0)
         tv.typingAttributes = [
             .font:            UIFont.preferredFont(forTextStyle: .body),
             .foregroundColor: UIColor.label,
         ]
+        prevTextLength = mutable.length
         attributedText = mutable
-        log.debug("handleReturnKey: exitBlock, cursor=\(cursorLoc)")
+        log.debug("handleReturnKey: exitBlock type=\(blockType), cursor=\(adjusted)")
     }
 
-    /// Apply the same NSTextList paragraph style to the newly created bullet line.
-    private func continueBulletLine(tv: UITextView, cursorLoc: Int, style: NSParagraphStyle?) {
+    /// Continue a bullet line: insert "• " at the start of the new empty paragraph.
+    private func continueBulletLine(tv: UITextView, cursorLoc: Int) {
         guard let tvText = tv.attributedText else { return }
-        let mutable = NSMutableAttributedString(attributedString: tvText)
-        let currentParRange = (mutable.string as NSString).paragraphRange(for: NSRange(location: cursorLoc, length: 0))
+        let mutable    = NSMutableAttributedString(attributedString: tvText)
+        let safeInsert = max(0, min(cursorLoc, mutable.length))
 
-        let newStyle: NSMutableParagraphStyle
-        if let s = style?.mutableCopy() as? NSMutableParagraphStyle {
-            newStyle = s
-        } else {
-            newStyle = NSMutableParagraphStyle()
-            newStyle.textLists          = [NSTextList(markerFormat: .disc, options: 0)]
-            newStyle.firstLineHeadIndent = 15
-            newStyle.headIndent          = 30
-        }
-
-        if currentParRange.length > 0, currentParRange.location < mutable.length {
-            let safeLen = min(currentParRange.length, mutable.length - currentParRange.location)
-            if safeLen > 0 {
-                mutable.addAttribute(.paragraphStyle, value: newStyle,
-                                     range: NSRange(location: currentParRange.location, length: safeLen))
-            }
-        }
-
-        tv.attributedText = mutable
-        tv.selectedRange  = NSRange(location: cursorLoc, length: 0)
-        tv.typingAttributes[.paragraphStyle]   = newStyle
-        tv.typingAttributes[.foregroundColor]  = UIColor.label
-        tv.typingAttributes[.font]             = UIFont.preferredFont(forTextStyle: .body)
-        attributedText = mutable
-        log.debug("handleReturnKey: continued bullet, cursor=\(cursorLoc)")
-    }
-
-    /// Insert a new "☐ " checkbox at the start of the new line.
-    private func continueTodoLine(tv: UITextView, cursorLoc: Int) {
-        guard let tvText = tv.attributedText else { return }
-        let mutable = NSMutableAttributedString(attributedString: tvText)
-
-        let item = NSAttributedString(string: "☐ ", attributes: [
+        let bullet = NSAttributedString(string: "• ", attributes: [
             .font:            UIFont.preferredFont(forTextStyle: .body),
             .foregroundColor: UIColor.label,
         ])
+        mutable.insert(bullet, at: safeInsert)
+
+        // Hang-indent so wrapped lines align under the text (past "• ").
+        let newParRange = (mutable.string as NSString).paragraphRange(
+            for: NSRange(location: safeInsert, length: 0))
+        if newParRange.length > 0, newParRange.location < mutable.length {
+            let safeLen = min(newParRange.length, mutable.length - newParRange.location)
+            if safeLen > 0 {
+                let hangStyle = NSMutableParagraphStyle()
+                hangStyle.headIndent = 14
+                mutable.addAttribute(.paragraphStyle, value: hangStyle,
+                                     range: NSRange(location: newParRange.location, length: safeLen))
+            }
+        }
+
+        let newCursor = min(safeInsert + 2, mutable.length)
+        tv.attributedText = mutable
+        tv.selectedRange  = NSRange(location: newCursor, length: 0)
+        tv.typingAttributes[.foregroundColor] = UIColor.label
+        tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
+        prevTextLength = mutable.length
+        attributedText = mutable
+        log.debug("handleReturnKey: continued bullet, cursor=\(newCursor)")
+    }
+
+    /// Continue a to-do line: insert a new unchecked CheckboxAttachment on the new line.
+    private func continueTodoLine(tv: UITextView, cursorLoc: Int) {
+        guard let tvText = tv.attributedText else { return }
+        let mutable    = NSMutableAttributedString(attributedString: tvText)
         let safeInsert = max(0, min(cursorLoc, mutable.length))
+
+        let checkbox  = CheckboxAttachment(checked: false)
+        let item      = NSMutableAttributedString(attachment: checkbox)
+        item.addAttribute(.foregroundColor, value: UIColor.label,
+                           range: NSRange(location: 0, length: item.length))
+        item.append(NSAttributedString(string: " ", attributes: [
+            .font:            UIFont.preferredFont(forTextStyle: .body),
+            .foregroundColor: UIColor.label,
+        ]))
         mutable.insert(item, at: safeInsert)
 
         let newCursor = min(safeInsert + 2, mutable.length)
@@ -885,43 +986,45 @@ struct TaskDetailView: View {
         tv.selectedRange  = NSRange(location: newCursor, length: 0)
         tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
         tv.typingAttributes[.foregroundColor] = UIColor.label
+        prevTextLength = mutable.length
         attributedText = mutable
         log.debug("handleReturnKey: continued todo, cursor=\(newCursor)")
     }
 
-    /// Apply the same quote paragraph style + background to the new continuation line.
-    private func continueQuoteLine(tv: UITextView, cursorLoc: Int, style: NSParagraphStyle?) {
+    /// Continue a quote line: insert "│ " at the start of the new paragraph.
+    private func continueQuoteLine(tv: UITextView, cursorLoc: Int) {
         guard let tvText = tv.attributedText else { return }
-        let mutable = NSMutableAttributedString(attributedString: tvText)
-        let currentParRange = (mutable.string as NSString).paragraphRange(for: NSRange(location: cursorLoc, length: 0))
+        let mutable    = NSMutableAttributedString(attributedString: tvText)
+        let safeInsert = max(0, min(cursorLoc, mutable.length))
 
-        let newStyle: NSMutableParagraphStyle
-        if let s = style?.mutableCopy() as? NSMutableParagraphStyle {
-            newStyle = s
-        } else {
-            newStyle = NSMutableParagraphStyle()
-            newStyle.firstLineHeadIndent = 16
-            newStyle.headIndent          = 16
-            newStyle.tailIndent          = -16
-        }
+        let bar = NSAttributedString(string: "│ ", attributes: [
+            .font:            UIFont.preferredFont(forTextStyle: .body),
+            .foregroundColor: UIColor.systemBlue,
+        ])
+        mutable.insert(bar, at: safeInsert)
 
-        if currentParRange.length > 0, currentParRange.location < mutable.length {
-            let safeLen = min(currentParRange.length, mutable.length - currentParRange.location)
+        // Hang-indent so wrapped lines align under the quoted text.
+        let newParRange = (mutable.string as NSString).paragraphRange(
+            for: NSRange(location: safeInsert, length: 0))
+        if newParRange.length > 0, newParRange.location < mutable.length {
+            let safeLen = min(newParRange.length, mutable.length - newParRange.location)
             if safeLen > 0 {
-                let safeRange = NSRange(location: currentParRange.location, length: safeLen)
-                mutable.addAttribute(.paragraphStyle,  value: newStyle,            range: safeRange)
-                mutable.addAttribute(.foregroundColor, value: UIColor.label,       range: safeRange)
-                mutable.addAttribute(.backgroundColor, value: UIColor.systemFill,  range: safeRange)
+                let quoteStyle = NSMutableParagraphStyle()
+                quoteStyle.headIndent = 16
+                quoteStyle.tailIndent = -16
+                mutable.addAttribute(.paragraphStyle, value: quoteStyle,
+                                     range: NSRange(location: newParRange.location, length: safeLen))
             }
         }
 
+        let newCursor = min(safeInsert + 2, mutable.length)
         tv.attributedText = mutable
-        tv.selectedRange  = NSRange(location: cursorLoc, length: 0)
-        tv.typingAttributes[.paragraphStyle]  = newStyle
+        tv.selectedRange  = NSRange(location: newCursor, length: 0)
         tv.typingAttributes[.foregroundColor] = UIColor.label
-        tv.typingAttributes[.backgroundColor] = UIColor.systemFill
+        tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
+        prevTextLength = mutable.length
         attributedText = mutable
-        log.debug("handleReturnKey: continued quote, cursor=\(cursorLoc)")
+        log.debug("handleReturnKey: continued quote, cursor=\(newCursor)")
     }
 
     // MARK: - Export (Issue #45 — native, no WKWebView)
@@ -1630,4 +1733,94 @@ struct AudioRecorderView: View {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
+
+// MARK: - CheckboxTapCoordinator
+// Handles taps on CheckboxAttachment characters inside the UITextView.
+// Uses a published `toggleVersion` counter so TaskDetailView can observe
+// each toggle event without needing a mutable Binding captured in a closure.
+
+final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecognizerDelegate {
+    @Published private(set) var toggleVersion: Int = 0
+    private(set) var lastToggledText: NSAttributedString? = nil
+
+    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+        guard let tv = gesture.view as? UITextView,
+              let text = tv.attributedText else { return }
+
+        let point = gesture.location(in: tv)
+        // Compensate for text container insets and line fragment padding
+        let adjustedPoint = CGPoint(
+            x: point.x - tv.textContainerInset.left - tv.textContainer.lineFragmentPadding,
+            y: point.y - tv.textContainerInset.top
+        )
+        let charIndex = tv.layoutManager.characterIndex(
+            for: adjustedPoint,
+            in: tv.textContainer,
+            fractionOfDistanceBetweenInsertionPoints: nil
+        )
+        guard charIndex < text.length else { return }
+
+        // Only act when the tapped character IS a CheckboxAttachment.
+        let attrs = text.attributes(at: charIndex, effectiveRange: nil)
+        guard attrs[.attachment] is CheckboxAttachment else { return }
+
+        var mutableText = NSAttributedString(attributedString: text)
+        RichEditorCommands.toggleCheckbox(at: charIndex, attributedText: &mutableText)
+        tv.attributedText = mutableText
+
+        // Publish the result so TaskDetailView can sync its @State binding.
+        lastToggledText = mutableText
+        toggleVersion += 1
+    }
+
+    // Allow this gesture to fire simultaneously with UITextView's built-in gestures
+    // so normal cursor placement is not blocked.
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        return true
+    }
+}
+
+// MARK: - FontSizeHoldButton
+// Fires `action` immediately on tap, and then repeatedly (~8×/sec) while held.
+
+private struct FontSizeHoldButton: View {
+    let icon: String
+    let action: () -> Void
+
+    @State private var holdTimer: Timer?
+    @State private var isHolding = false
+
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: 18))
+            .foregroundStyle(Color.primary)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !isHolding else { return }
+                        isHolding = true
+                        action() // fire once immediately
+                        // After 0.4s delay, start repeating at ~125ms interval
+                        let fireDate = Date().addingTimeInterval(0.4)
+                        holdTimer = Timer(fire: fireDate, interval: 0.125, repeats: true) { _ in
+                            DispatchQueue.main.async { action() }
+                        }
+                        RunLoop.main.add(holdTimer!, forMode: .common)
+                    }
+                    .onEnded { _ in
+                        stopHold()
+                    }
+            )
+    }
+
+    private func stopHold() {
+        isHolding = false
+        holdTimer?.invalidate()
+        holdTimer = nil
+    }
+}
+
 #endif

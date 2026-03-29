@@ -103,7 +103,8 @@ struct DrawingCanvasView: UIViewRepresentable {
             super.init()
 
             canvasView.drawingPolicy = .anyInput
-            canvasView.backgroundColor = .systemBackground
+            canvasView.backgroundColor = .clear
+            canvasView.isOpaque = false
             canvasView.isScrollEnabled = false
             canvasView.delegate = self
 
