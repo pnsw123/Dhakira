@@ -28,20 +28,31 @@ final class TableAttachmentViewProvider: NSTextAttachmentViewProvider {
     override func loadView() {
         super.loadView()
 
-        guard let tableAttachment = textAttachment as? TableAttachment else {
-            log.warning("TableAttachmentViewProvider.loadView: attachment is not a TableAttachment")
+        // After RTF round-trip the attachment is a generic NSTextAttachment (RTF doesn't
+        // preserve custom subclasses). Read tableData from contents directly so tables
+        // render correctly both immediately after insertion AND after save/reload.
+        let tableData: TableData
+        if let ta = textAttachment as? TableAttachment {
+            tableData = ta.tableData
+        } else if let data = textAttachment?.contents,
+                  case .success(let decoded) = TableAttachmentCodec.decode(data) {
+            tableData = decoded
+        } else {
+            log.warning("TableAttachmentViewProvider.loadView: could not read table data from attachment")
             view = UIView()
             return
         }
 
-        let state = TableViewState(tableData: tableAttachment.tableData)
+        let state = TableViewState(tableData: tableData)
         self.tableState = state
 
-        // Wire cell changes: update the attachment data and trigger save
-        state.onCellChange = { [weak tableAttachment, weak self] coord, value in
-            guard let attachment = tableAttachment else { return }
-            attachment.updateCell(row: coord.row, col: coord.col, value: value)
-            // Notify the text view that the attachment changed so the document is re-saved
+        // Wire cell changes: write back into the underlying NSTextAttachment.contents
+        // directly so saves work whether the attachment is a TableAttachment subclass
+        // (new insert) or a generic NSTextAttachment restored from RTF.
+        state.onCellChange = { [weak self] _, _ in
+            if let updatedData = try? JSONEncoder().encode(state.tableData) {
+                self?.textAttachment?.contents = updatedData
+            }
             self?.triggerSave()
         }
 

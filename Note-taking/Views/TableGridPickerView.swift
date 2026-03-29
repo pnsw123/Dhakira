@@ -3,35 +3,41 @@ import SwiftUI
 // MARK: - TableGridPickerView (Issue #56)
 // A 6×6 drag-to-select grid that lets the user choose the size of a table to insert.
 // Drag or tap across cells to highlight the selection. Lift finger or tap Insert to confirm.
-// Tap outside the picker to dismiss without inserting.
+// Styled to match iOS 26 liquid glass design used throughout the app.
 
 struct TableGridPickerView: View {
 
-    /// Maximum rows/cols available in the picker.
     static let maxRows = 6
     static let maxCols = 6
 
-    /// Called when the user confirms a table size. Rows and cols are 1-based.
     let onInsert: (Int, Int) -> Void
-    /// Called when the user dismisses the picker without inserting.
     let onDismiss: () -> Void
 
     @State private var hoveredRow: Int = 1
     @State private var hoveredCol: Int = 1
-    @State private var cellSize: CGFloat = 28
-
-    private let cellSpacing: CGFloat = 4
+    private let cellSize: CGFloat = 28
+    private let cellSpacing: CGFloat = 5
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
+            // Header
+            HStack {
+                Text("Insert Table")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.plain)
+            }
+
             // Size label
             Text("\(hoveredRow) × \(hoveredCol)")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.primary)
-                .monospacedDigit()
-                .frame(minWidth: 60)
-                .animation(.none, value: hoveredRow)
-                .animation(.none, value: hoveredCol)
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(.secondary)
 
             // Grid
             grid
@@ -42,44 +48,34 @@ struct TableGridPickerView: View {
             } label: {
                 Text("Insert")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.indigo, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .padding(.vertical, 10)
+                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .foregroundStyle(Color.accentColor)
             }
             .buttonStyle(.plain)
         }
-        .padding(14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
-        .frame(width: CGFloat(TableGridPickerView.maxCols) * (cellSize + cellSpacing) + 28)
+        .padding(20)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        .padding(.horizontal, 28)
     }
 
     // MARK: - Grid
 
     private var grid: some View {
-        let totalRows = TableGridPickerView.maxRows
-        let totalCols = TableGridPickerView.maxCols
-
-        return VStack(spacing: cellSpacing) {
-            ForEach(1...totalRows, id: \.self) { row in
+        VStack(spacing: cellSpacing) {
+            ForEach(1...TableGridPickerView.maxRows, id: \.self) { row in
                 HStack(spacing: cellSpacing) {
-                    ForEach(1...totalCols, id: \.self) { col in
+                    ForEach(1...TableGridPickerView.maxCols, id: \.self) { col in
                         cell(row: row, col: col)
                     }
                 }
             }
         }
-        // Drag gesture to update selection as the user moves across cells
         .gesture(
             DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                .onChanged { value in
-                    updateHovered(from: value.location)
-                }
+                .onChanged { value in updateHovered(from: value.location) }
                 .onEnded { value in
                     updateHovered(from: value.location)
                     onInsert(hoveredRow, hoveredCol)
@@ -89,30 +85,27 @@ struct TableGridPickerView: View {
 
     private func cell(row: Int, col: Int) -> some View {
         let isSelected = row <= hoveredRow && col <= hoveredCol
-        return RoundedRectangle(cornerRadius: 4, style: .continuous)
-            .fill(isSelected ? Color.indigo.opacity(0.85) : Color.primary.opacity(0.08))
-            .frame(width: cellSize, height: cellSize)
+        return RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(isSelected ? Color.accentColor.opacity(0.85) : Color.primary.opacity(0.07))
             .overlay(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .strokeBorder(isSelected ? Color.indigo : Color.primary.opacity(0.12), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.accentColor : Color.primary.opacity(0.18),
+                        lineWidth: 1
+                    )
             )
+            .frame(width: cellSize, height: cellSize)
             .animation(.easeOut(duration: 0.07), value: isSelected)
     }
 
     // MARK: - Helpers
 
-    /// Translate a drag location (local to the VStack) into a row/col position.
     private func updateHovered(from location: CGPoint) {
-        let totalCols = TableGridPickerView.maxCols
-        let totalRows = TableGridPickerView.maxRows
         let step = cellSize + cellSpacing
-
-        // The grid's origin inside the VStack is offset by the label + spacing above it.
-        // We rely on the DragGesture local coordinate space which starts at the VStack top.
-        // Approx top-of-grid offset: label height (~22) + spacing (12) + padding top (14)
-        let gridOriginY: CGFloat = 22 + 12 + 14
-        let col = max(1, min(totalCols, Int((location.x - 14) / step) + 1))
-        let row = max(1, min(totalRows, Int((location.y - gridOriginY) / step) + 1))
+        // Approximate grid origin inside the VStack (header + size label + spacings + padding)
+        let gridOriginY: CGFloat = 20 + 28 + 14 + 18 + 14
+        let col = max(1, min(TableGridPickerView.maxCols, Int((location.x - 20) / step) + 1))
+        let row = max(1, min(TableGridPickerView.maxRows, Int((location.y - gridOriginY) / step) + 1))
         if row != hoveredRow || col != hoveredCol {
             hoveredRow = row
             hoveredCol = col
@@ -120,16 +113,10 @@ struct TableGridPickerView: View {
     }
 }
 
-// MARK: - Preview
-
 #Preview("Table Grid Picker") {
     TableGridPickerView(
-        onInsert: { rows, cols in
-            print("Insert \(rows)×\(cols)")
-        },
-        onDismiss: {
-            print("Dismissed")
-        }
+        onInsert: { rows, cols in print("Insert \(rows)×\(cols)") },
+        onDismiss: { print("Dismissed") }
     )
     .padding()
     .background(Color(.systemBackground))

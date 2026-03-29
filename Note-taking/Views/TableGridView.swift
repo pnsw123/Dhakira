@@ -1,19 +1,15 @@
 import SwiftUI
 
 // MARK: - TableGridView (Issue #57)
-// SwiftUI Grid that renders a table attachment inline in the editor.
-// Display-only in base form; edited cells are managed by TableGridViewEditable (Issue #58).
+// Renders a table attachment inline in the editor.
+// Uses iOS 26 glass design to match the rest of the app.
 
 struct TableGridView: View {
 
     let tableData: TableData
-    /// When non-nil, that cell is currently focused for editing (Issue #58).
     var focusedCell: TableCellCoordinate?
-    /// Called when a cell is tapped (Issue #58).
     var onCellTap: ((TableCellCoordinate) -> Void)?
-    /// Called when a cell value changes (Issue #58).
     var onCellChange: ((TableCellCoordinate, String) -> Void)?
-    /// Called when user taps outside the table to dismiss (Issue #58).
     var onDismiss: (() -> Void)?
 
     var body: some View {
@@ -24,14 +20,18 @@ struct TableGridView: View {
                         cellView(row: row, col: col)
                     }
                 }
+                if row < tableData.rows - 1 {
+                    Divider().overlay(Color.primary.opacity(0.1))
+                }
             }
         }
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .glassEffect(.regular, in: .rect(cornerRadius: 12))
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
         )
+        .padding(.vertical, 4)
     }
 
     // MARK: - Cell
@@ -42,44 +42,34 @@ struct TableGridView: View {
         let isFocused = focusedCell == coord
         let value = tableData[row, col]
 
-        if onCellChange != nil {
-            // Editable mode (Issue #58) — each cell is a TextField
-            EditableCellView(
-                value: value,
-                isFocused: isFocused,
-                onTap: { onCellTap?(coord) },
-                onCommit: { newValue in onCellChange?(coord, newValue) }
-            )
-            .frame(minWidth: 44, minHeight: 36)
-            .background(isFocused ? Color.indigo.opacity(0.08) : Color.clear)
-            .overlay(cellBorder(row: row, col: col))
-        } else {
-            // Display-only mode (Issue #57)
-            Text(value.isEmpty ? " " : value)
-                .font(.footnote)
-                .foregroundStyle(.primary)
-                .frame(minWidth: 44, minHeight: 36, alignment: .topLeading)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .overlay(cellBorder(row: row, col: col))
-        }
-    }
-
-    private func cellBorder(row: Int, col: Int) -> some View {
-        let isLastCol = col == tableData.cols - 1
-        let isLastRow = row == tableData.rows - 1
-        return ZStack {
-            if !isLastCol {
-                Rectangle()
-                    .fill(Color.primary.opacity(0.10))
-                    .frame(width: 0.5)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+        Group {
+            if onCellChange != nil {
+                EditableCellView(
+                    value: value,
+                    isFocused: isFocused,
+                    isHeader: row == 0,
+                    onTap: { onCellTap?(coord) },
+                    onCommit: { newValue in onCellChange?(coord, newValue) }
+                )
+            } else {
+                Text(value.isEmpty ? " " : value)
+                    .font(row == 0 ? .footnote.weight(.semibold) : .footnote)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
             }
-            if !isLastRow {
+        }
+        .background(
+            isFocused
+                ? Color.accentColor.opacity(0.1)
+                : (row == 0 ? Color.primary.opacity(0.04) : Color.clear)
+        )
+        .overlay(alignment: .trailing) {
+            if col < tableData.cols - 1 {
                 Rectangle()
-                    .fill(Color.primary.opacity(0.10))
-                    .frame(height: 0.5)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .fill(Color.primary.opacity(0.1))
+                    .frame(width: 0.5)
             }
         }
     }
@@ -97,6 +87,7 @@ struct TableCellCoordinate: Equatable, Hashable {
 struct EditableCellView: View {
     let value: String
     let isFocused: Bool
+    let isHeader: Bool
     let onTap: () -> Void
     let onCommit: (String) -> Void
 
@@ -104,17 +95,15 @@ struct EditableCellView: View {
 
     var body: some View {
         TextField("", text: $draft, axis: .vertical)
-            .font(.footnote)
+            .font(isHeader ? .footnote.weight(.semibold) : .footnote)
             .foregroundStyle(.primary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
             .onTapGesture { onTap() }
-            .onChange(of: draft) { _, newValue in
-                onCommit(newValue)
-            }
+            .onChange(of: draft) { _, newValue in onCommit(newValue) }
             .onAppear { draft = value }
             .onChange(of: value) { _, newValue in
-                // Keep draft in sync when external changes arrive (e.g. undo)
                 if newValue != draft { draft = newValue }
             }
     }
@@ -123,17 +112,6 @@ struct EditableCellView: View {
 // MARK: - Preview
 
 #Preview("Table Grid View") {
-    var data = TableData(rows: 3, cols: 4)
-    data.cells[0] = "Name"
-    data.cells[1] = "Age"
-    data.cells[2] = "City"
-    data.cells[3] = "Score"
-    data.cells[4] = "Alice"
-    data.cells[5] = "30"
-    data.cells[6] = "New York"
-    data.cells[7] = "95"
-
-    return TableGridView(tableData: data)
+    TableGridView(tableData: TableData(rows: 3, cols: 4))
         .padding()
-        .background(Color(.systemGroupedBackground))
 }
