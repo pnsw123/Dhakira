@@ -58,22 +58,32 @@ final class AttachmentServiceTests: XCTestCase {
         XCTAssertEqual(linkAttr, url, "File attachment should carry a tappable .link attribute")
     }
 
-    // MARK: - #4 appendAudio stores a link, not dead text
+    // MARK: - #4 appendAudio inserts a chip with a prodnote-audio:// link
 
     func test_appendAudio_addsLinkNotDeadText() {
+        // Create a real (empty) temp M4A file so AudioStorageService.persistRecording succeeds.
+        let tmpURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-recording-\(UUID().uuidString).m4a")
+        FileManager.default.createFile(atPath: tmpURL.path, contents: Data())
+        defer { try? FileManager.default.removeItem(at: tmpURL) }
+
         var text = NSAttributedString(string: "")
-        let audioURL = URL(string: "file:///tmp/recording.m4a")!
+        service.appendAudio(url: tmpURL, duration: 5.0, to: &text)
 
-        service.appendAudio(url: audioURL, to: &text)
+        // The chip "🎙 Recording  •  0:05" must be present in the text.
+        XCTAssertTrue(text.string.contains("Recording"),
+                      "Audio chip must contain 'Recording'")
 
-        XCTAssertTrue(text.string.contains("recording.m4a"),
-                      "Audio filename should appear in the text")
+        // The chip must have a .link attribute that is a prodnote-audio:// URL.
+        let chipRange = (text.string as NSString).range(of: "Recording")
+        XCTAssertGreaterThan(chipRange.length, 0)
+        let linkAttr = text.attribute(.link, at: chipRange.location, effectiveRange: nil)
+        XCTAssertNotNil(linkAttr, "Audio chip must be a tappable link, not dead text")
 
-        // Must have a .link attribute (unlike the old "\n[Audio: filename]" dead-text)
-        let range = (text.string as NSString).range(of: "recording.m4a")
-        XCTAssertGreaterThan(range.length, 0)
-        let linkAttr = text.attribute(.link, at: range.location, effectiveRange: nil)
-        XCTAssertNotNil(linkAttr, "Audio attachment must be a tappable link, not dead text")
+        if let url = linkAttr as? NSURL ?? (linkAttr as? String).flatMap({ NSURL(string: $0) }) {
+            XCTAssertEqual(url.scheme, AudioLinkBuilder.scheme,
+                           "Link must use the prodnote-audio:// scheme")
+        }
     }
 
     // MARK: - #5 Only one activeSheet can be set at a time (mutual exclusion)
