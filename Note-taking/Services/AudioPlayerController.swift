@@ -1,11 +1,11 @@
 import AVFoundation
-import Combine
 import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "AudioPlayer")
 
 #if canImport(UIKit)
 import UIKit
+import Combine
 
 // MARK: - AudioPlayerController
 // ObservableObject that owns AVAudioPlayer lifecycle.

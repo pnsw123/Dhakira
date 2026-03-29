@@ -1,6 +1,8 @@
 import SwiftUI
 import AVFoundation
 
+#if canImport(UIKit)
+
 // MARK: - AudioPlayerView
 // Compact bottom sheet for playing back a saved voice recording.
 // Presented when the user taps an audio chip ("🎙 Recording • 0:42") in the note editor.
@@ -132,3 +134,5 @@ struct AudioPlayerView: View {
         return f.string(from: date)
     }
 }
+
+#endif // canImport(UIKit)

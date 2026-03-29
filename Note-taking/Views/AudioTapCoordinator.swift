@@ -1,10 +1,10 @@
-import Combine
 import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "AudioTap")
 
 #if canImport(UIKit)
 import UIKit
+import Combine
 
 // MARK: - AudioTapCoordinator
 // Mirrors CheckboxTapCoordinator exactly.
