@@ -37,6 +37,16 @@
 		B3DBD6ED202F394D995BBE1E /* PRELAUNCH-REQUIREMENTS.md */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = net.daringfireball.markdown; path = "PRELAUNCH-REQUIREMENTS.md"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		AA000010BBBB001000000010 /* Exceptions for "Note-taking" folder in "Note-taking" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 38EED4792F75B1CB0069B470 /* Note-taking */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		38577E5A2F787F2A002E377C /* Note-takingUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -45,6 +55,9 @@
 		};
 		38EED47C2F75B1CB0069B470 /* Note-taking */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA000010BBBB001000000010 /* Exceptions for "Note-taking" folder in "Note-taking" target */,
+			);
 			path = "Note-taking";
 			sourceTree = "<group>";
 		};

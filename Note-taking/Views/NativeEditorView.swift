@@ -33,14 +33,6 @@ struct NativeEditorView: View {
                 // Without this, UIKit defaults to black which disappears on dark backgrounds.
                 tv.textColor = .label
                 tv.typingAttributes[.foregroundColor] = UIColor.label
-                // Register the table view provider so TextKit 2 renders TableAttachment
-                // as a live inline SwiftUI grid (Issue #57).
-                // NSTextAttachment.registerViewProviderClass is a class method (iOS 15+).
-                NSTextAttachment.registerViewProviderClass(
-                    TableAttachmentViewProvider.self,
-                    forFileType: TableAttachment.utType.identifier
-                )
-                log.debug("NativeEditorView: registered TableAttachmentViewProvider for UTType \(TableAttachment.utType.identifier)")
                 DispatchQueue.main.async { onEditorReady?(tv) }
             }
         }

@@ -61,7 +61,6 @@ struct TaskDetailView: View {
         .init(id: "strikethrough",   icon: "strikethrough"),
         .init(id: "fontSizeDown",    icon: "textformat.size.smaller"),
         .init(id: "fontSizeUp",      icon: "textformat.size.larger"),
-        .init(id: "tablecells",      icon: "tablecells"),
         .init(id: "paperclip",       icon: "paperclip"),
         .init(id: "pencil",          icon: "pencil.tip.crop.circle"),
         .init(id: "text.alignleft",  icon: "text.alignleft"),
@@ -78,8 +77,6 @@ struct TaskDetailView: View {
         let icon: String
     }
 
-    // Table picker — shown above toolbar when user taps the tablecells button (Issue #56)
-    @State private var showTablePicker = false
 
     // Attachment service — single enum replaces 6 Bool flags (Issue #49)
     @State private var attachmentService = AttachmentService()
@@ -256,40 +253,10 @@ struct TaskDetailView: View {
             }
 
             if showToolbar && !isDrawingMode {
-                // Table grid picker — floats above the toolbar when the tablecells button is tapped
-                if showTablePicker {
-                    HStack {
-                        Spacer()
-                        TableGridPickerView(
-                            onInsert: { rows, cols in
-                                withAnimation(.spring(response: 0.3)) {
-                                    showTablePicker = false
-                                }
-                                insertTable(rows: rows, cols: cols)
-                            },
-                            onDismiss: {
-                                withAnimation(.spring(response: 0.3)) {
-                                    showTablePicker = false
-                                }
-                            }
-                        )
-                        .padding(.trailing, 16)
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
                 editorToolbar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        // Dismiss table picker on tap outside
-        .contentShape(Rectangle())
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                if showTablePicker {
-                    withAnimation(.spring(response: 0.3)) { showTablePicker = false }
-                }
-            }
-        )
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -346,11 +313,6 @@ struct TaskDetailView: View {
         .background(attachmentService.presentationHooks(attributedText: $attributedText))
         .onAppear { loadToolbarOrder(); loadBody() }
         .onDisappear { saveBody() }
-        // Issue #58: save the body whenever a table cell is edited inside a view provider
-        .onReceive(NotificationCenter.default.publisher(for: TableAttachmentViewProvider.cellDidChangeNotification)) { _ in
-            saveBody()
-            log.debug("TaskDetailView: saved body after table cell edit")
-        }
     }
 
     // MARK: - Toolbar (Issues #39–#43)
@@ -387,12 +349,6 @@ struct TaskDetailView: View {
         switch item.id {
         case "paperclip":
             attachmentMenuButton
-        case "tablecells":
-            toolbarButton(item.icon) {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                    showTablePicker.toggle()
-                }
-            }
         default:
             toolbarButton(item.icon) {
                 handleToolbarTap(item.id)
@@ -789,16 +745,25 @@ struct TaskDetailView: View {
         let str = tvText.string as NSString
         let textLen = str.length
 
-        defer { prevTextLength = textLen }
+        // Always sync — even on early exits — so the next call has a correct baseline.
+        // Updated LAST (after any mutations), so we read the live UITextView length.
+        // NOTE: do NOT use `defer` here — continueTodoLine inserts extra characters,
+        // and `defer` would capture the pre-mutation `textLen`, not the post-mutation length.
 
         // Only trigger when exactly ONE character was inserted AND it is a newline ('\n').
         // This filters out paste, delete, and every other edit type.
         guard textLen == prevTextLength + 1,
               cursorLoc > 0,
-              str.character(at: cursorLoc - 1) == 0x0A else { return }
+              str.character(at: cursorLoc - 1) == 0x0A else {
+            prevTextLength = textLen
+            return
+        }
 
         // We need at least one character before the newline to inspect.
-        guard cursorLoc >= 2 else { return }
+        guard cursorLoc >= 2 else {
+            prevTextLength = textLen
+            return
+        }
 
         // Find the paragraph BEFORE the just-inserted newline.
         // cursorLoc - 1 is the '\n'; cursorLoc - 2 is the last char of the previous line.
@@ -810,13 +775,19 @@ struct TaskDetailView: View {
         let isEmptyPrevLine = prevLineText.isEmpty
 
         // Determine block type from the previous paragraph's style.
-        guard prevParRange.location < tvText.length else { return }
+        guard prevParRange.location < tvText.length else {
+            prevTextLength = textLen
+            return
+        }
         let existingStyle = tvText.attribute(.paragraphStyle, at: prevParRange.location, effectiveRange: nil) as? NSParagraphStyle
         let hasBullet = !(existingStyle?.textLists.isEmpty ?? true)
         let hasQuote  = !hasBullet && (existingStyle?.firstLineHeadIndent ?? 0) >= 16
         let isTodo    = prevLineText.hasPrefix("☐ ") || prevLineText.hasPrefix("☑ ")
 
-        guard hasBullet || isTodo || hasQuote else { return }
+        guard hasBullet || isTodo || hasQuote else {
+            prevTextLength = textLen
+            return
+        }
 
         if isEmptyPrevLine {
             // Double-Enter: exit the block by clearing formatting on both the previous
@@ -829,6 +800,9 @@ struct TaskDetailView: View {
         } else if hasQuote {
             continueQuoteLine(tv: tv, cursorLoc: cursorLoc, style: existingStyle)
         }
+
+        // Read the LIVE length AFTER any mutations (e.g. continueTodoLine inserted "☐ ").
+        prevTextLength = tv.attributedText?.length ?? textLen
     }
 
     /// Remove block formatting from the last empty continuation line and the new cursor line,
@@ -911,8 +885,6 @@ struct TaskDetailView: View {
         tv.selectedRange  = NSRange(location: newCursor, length: 0)
         tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
         tv.typingAttributes[.foregroundColor] = UIColor.label
-        // prevTextLength must account for the 2 characters we just inserted.
-        prevTextLength = mutable.length
         attributedText = mutable
         log.debug("handleReturnKey: continued todo, cursor=\(newCursor)")
     }
@@ -981,29 +953,6 @@ struct TaskDetailView: View {
             .init(id: "recordAudio",   icon: "mic",              label: "Record Audio"),
             .init(id: "attachFile",    icon: "paperclip",        label: "Attach File"),
         ]
-    }
-
-    // MARK: - Table Insertion (Issue #56)
-
-    /// Insert a TableAttachment at the current cursor position and sync the live UITextView.
-    private func insertTable(rows: Int, cols: Int) {
-        log.info("insertTable: \(rows)×\(cols)")
-        guard let tv = richTextView else { return }
-        let cursorLoc = tv.selectedRange.location
-        let newCursor = RichEditorCommands.insertTableAttachment(
-            rows: rows,
-            cols: cols,
-            attributedText: &attributedText,
-            cursorLocation: cursorLoc
-        )
-        // Synchronous update — same pattern as all other toolbar commands.
-        // DispatchQueue.main.async would cause a second layout pass on top of
-        // the one SwiftUI already triggered from the binding change, which makes
-        // TextKit 2 call loadView() twice and bombs the UI.
-        tv.attributedText = attributedText
-        tv.becomeFirstResponder()
-        let safe = max(0, min(newCursor, tv.attributedText.length))
-        tv.selectedRange = NSRange(location: safe, length: 0)
     }
 
     private func triggerAttachment(_ id: String) {
