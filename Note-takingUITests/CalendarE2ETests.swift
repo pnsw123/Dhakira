@@ -43,24 +43,16 @@ final class CalendarE2ETests: XCTestCase {
         return true
     }
 
-    /// Types into the title field.
+    /// Types into the title field, clearing any existing content first.
     @MainActor
     private func setTitle(_ text: String) {
         let titleField = app.textFields["task-title-field"]
-        if !titleField.waitForExistence(timeout: 3) {
-            // Fallback — find any text field
-            app.textFields.firstMatch.tap()
-        } else {
-            titleField.tap()
-        }
-        // Clear existing text
-        titleField.press(forDuration: 1.0)
-        if app.menuItems["Select All"].waitForExistence(timeout: 1) {
-            app.menuItems["Select All"].tap()
-            app.typeText(text)
-        } else {
-            app.typeText(text)
-        }
+        guard titleField.waitForExistence(timeout: 3) else { return }
+        // Triple-tap selects all text reliably on iOS
+        titleField.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        // Delete selected text, then type new value
+        app.typeText(XCUIKeyboardKey.delete.rawValue)
+        app.typeText(text)
     }
 
     /// Navigates back to the task list.
@@ -114,11 +106,8 @@ final class CalendarE2ETests: XCTestCase {
         }
 
         // Clear and type a date title
-        titleField.tap()
-        titleField.press(forDuration: 1.0)
-        if app.menuItems["Select All"].waitForExistence(timeout: 1) {
-            app.menuItems["Select All"].tap()
-        }
+        titleField.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        app.typeText(XCUIKeyboardKey.delete.rawValue)
         let dateTitle = "Doctor appointment April 20th"
         app.typeText(dateTitle)
         screenshot("before-navigation")
@@ -185,11 +174,8 @@ final class CalendarE2ETests: XCTestCase {
         guard titleField.waitForExistence(timeout: 5) else { XCTSkip("No title field"); return }
 
         // First date
-        titleField.tap()
-        titleField.press(forDuration: 1.0)
-        if app.menuItems["Select All"].waitForExistence(timeout: 1) {
-            app.menuItems["Select All"].tap()
-        }
+        titleField.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        app.typeText(XCUIKeyboardKey.delete.rawValue)
         app.typeText("Stand-up meeting March 10th")
         screenshot("first-date")
 
@@ -201,11 +187,8 @@ final class CalendarE2ETests: XCTestCase {
         let titleField2 = app.textFields["task-title-field"]
         guard titleField2.waitForExistence(timeout: 5) else { XCTSkip("Title not found on return"); return }
 
-        titleField2.tap()
-        titleField2.press(forDuration: 1.0)
-        if app.menuItems["Select All"].waitForExistence(timeout: 1) {
-            app.menuItems["Select All"].tap()
-        }
+        titleField2.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        app.typeText(XCUIKeyboardKey.delete.rawValue)
         app.typeText("Stand-up meeting March 17th")
         screenshot("changed-date")
 
@@ -225,11 +208,8 @@ final class CalendarE2ETests: XCTestCase {
         guard titleField.waitForExistence(timeout: 5) else { XCTSkip("No title field"); return }
 
         // Add a date first
-        titleField.tap()
-        titleField.press(forDuration: 1.0)
-        if app.menuItems["Select All"].waitForExistence(timeout: 1) {
-            app.menuItems["Select All"].tap()
-        }
+        titleField.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        app.typeText(XCUIKeyboardKey.delete.rawValue)
         app.typeText("Dentist May 5th")
         screenshot("with-date")
         goBack()
@@ -240,11 +220,8 @@ final class CalendarE2ETests: XCTestCase {
         let titleField2 = app.textFields["task-title-field"]
         guard titleField2.waitForExistence(timeout: 5) else { XCTSkip("Title not found"); return }
 
-        titleField2.tap()
-        titleField2.press(forDuration: 1.0)
-        if app.menuItems["Select All"].waitForExistence(timeout: 1) {
-            app.menuItems["Select All"].tap()
-        }
+        titleField2.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        app.typeText(XCUIKeyboardKey.delete.rawValue)
         app.typeText("Dentist checkup")
         screenshot("date-removed")
         goBack()
