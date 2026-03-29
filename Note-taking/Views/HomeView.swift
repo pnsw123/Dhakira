@@ -9,6 +9,10 @@ struct HomeView: View {
     @Environment(\.dismiss) private var dismiss
     /// Called by the > button — more reliable than dismiss() with NavigationStack bindings.
     var onClose: (() -> Void)? = nil
+    /// Navigation callbacks — owned by ContentView so navigationDestinations stay stable.
+    var onSelectTaskList: ((TaskList) -> Void)? = nil
+    var onShowRecentlyCompleted: (() -> Void)? = nil
+    var onShowRecentlyDeleted: (() -> Void)? = nil
 
     @Query(filter: #Predicate<Folder> { $0.parentFolder == nil }, sort: \Folder.createdAt)
     private var topLevelFolders: [Folder]
@@ -16,9 +20,6 @@ struct HomeView: View {
     @Query(sort: \TaskList.createdAt)
     private var allTaskLists: [TaskList]
 
-    @State private var selectedTaskList: TaskList?
-    @State private var showRecentlyCompleted: Bool = false
-    @State private var showRecentlyDeleted: Bool = false
     @State private var autoRenameFolderId: UUID? = nil
 
     var body: some View {
@@ -31,7 +32,7 @@ struct HomeView: View {
 
                     // Recently Completed + Recently Deleted — one grouped card
                     VStack(spacing: 0) {
-                        Button(action: { showRecentlyCompleted = true }) {
+                        Button(action: { onShowRecentlyCompleted?() }) {
                             HStack(spacing: 10) {
                                 Spacer().frame(width: 0)
                                 Image(systemName: "checkmark.circle")
@@ -53,7 +54,7 @@ struct HomeView: View {
 
                         Divider().padding(.leading, 16)
 
-                        Button(action: { showRecentlyDeleted = true }) {
+                        Button(action: { onShowRecentlyDeleted?() }) {
                             HStack(spacing: 10) {
                                 Spacer().frame(width: 0)
                                 Image(systemName: "trash")
@@ -86,9 +87,6 @@ struct HomeView: View {
             }
             .onDisappear {
                 log.info("HomeView: disappeared")
-            }
-            .onChange(of: selectedTaskList) { old, new in
-                log.info("HomeView: selectedTaskList changed \(old?.name ?? "nil") → \(new?.name ?? "nil")")
             }
             .onChange(of: autoRenameFolderId) { _, newId in
                 if newId != nil {
@@ -131,15 +129,6 @@ struct HomeView: View {
                         .frame(height: 0.5)
                 }
             }
-            .navigationDestination(item: $selectedTaskList) { list in
-                TaskListView(taskList: list)
-            }
-            .navigationDestination(isPresented: $showRecentlyCompleted) {
-                RecentlyCompletedView()
-            }
-            .navigationDestination(isPresented: $showRecentlyDeleted) {
-                RecentlyDeletedView()
-            }
             } // ScrollViewReader
     }
 
@@ -153,8 +142,8 @@ struct HomeView: View {
                         folders: topLevelFolders,
                         allTaskLists: allTaskLists,
                         onSelectTaskList: { list in
-                        log.info("HomeView: onSelectTaskList called for '\(list.name)' — setting selectedTaskList")
-                        selectedTaskList = list
+                        log.info("HomeView: onSelectTaskList called for '\(list.name)'")
+                        onSelectTaskList?(list)
                     },
                         autoRenameId: autoRenameFolderId
                     )

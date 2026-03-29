@@ -34,7 +34,6 @@ struct SlashCommandMenuView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     // Flatten all commands to get a global flat index for keyboard highlight.
                     let flat = commands
-                    var flatIdx = 0
                     ForEach(sections, id: \.0) { section, items in
                         // Section header
                         Text(section.uppercased())

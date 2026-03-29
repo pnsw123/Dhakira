@@ -14,12 +14,6 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
-	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>NSCalendarsUsageDescription</key>
-	<string>ProdNote uses your calendar to automatically create events for tasks that have dates in their titles.</string>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>ProdNote uses your calendar to automatically create events for tasks that have dates in their titles.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -31,5 +25,13 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSAppDataUsageDescription</key>
+	<string>ProdNote uses app data to sync your notes and tasks.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>ProdNote uses your calendar to automatically create events for tasks that have dates in their titles.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>ProdNote uses your calendar to automatically create events for tasks that have dates in their titles.</string>
 </dict>
 </plist>

@@ -4,6 +4,15 @@ import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "ContentView")
 
+/// Identifies which Home-level screen to push onto the navigation stack.
+/// Using item-based navigation (instead of isPresented) avoids a SwiftUI
+/// freeze when the parent Group contains animated conditional content.
+private enum HomeNav: String, Identifiable {
+    case recentlyCompleted
+    case recentlyDeleted
+    var id: String { rawValue }
+}
+
 struct ContentView: View {
     @State private var showHome = false
 
@@ -11,14 +20,45 @@ struct ContentView: View {
     /// Set by Note_takingApp when the OS delivers an incoming URL.
     @Binding var pendingDeepLinkTaskId: UUID?
 
+    /// Persisted ID of the task list the Tasks page is currently showing.
+    /// Falls back to the first available list if the stored one no longer exists.
+    @AppStorage("activeTaskListId") private var activeTaskListIdString: String = ""
+
+    /// All task lists — used to resolve the active list and handle fallbacks.
+    @Query(sort: \TaskList.createdAt) private var allTaskLists: [TaskList]
+
+    /// The task list currently shown on the Tasks page.
+    /// Resolves the stored ID, falling back to the first list if needed.
+    private var activeTaskList: TaskList? {
+        if !activeTaskListIdString.isEmpty,
+           let id = UUID(uuidString: activeTaskListIdString),
+           let found = allTaskLists.first(where: { $0.id == id }) {
+            return found
+        }
+        // Fallback: use first available list (covers first launch and deleted-list case)
+        return allTaskLists.first
+    }
+
+    @State private var homeNav: HomeNav? = nil
+
     var body: some View {
         NavigationStack {
             Group {
                 if showHome {
-                    HomeView(onClose: { showHome = false })
-                        .transition(.opacity)
+                    HomeView(
+                        onClose: { showHome = false },
+                        onSelectTaskList: { list in
+                            // Switch the active list and navigate back to the Tasks page.
+                            activeTaskListIdString = list.id.uuidString
+                            showHome = false
+                        },
+                        onShowRecentlyCompleted: { homeNav = .recentlyCompleted },
+                        onShowRecentlyDeleted: { homeNav = .recentlyDeleted }
+                    )
+                    .transition(.opacity)
                 } else {
                     TaskListView(
+                        taskList: activeTaskList,
                         onShowHome: { showHome = true },
                         pendingDeepLinkTaskId: $pendingDeepLinkTaskId
                     )
@@ -26,6 +66,12 @@ struct ContentView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: showHome)
+            .navigationDestination(item: $homeNav) { nav in
+                switch nav {
+                case .recentlyCompleted: RecentlyCompletedView()
+                case .recentlyDeleted:   RecentlyDeletedView()
+                }
+            }
         }
     }
 }

@@ -54,7 +54,9 @@ struct FolderSectionView: View {
             if let id = autoRenameId {
                 expandedFolderIds.insert(id)
             }
-            saveExpandedState()
+            // Note: do NOT call saveExpandedState() here — onChange(of: expandedFolderIds) handles
+            // persistence for any mutations above, and calling it here causes a cascade re-render
+            // across all recursive FolderSectionView instances that share the same @AppStorage key.
         }
         .onChange(of: autoRenameId) { _, newId in
             if let id = newId {
@@ -80,7 +82,9 @@ struct FolderSectionView: View {
     }
 
     private func saveExpandedState() {
-        expandedFolderIdsStorage = expandedFolderIds.map(\.uuidString).joined(separator: ",")
+        let newValue = expandedFolderIds.map(\.uuidString).joined(separator: ",")
+        guard newValue != expandedFolderIdsStorage else { return }
+        expandedFolderIdsStorage = newValue
     }
 }
 
@@ -99,8 +103,10 @@ struct FolderRowView: View {
 
     @State private var isRenaming: Bool = false
     @State private var renameText: String = ""
+    @FocusState private var isRenameFocused: Bool
     @State private var showDeleteConfirm: Bool = false
     @State private var autoRenameListId: UUID? = nil
+    @State private var autoRenameSubfolderId: UUID? = nil
 
     private var taskListsForFolder: [TaskList] {
         allTaskLists.filter { $0.folder?.id == folder.id }
@@ -129,6 +135,7 @@ struct FolderRowView: View {
                     TextField("Folder name", text: $renameText, onCommit: commitRename)
                         .font(.system(size: 16))
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .focused($isRenameFocused)
                 } else {
                     Text(folder.name)
                         .font(.system(size: 16))
@@ -150,7 +157,14 @@ struct FolderRowView: View {
                 if startEditingOnAppear {
                     renameText = folder.name
                     isRenaming = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        isRenameFocused = true
+                    }
                 }
+            }
+            .onChange(of: isRenameFocused) { _, focused in
+                // Commit the rename whenever the keyboard is dismissed (tap outside or Return).
+                if !focused && isRenaming { commitRename() }
             }
             .contextMenu {
                 Button(action: startRename) {
@@ -185,7 +199,7 @@ struct FolderRowView: View {
                         allTaskLists: allTaskLists,
                         onSelectTaskList: onSelectTaskList,
                         indentLevel: indentLevel + 1,
-                        autoRenameId: nil
+                        autoRenameId: autoRenameSubfolderId
                     )
                 }
 
@@ -225,6 +239,9 @@ struct FolderRowView: View {
     private func startRename() {
         renameText = folder.name
         isRenaming = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            isRenameFocused = true
+        }
     }
 
     private func commitRename() {
@@ -240,14 +257,16 @@ struct FolderRowView: View {
 
     private func deleteFolder() {
         log.info("deleteFolder: '\(folder.name)'")
-        // Delete all task lists and their tasks
+        let now = Date()
+        // Soft-delete all tasks so they appear in Recently Deleted
         for list in taskListsForFolder {
-            for task in (list.tasks ?? []) {
-                modelContext.delete(task)
+            for task in (list.tasks ?? []) where !task.isDeleted {
+                task.isDeleted = true
+                task.deletedAt = now
             }
             modelContext.delete(list)
         }
-        // Delete subfolders recursively handled by cascade relationship
+        // Subfolders cascade via SwiftData relationship
         modelContext.delete(folder)
     }
 
@@ -260,8 +279,11 @@ struct FolderRowView: View {
 
     private func addSubfolder() {
         log.info("addSubfolder: inside '\(folder.name)'")
-        let sub = Folder(name: "New Folder", parentFolder: folder)
+        let sub = Folder(name: "", parentFolder: folder)
         modelContext.insert(sub)
+        autoRenameSubfolderId = sub.id
+        // Ensure parent is expanded so the new subfolder is visible for rename
+        if !isExpanded { onToggle() }
     }
 }
 
@@ -277,6 +299,7 @@ struct TaskListRowView: View {
 
     @State private var isRenaming: Bool = false
     @State private var renameText: String = ""
+    @FocusState private var isRenameFocused: Bool
 
     var body: some View {
         HStack(spacing: 10) {
@@ -291,6 +314,7 @@ struct TaskListRowView: View {
                 TextField("List name", text: $renameText, onCommit: commitRename)
                     .font(.system(size: 15))
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .focused($isRenameFocused)
             } else {
                 Text(taskList.name)
                     .font(.system(size: 15))
@@ -309,7 +333,13 @@ struct TaskListRowView: View {
             if startEditingOnAppear {
                 renameText = taskList.name
                 isRenaming = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    isRenameFocused = true
+                }
             }
+        }
+        .onChange(of: isRenameFocused) { _, focused in
+            if !focused && isRenaming { commitRename() }
         }
         .contextMenu {
             Button(action: startRename) {
@@ -327,6 +357,9 @@ struct TaskListRowView: View {
         log.info("TaskListRowView.startRename: '\(taskList.name)'")
         renameText = taskList.name
         isRenaming = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            isRenameFocused = true
+        }
     }
 
     private func commitRename() {
@@ -344,8 +377,10 @@ struct TaskListRowView: View {
     private func deleteTaskList() {
         let taskCount = taskList.tasks?.count ?? 0
         log.info("TaskListRowView.deleteTaskList: '\(taskList.name)' with \(taskCount) task(s)")
-        for task in (taskList.tasks ?? []) {
-            modelContext.delete(task)
+        let now = Date()
+        for task in (taskList.tasks ?? []) where !task.isDeleted {
+            task.isDeleted = true
+            task.deletedAt = now
         }
         modelContext.delete(taskList)
     }

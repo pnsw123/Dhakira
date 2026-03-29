@@ -1932,16 +1932,15 @@ final class SlashMenuKeyInterceptor: UIView {
     override var canBecomeFirstResponder: Bool { true }
 
     override var keyCommands: [UIKeyCommand]? {
-        [
-            UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [],
-                         action: #selector(keyDown),   discoverabilityTitle: "Next item"),
-            UIKeyCommand(input: UIKeyCommand.inputUpArrow,   modifierFlags: [],
-                         action: #selector(keyUp),     discoverabilityTitle: "Previous item"),
-            UIKeyCommand(input: "\r",                         modifierFlags: [],
-                         action: #selector(keyReturn), discoverabilityTitle: "Select"),
-            UIKeyCommand(input: UIKeyCommand.inputEscape,    modifierFlags: [],
-                         action: #selector(keyEscape), discoverabilityTitle: "Dismiss"),
-        ]
+        let down = UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(keyDown))
+        down.discoverabilityTitle = "Next item"
+        let up = UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(keyUp))
+        up.discoverabilityTitle = "Previous item"
+        let ret = UIKeyCommand(input: "\r", modifierFlags: [], action: #selector(keyReturn))
+        ret.discoverabilityTitle = "Select"
+        let esc = UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(keyEscape))
+        esc.discoverabilityTitle = "Dismiss"
+        return [down, up, ret, esc]
     }
 
     @objc private func keyDown()   { onMoveDown?() }

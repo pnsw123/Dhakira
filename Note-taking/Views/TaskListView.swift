@@ -35,7 +35,7 @@ struct TaskListView: View {
     @Query(sort: \TaskItem.sortOrder, order: .forward)
     private var allTasks: [TaskItem]
 
-    @State private var sortBy: SortOption = .manual
+    @AppStorage("taskListSortBy") private var sortBy: SortOption = .manual
     @State private var selectedTask: TaskItem?
     @State private var showTheme = false
     @State private var recentlyCompletedIds: Set<UUID> = []
@@ -149,10 +149,10 @@ struct TaskListView: View {
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top) {
                 HStack(spacing: 0) {
-                    if taskList == nil {
+                    if onShowHome != nil {
                         // Root view — back chevron navigates to HomeView (via ContentView)
                         Button(action: {
-                            log.info("TaskListView: < button tapped (root), calling onShowHome, onShowHome=\(onShowHome != nil ? "set" : "NIL")")
+                            log.info("TaskListView: < button tapped (root), calling onShowHome")
                             onShowHome?()
                         }) {
                             Image(systemName: "chevron.left")
@@ -164,7 +164,7 @@ struct TaskListView: View {
                         .padding(.leading, 8)
                         .accessibilityIdentifier("btn-go-to-folders")
                     } else {
-                        // Pushed from HomeView — chevron goes back
+                        // Pushed view — chevron goes back in navigation stack
                         Button(action: {
                             log.info("TaskListView: < button tapped (pushed list=\(taskList?.name ?? "?")), calling dismiss()")
                             dismiss()
@@ -182,15 +182,15 @@ struct TaskListView: View {
                         TextField("List name", text: $editedName, onCommit: commitNameEdit)
                             .font(.system(size: 34, weight: .bold))
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, taskList == nil ? 16 : 4)
+                            .padding(.leading, onShowHome != nil ? 16 : 4)
                     } else {
                         Text(displayName)
                             .font(.system(size: 34, weight: .bold))
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, taskList == nil ? 16 : 4)
+                            .padding(.leading, onShowHome != nil ? 16 : 4)
                             .onTapGesture {
-                                if taskList != nil {
-                                    editedName = displayName
+                                if let taskList {
+                                    editedName = taskList.name
                                     isEditingName = true
                                 }
                             }
