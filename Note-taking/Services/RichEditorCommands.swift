@@ -88,11 +88,14 @@ enum RichEditorCommandDispatcher {
         case .strikethrough:
             RichEditorCommands.toggleStrikethrough(context: context.richTextContext)
         case .alignLeft:
-            RichEditorCommands.setAlignment(.left, context: context.richTextContext)
+            RichEditorCommands.setAlignment(.left, attributedText: &attributedText, selectedRange: range)
+            return attributedText
         case .alignCenter:
-            RichEditorCommands.setAlignment(.center, context: context.richTextContext)
+            RichEditorCommands.setAlignment(.center, attributedText: &attributedText, selectedRange: range)
+            return attributedText
         case .alignRight:
-            RichEditorCommands.setAlignment(.right, context: context.richTextContext)
+            RichEditorCommands.setAlignment(.right, attributedText: &attributedText, selectedRange: range)
+            return attributedText
         case .bulletList:
             RichEditorCommands.toggleBulletList(attributedText: &attributedText,
                                                 selectedRange: range)
@@ -285,10 +288,10 @@ final class RichEditorCommands {
             }
             log.debug("applyBlockquote: removed quote bar")
         } else {
-            // Insert "│ " at paragraph start styled in the system accent colour.
+            // Insert "│ " at paragraph start — invisible glyph, UIView bar provides the visual.
             let bar = NSAttributedString(string: "│ ", attributes: [
                 .font:            UIFont.preferredFont(forTextStyle: .body),
-                .foregroundColor: UIColor.systemBlue,
+                .foregroundColor: UIColor.clear,
             ])
             mutable.insert(bar, at: parRange.location)
 
@@ -379,11 +382,52 @@ final class RichEditorCommands {
         attributedText = mutable
     }
 
-    // MARK: - Alignment — via RichTextContext
+    // MARK: - Alignment — direct NSAttributedString mutation across full selection
+    // Bypasses RichTextContext (which only modifies the cursor paragraph) so that
+    // every paragraph in the selected range is updated. Quote paragraphs ("│ ") are
+    // intentionally skipped — quotes are always left-aligned.
 
-    static func setAlignment(_ alignment: RichTextAlignment, context: RichTextContext) {
-        log.debug("setAlignment: \(String(describing: alignment))")
-        context.textAlignment = alignment
+    static func setAlignment(_ alignment: NSTextAlignment,
+                             attributedText: inout NSAttributedString,
+                             selectedRange: NSRange) {
+        let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+        let nsStr   = mutable.string as NSString
+        let total   = mutable.length
+
+        // Clamp selection to a valid range; fall back to whole document when nothing selected
+        let safe: NSRange
+        if selectedRange.length > 0 {
+            safe = clamp(selectedRange, to: total)
+        } else {
+            // cursor only — affect the paragraph the cursor sits in
+            let parRange = nsStr.paragraphRange(for: NSRange(location: max(0, min(selectedRange.location, total - 1)), length: 0))
+            safe = parRange
+        }
+
+        guard safe.length > 0 else { return }
+
+        var loc = safe.location
+        let end = NSMaxRange(safe)
+
+        while loc < end {
+            let parRange = nsStr.paragraphRange(for: NSRange(location: loc, length: 0))
+            defer { loc = NSMaxRange(parRange) }
+
+            // Skip quote paragraphs — they stay left-aligned
+            let parText = nsStr.substring(with: parRange)
+            if parText.hasPrefix("│ ") || parText == "│" || parText == "│\n" { continue }
+
+            // Preserve existing paragraph style attributes, only change alignment
+            let existing = mutable.attribute(.paragraphStyle,
+                                             at: parRange.location,
+                                             effectiveRange: nil) as? NSParagraphStyle
+            let style = (existing?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+            style.alignment = alignment
+            mutable.addAttribute(.paragraphStyle, value: style, range: parRange)
+        }
+
+        attributedText = mutable
+        log.debug("setAlignment: \(alignment.rawValue) applied over \(safe.location)+\(safe.length)")
     }
 
     // MARK: - Color (#44)

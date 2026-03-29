@@ -1099,7 +1099,7 @@ struct TaskDetailView: View {
             blockRect.origin.x += inset.left
             blockRect.origin.y += inset.top
 
-            let barX = inset.left + tc.lineFragmentPadding
+            let barX = inset.left + 4
             let borderView = UIView(frame: CGRect(x: barX, y: blockRect.minY,
                                                   width: 3, height: blockRect.height))
             borderView.backgroundColor        = .systemBlue
@@ -1111,7 +1111,7 @@ struct TaskDetailView: View {
         }
     }
 
-    /// Continue a quote line: insert "│ " at the start of the new paragraph.
+    /// Continue a quote line: insert "│  " at the start of the new paragraph.
     private func continueQuoteLine(tv: UITextView, cursorLoc: Int) {
         guard let tvText = tv.attributedText else { return }
         let mutable    = NSMutableAttributedString(attributedString: tvText)
@@ -1119,7 +1119,7 @@ struct TaskDetailView: View {
 
         let bar = NSAttributedString(string: "│ ", attributes: [
             .font:            UIFont.preferredFont(forTextStyle: .body),
-            .foregroundColor: UIColor.systemBlue,
+            .foregroundColor: UIColor.clear,
         ])
         mutable.insert(bar, at: safeInsert)
 
