@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import OSLog
+import AVFoundation
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "AttachmentService")
 
@@ -10,6 +11,7 @@ enum AttachmentError: Error, LocalizedError {
     case imageDecodeFailed(Int)       // bytes count
     case mutableCopyFailed
     case unsupportedSource(String)
+    case audioSaveFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +21,8 @@ enum AttachmentError: Error, LocalizedError {
             return "An internal error occurred while preparing the editor content."
         case .unsupportedSource(let name):
             return "'\(name)' is not supported yet."
+        case .audioSaveFailed(let msg):
+            return "Could not save recording: \(msg)"
         }
     }
 }
@@ -103,21 +107,52 @@ final class AttachmentService: NSObject {
         log.info("AttachmentService.appendFile: '\(url.lastPathComponent)'")
     }
 
-    func appendAudio(url: URL, to attributedText: inout NSAttributedString) {
-        // Audio stored as a tappable link attribute (not dead text placeholder — Issue #49)
-        let displayName = url.lastPathComponent
-        let audioAttr = NSAttributedString(
-            string: "🎵 \(displayName)",
+    /// Persist `url` (temp M4A from AVAudioRecorder) and insert a tappable audio chip into the note.
+    /// - Parameters:
+    ///   - url: The temporary file URL returned by AVAudioRecorder.
+    ///   - duration: The recording length in seconds (pass `elapsedSeconds` from AudioRecorderView).
+    ///   - attributedText: The note's attributed string — the chip is appended on a new line.
+    func appendAudio(url: URL, duration: TimeInterval, to attributedText: inout NSAttributedString) {
+        let uuid = UUID()
+
+        // Copy from temp → permanent Application Support/audio/{uuid}.m4a
+        do {
+            try AudioStorageService.persistRecording(from: url, uuid: uuid)
+        } catch {
+            log.error("AttachmentService.appendAudio: \(error.localizedDescription)")
+            alertItem = .audioSaveFailed(error.localizedDescription)
+            return
+        }
+
+        // Build the prodnote-audio:// URL that encodes all metadata.
+        let audioURL = AudioLinkBuilder.buildURL(
+            uuid: uuid,
+            name: "Recording",
+            duration: duration,
+            date: Date()
+        )
+
+        // Build the inline chip text. The .link attribute survives RTF serialization.
+        let chipText = "🎙 Recording  •  \(formattedDuration(duration))"
+        let chipAttr = NSAttributedString(
+            string: chipText,
             attributes: [
-                .link: url,
-                .font: UIFont.preferredFont(forTextStyle: .body)
+                .link:            audioURL as NSURL,
+                .font:            UIFont.preferredFont(forTextStyle: .callout),
+                .foregroundColor: UIColor.systemBlue,
             ]
         )
+
         let mutable = NSMutableAttributedString(attributedString: attributedText)
         mutable.append(NSAttributedString(string: "\n"))
-        mutable.append(audioAttr)
+        mutable.append(chipAttr)
         attributedText = mutable
-        log.info("AttachmentService.appendAudio: '\(displayName)'")
+        log.info("AttachmentService.appendAudio: saved \(uuid.uuidString).m4a, duration \(duration)s")
+    }
+
+    private func formattedDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(max(0, seconds))
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     func appendScannedText(_ text: String, to attributedText: inout NSAttributedString) {
@@ -195,8 +230,8 @@ struct AttachmentServicePresenters: View {
                 service.activeSheet = nil
             }
         case .audioRecorder:
-            AudioRecorderView { url in
-                service.appendAudio(url: url, to: &attributedText)
+            AudioRecorderView { url, duration in
+                service.appendAudio(url: url, duration: duration, to: &attributedText)
                 service.activeSheet = nil
             }
         case .dataScanner:

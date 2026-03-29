@@ -37,6 +37,10 @@ struct TaskDetailView: View {
     // Checkbox tap coordinator — wires a UITapGestureRecognizer to the UITextView
     // so users can tap checkbox attachments to toggle them checked/unchecked.
     @StateObject private var checkboxCoordinator = CheckboxTapCoordinator()
+    // Audio tap coordinator — detects taps on prodnote-audio:// chips and triggers playback sheet.
+    @StateObject private var audioTapCoordinator = AudioTapCoordinator()
+    /// Non-nil when the user tapped an audio chip — drives the playback sheet.
+    @State private var playingAudioLink: AudioLink? = nil
     // Key interceptor — takes first responder on iPad/Mac when slash menu is visible
     // so arrow keys navigate menu rows instead of moving the text cursor.
     @State private var keyInterceptor = SlashMenuKeyInterceptor()
@@ -205,6 +209,16 @@ struct TaskDetailView: View {
                 attributedText = toggled
             }
         }
+        // Present audio playback sheet when an audio chip is tapped
+        .onChange(of: audioTapCoordinator.pendingAudioLink) { _, link in
+            if let link {
+                playingAudioLink = link
+                audioTapCoordinator.clear()
+            }
+        }
+        .sheet(item: $playingAudioLink) { link in
+            AudioPlayerView(audioLink: link)
+        }
         // Keyboard navigation: on iPad/Mac give first responder to interceptor so
         // arrow keys route to the slash menu instead of moving the text cursor.
         .onChange(of: slashCoordinator.isMenuVisible) { _, visible in
@@ -236,6 +250,12 @@ struct TaskDetailView: View {
                     )
                     tap.delegate = checkboxCoordinator
                     tv.addGestureRecognizer(tap)
+                    let audioTap = UITapGestureRecognizer(
+                        target: audioTapCoordinator,
+                        action: #selector(AudioTapCoordinator.handleTap(_:))
+                    )
+                    audioTap.delegate = audioTapCoordinator
+                    tv.addGestureRecognizer(audioTap)
                     DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
                 }
             )
@@ -1499,7 +1519,7 @@ struct DocumentScannerView: UIViewControllerRepresentable {
 // MARK: - AudioRecorderView (Apple Notes-style with waveform + timer + playback)
 
 struct AudioRecorderView: View {
-    let onSave: (URL) -> Void
+    let onSave: (URL, TimeInterval) -> Void
     @Environment(\.dismiss) private var dismiss
 
     // Recording state
@@ -1620,7 +1640,7 @@ struct AudioRecorderView: View {
             // Save button (only after recording stops)
             if state == .stopped {
                 Button {
-                    if let url = audioURL { onSave(url) }
+                    if let url = audioURL { onSave(url, elapsedSeconds) }
                     dismiss()
                 } label: {
                     Text("Save")
