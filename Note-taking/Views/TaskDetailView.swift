@@ -7,6 +7,7 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "TaskDetail")
 
 #if canImport(UIKit)
 import UIKit
+import Combine
 import PencilKit
 import PhotosUI
 import VisionKit
