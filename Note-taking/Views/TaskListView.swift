@@ -197,6 +197,11 @@ struct TaskListView: View {
                     }
 
                     settingsButton
+                    if isAddingTask || isEditingName {
+                        doneButton
+                            .padding(.leading, 8)
+                            .transition(.scale.combined(with: .opacity))
+                    }
                 }
                 .padding(.trailing, 8)
                 .padding(.top, 4)
@@ -266,6 +271,18 @@ struct TaskListView: View {
             }
     }
 
+    private var doneButton: some View {
+        Button(action: commitAll) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(Color.accentColor, in: Circle())
+                .glassEffect(.regular.interactive(), in: .circle)
+        }
+        .buttonStyle(.plain)
+    }
+
     private var settingsButton: some View {
         SettingsMenuView(
             sortBy: $sortBy,
@@ -321,6 +338,19 @@ struct TaskListView: View {
             isAddingTask = false
         }
         newTaskTitle = ""
+    }
+
+    /// Done button — saves any pending task or name edit and dismisses the keyboard.
+    private func commitAll() {
+        if isAddingTask {
+            saveNewTaskIfNeeded()
+            withAnimation(.smooth(duration: 0.3)) { isAddingTask = false }
+            newTaskTitle = ""
+        }
+        if isEditingName {
+            commitNameEdit()
+        }
+        newTaskFieldFocused = false
     }
 
     private func toggleComplete(_ task: TaskItem) {
