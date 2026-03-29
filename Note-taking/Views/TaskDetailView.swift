@@ -125,6 +125,8 @@ struct TaskDetailView: View {
                         )
                         tap.delegate = checkboxCoordinator
                         tv.addGestureRecognizer(tap)
+                        // Restore quote border overlay after text is loaded into the view.
+                        DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -138,6 +140,8 @@ struct TaskDetailView: View {
                     // inserting "☐ " on a new todo line doesn't accidentally open the menu.
                     handleReturnKey(tv: tv)
                     evaluateSlashCommand()
+                    // Keep quote border overlay in sync as the user types (bar grows with wrapped lines).
+                    DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
                 }
                 .onChange(of: richTextContext.selectedRange) { _, range in
                     let hasSelection = range.length > 0
@@ -735,6 +739,10 @@ struct TaskDetailView: View {
         attributedText = workingText
         // Keep prevTextLength in sync so handleReturnKey doesn't see a false +N delta.
         prevTextLength = workingText.length
+        // Refresh quote border overlay after applying a quote block.
+        if cmd.id == "quote" {
+            DispatchQueue.main.async { self.refreshQuoteBorderViews(in: tv) }
+        }
 
         // Step 4: typing attributes — next keystroke inherits the block style.
         // NOTE: No NSTextList here — we use text-prefix bullets now.
@@ -861,6 +869,9 @@ struct TaskDetailView: View {
         if isDoubleEnter {
             exitBlock(tv: tv, prevParRange: prevParRange, cursorLoc: cursorLoc,
                       blockType: hasBullet ? .bullet : (hasQuote ? .quote : .todo))
+            if hasQuote {
+                DispatchQueue.main.async { self.refreshQuoteBorderViews(in: tv) }
+            }
         } else if hasBullet {
             continueBulletLine(tv: tv, cursorLoc: cursorLoc)
         } else if isTodo {
@@ -992,6 +1003,77 @@ struct TaskDetailView: View {
         log.debug("handleReturnKey: continued todo, cursor=\(newCursor)")
     }
 
+    // MARK: - Quote Border Overlay
+
+    /// Draws a continuous blue left-border UIView behind every contiguous block of
+    /// quote paragraphs (paragraphs starting with "│ ").
+    /// The "│" glyphs have typographic line-height gaps between them; the UIView spans
+    /// the full block height and fills those gaps — one tall continuous bar per block.
+    private func refreshQuoteBorderViews(in tv: UITextView) {
+        let quoteViewTag = 0x71756F74
+        tv.subviews.filter { $0.tag == quoteViewTag }.forEach { $0.removeFromSuperview() }
+
+        let str = tv.attributedText?.string ?? ""
+        guard !str.isEmpty else { return }
+        let nsStr = str as NSString
+        let totalLen = nsStr.length
+
+        // Walk paragraphs and collect contiguous ranges of quote lines.
+        var quoteBlocks: [NSRange] = []
+        var blockStart: Int = -1
+        var blockEnd:   Int = -1
+        var loc = 0
+
+        while loc <= totalLen {
+            if loc < totalLen {
+                let parRange = nsStr.paragraphRange(for: NSRange(location: loc, length: 0))
+                var parText = nsStr.substring(with: parRange)
+                if parText.hasSuffix("\n") { parText = String(parText.dropLast()) }
+                let isQuote = parText.hasPrefix("│ ") || parText == "│"
+
+                if isQuote {
+                    if blockStart < 0 { blockStart = parRange.location }
+                    blockEnd = parRange.location + parRange.length
+                } else {
+                    if blockStart >= 0 {
+                        quoteBlocks.append(NSRange(location: blockStart, length: blockEnd - blockStart))
+                        blockStart = -1; blockEnd = -1
+                    }
+                }
+                let next = parRange.location + parRange.length
+                if next <= loc { break }
+                loc = next
+            } else {
+                if blockStart >= 0 {
+                    quoteBlocks.append(NSRange(location: blockStart, length: blockEnd - blockStart))
+                }
+                break
+            }
+        }
+
+        let lm    = tv.layoutManager
+        let tc    = tv.textContainer
+        let inset = tv.textContainerInset
+
+        for block in quoteBlocks {
+            lm.ensureLayout(forCharacterRange: block)
+            let glyphRange = lm.glyphRange(forCharacterRange: block, actualCharacterRange: nil)
+            var blockRect  = lm.boundingRect(forGlyphRange: glyphRange, in: tc)
+            blockRect.origin.x += inset.left
+            blockRect.origin.y += inset.top
+
+            let barX = inset.left + tc.lineFragmentPadding
+            let borderView = UIView(frame: CGRect(x: barX, y: blockRect.minY,
+                                                  width: 3, height: blockRect.height))
+            borderView.backgroundColor        = .systemBlue
+            borderView.layer.cornerRadius     = 1.5
+            borderView.isUserInteractionEnabled = false
+            borderView.tag = quoteViewTag
+            tv.insertSubview(borderView, at: 0)
+            log.debug("refreshQuoteBorderViews: block \(block.location)+\(block.length) → y=\(blockRect.minY) h=\(blockRect.height)")
+        }
+    }
+
     /// Continue a quote line: insert "│ " at the start of the new paragraph.
     private func continueQuoteLine(tv: UITextView, cursorLoc: Int) {
         guard let tvText = tv.attributedText else { return }
@@ -1026,6 +1108,7 @@ struct TaskDetailView: View {
         prevTextLength = mutable.length
         attributedText = mutable
         log.debug("handleReturnKey: continued quote, cursor=\(newCursor)")
+        DispatchQueue.main.async { self.refreshQuoteBorderViews(in: tv) }
     }
 
     // MARK: - Export (Issue #45 — native, no WKWebView)
