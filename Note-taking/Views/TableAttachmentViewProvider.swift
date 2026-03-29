@@ -61,12 +61,16 @@ final class TableAttachmentViewProvider: NSTextAttachmentViewProvider {
         hosting.view.backgroundColor = .clear
         hosting.view.translatesAutoresizingMaskIntoConstraints = false
 
-        // UIHostingController must be embedded in a parent VC — without this
-        // SwiftUI's update cycle has no owner and crashes on the first render.
-        let textView = textLayoutManager?.textContainer?.textView
-        let parentVC = textView?.parentViewController
-        parentVC?.addChild(hosting)
-        hosting.didMove(toParent: parentVC)
+        // Embed in parent VC so SwiftUI's update cycle has an owner.
+        // NSTextContainer has no .textView on iOS — walk the layout manager's
+        // delegate chain via the view we are about to set, using the responder chain.
+        if let parentVC = view?.parentViewController ?? UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .flatMap({ $0.windows })
+            .first(where: { $0.isKeyWindow })?.rootViewController {
+            parentVC.addChild(hosting)
+            hosting.didMove(toParent: parentVC)
+        }
 
         let size = hosting.sizeThatFits(in: CGSize(width: 280, height: UIView.layoutFittingCompressedSize.height))
         hosting.view.frame = CGRect(origin: .zero, size: size)
