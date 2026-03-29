@@ -17,6 +17,8 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "SlashCommand
 final class SlashCommandCoordinator: ObservableObject {
     @Published private(set) var isMenuVisible: Bool = false
     @Published private(set) var filteredCommands: [SlashCommand] = []
+    /// Highlighted row index for keyboard (arrow key) navigation.
+    @Published private(set) var selectedIndex: Int = 0
 
     /// Frozen snapshot taken the moment the slash menu appears.
     /// Used in commandSelected() — we never call evaluate() a second time.
@@ -25,6 +27,13 @@ final class SlashCommandCoordinator: ObservableObject {
     /// The position of the '/' that triggered the menu, or -1 if not active.
     /// Read this BEFORE calling commandSelected (which clears frozenState).
     var currentSlashLocation: Int { frozenState?.slashLocation ?? -1 }
+
+    /// The currently highlighted command (by selectedIndex), falls back to first.
+    var selectedCommand: SlashCommand? {
+        guard !filteredCommands.isEmpty else { return nil }
+        let idx = min(selectedIndex, filteredCommands.count - 1)
+        return filteredCommands[idx]
+    }
 
     /// Single-tick suppression flag — prevents the attributedText mutation
     /// inside commandSelected() from retriggering evaluation.
@@ -54,6 +63,20 @@ final class SlashCommandCoordinator: ObservableObject {
         // in the same frame. The overlay applies its own .animation() modifier.
         isMenuVisible = state.isActive
         filteredCommands = state.filteredCommands
+        // Reset highlight to top item whenever the filtered list changes.
+        selectedIndex = 0
+    }
+
+    /// Move keyboard highlight down one row (wraps at bottom).
+    func moveSelectionDown() {
+        guard !filteredCommands.isEmpty else { return }
+        selectedIndex = min(selectedIndex + 1, filteredCommands.count - 1)
+    }
+
+    /// Move keyboard highlight up one row (stops at top).
+    func moveSelectionUp() {
+        guard !filteredCommands.isEmpty else { return }
+        selectedIndex = max(selectedIndex - 1, 0)
     }
 
     /// Call this when the user selects a command from the menu.

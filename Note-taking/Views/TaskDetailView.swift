@@ -37,6 +37,9 @@ struct TaskDetailView: View {
     // Checkbox tap coordinator — wires a UITapGestureRecognizer to the UITextView
     // so users can tap checkbox attachments to toggle them checked/unchecked.
     @StateObject private var checkboxCoordinator = CheckboxTapCoordinator()
+    // Key interceptor — takes first responder on iPad/Mac when slash menu is visible
+    // so arrow keys navigate menu rows instead of moving the text cursor.
+    @State private var keyInterceptor = SlashMenuKeyInterceptor()
 
     // Color palette state — shown automatically when text is selected
     /// Persisted across palette appearances so the last-used mode (text color / highlight) is remembered.
@@ -267,6 +270,7 @@ struct TaskDetailView: View {
                         if localY > -menuMaxH && localY < geo.size.height {
                             SlashCommandMenuView(
                                 commands: slashCoordinator.filteredCommands,
+                                selectedIndex: slashCoordinator.selectedIndex,
                                 onSelect: { cmd in applySlashCommand(cmd) },
                                 onDismiss: { slashCoordinator.dismiss() }
                             )
@@ -337,12 +341,45 @@ struct TaskDetailView: View {
         }
         // AttachmentService drives all picker sheets via a single enum (Issue #49)
         .background(attachmentService.presentationHooks(attributedText: $attributedText))
+        // Zero-size hidden view that becomes first responder on iPad/Mac so arrow keys
+        // navigate the slash menu without disrupting the UITextView's soft keyboard.
+        .background(
+            KeyInterceptorRepresentable(
+                interceptor: keyInterceptor,
+                onMoveDown:  { slashCoordinator.moveSelectionDown() },
+                onMoveUp:    { slashCoordinator.moveSelectionUp() },
+                onSelect: {
+                    if let cmd = slashCoordinator.selectedCommand {
+                        richTextView?.becomeFirstResponder()
+                        applySlashCommand(cmd)
+                    }
+                },
+                onDismiss: {
+                    slashCoordinator.dismiss()
+                    richTextView?.becomeFirstResponder()
+                }
+            )
+            .frame(width: 0, height: 0)
+            .opacity(0)
+        )
         .onAppear { loadToolbarOrder(); loadBody() }
         .onDisappear { saveBody() }
         // Sync checkbox toggle back to the @State binding (Bug #1 fix)
         .onChange(of: checkboxCoordinator.toggleVersion) { _, _ in
             if let toggled = checkboxCoordinator.lastToggledText {
                 attributedText = toggled
+            }
+        }
+        // Keyboard navigation: on iPad/Mac give first responder to interceptor so
+        // arrow keys route to the slash menu instead of moving the text cursor.
+        .onChange(of: slashCoordinator.isMenuVisible) { _, visible in
+            let isHardwareKeyboardDevice =
+                UIDevice.current.userInterfaceIdiom == .pad ||
+                UIDevice.current.userInterfaceIdiom == .mac
+            if visible && isHardwareKeyboardDevice {
+                DispatchQueue.main.async { keyInterceptor.becomeFirstResponder() }
+            } else if !visible && keyInterceptor.isFirstResponder {
+                richTextView?.becomeFirstResponder()
             }
         }
     }
@@ -799,9 +836,9 @@ struct TaskDetailView: View {
         let textLen = str.length
 
         // Slash menu + Return key: if the menu is visible and the user pressed Return,
-        // apply the top item instead of inserting a newline.
+        // apply the keyboard-highlighted command (or first if no arrow navigation used).
         if slashCoordinator.isMenuVisible,
-           let firstCmd = slashCoordinator.filteredCommands.first,
+           let firstCmd = slashCoordinator.selectedCommand,
            textLen == prevTextLength + 1,
            cursorLoc > 0,
            str.character(at: cursorLoc - 1) == 0x0A {
@@ -1841,9 +1878,11 @@ final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecogni
               let text = tv.attributedText else { return }
 
         let point = gesture.location(in: tv)
-        // Compensate for text container insets and line fragment padding
+        // Convert UITextView coordinates to text container coordinates.
+        // lineFragmentPadding is intentionally NOT subtracted — characterIndex(for:in:)
+        // works in text-container space which already accounts for it.
         let adjustedPoint = CGPoint(
-            x: point.x - tv.textContainerInset.left - tv.textContainer.lineFragmentPadding,
+            x: point.x - tv.textContainerInset.left,
             y: point.y - tv.textContainerInset.top
         )
         let charIndex = tv.layoutManager.characterIndex(
@@ -1853,12 +1892,17 @@ final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecogni
         )
         guard charIndex < text.length else { return }
 
-        // Only act when the tapped character IS a CheckboxAttachment.
-        let attrs = text.attributes(at: charIndex, effectiveRange: nil)
-        guard attrs[.attachment] is CheckboxAttachment else { return }
+        // Check the tapped character AND the one before it: a tap can land on the
+        // space that immediately follows the checkbox (U+FFFC), so we check both.
+        func isCheckbox(at idx: Int) -> Bool {
+            guard idx >= 0, idx < text.length else { return false }
+            return text.attributes(at: idx, effectiveRange: nil)[.attachment] is CheckboxAttachment
+        }
+        guard isCheckbox(at: charIndex) || isCheckbox(at: charIndex - 1) else { return }
+        let checkboxIndex = isCheckbox(at: charIndex) ? charIndex : charIndex - 1
 
         var mutableText = NSAttributedString(attributedString: text)
-        RichEditorCommands.toggleCheckbox(at: charIndex, attributedText: &mutableText)
+        RichEditorCommands.toggleCheckbox(at: checkboxIndex, attributedText: &mutableText)
         tv.attributedText = mutableText
 
         // Publish the result so TaskDetailView can sync its @State binding.
@@ -1871,6 +1915,62 @@ final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecogni
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
         return true
+    }
+}
+
+// MARK: - SlashMenuKeyInterceptor
+// Thin UIView that intercepts ↑/↓/↵/⎋ via UIKeyCommand when it holds first responder.
+// On iPad/Mac, TaskDetailView transfers first responder here while the slash menu is
+// visible so arrow keys navigate menu rows instead of moving the text cursor.
+
+final class SlashMenuKeyInterceptor: UIView {
+    var onMoveDown: (() -> Void)?
+    var onMoveUp:   (() -> Void)?
+    var onSelect:   (() -> Void)?
+    var onDismiss:  (() -> Void)?
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    override var keyCommands: [UIKeyCommand]? {
+        [
+            UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [],
+                         action: #selector(keyDown),   discoverabilityTitle: "Next item"),
+            UIKeyCommand(input: UIKeyCommand.inputUpArrow,   modifierFlags: [],
+                         action: #selector(keyUp),     discoverabilityTitle: "Previous item"),
+            UIKeyCommand(input: "\r",                         modifierFlags: [],
+                         action: #selector(keyReturn), discoverabilityTitle: "Select"),
+            UIKeyCommand(input: UIKeyCommand.inputEscape,    modifierFlags: [],
+                         action: #selector(keyEscape), discoverabilityTitle: "Dismiss"),
+        ]
+    }
+
+    @objc private func keyDown()   { onMoveDown?() }
+    @objc private func keyUp()     { onMoveUp?() }
+    @objc private func keyReturn() { onSelect?() }
+    @objc private func keyEscape() { onDismiss?() }
+}
+
+/// UIViewRepresentable wrapper — keeps the interceptor in the UIKit hierarchy so it can
+/// become first responder. Its callbacks are wired in TaskDetailView's .background modifier.
+private struct KeyInterceptorRepresentable: UIViewRepresentable {
+    let interceptor: SlashMenuKeyInterceptor
+    let onMoveDown: () -> Void
+    let onMoveUp:   () -> Void
+    let onSelect:   () -> Void
+    let onDismiss:  () -> Void
+
+    func makeUIView(context: Context) -> SlashMenuKeyInterceptor {
+        interceptor.onMoveDown = onMoveDown
+        interceptor.onMoveUp   = onMoveUp
+        interceptor.onSelect   = onSelect
+        interceptor.onDismiss  = onDismiss
+        return interceptor
+    }
+    func updateUIView(_ uiView: SlashMenuKeyInterceptor, context: Context) {
+        uiView.onMoveDown = onMoveDown
+        uiView.onMoveUp   = onMoveUp
+        uiView.onSelect   = onSelect
+        uiView.onDismiss  = onDismiss
     }
 }
 

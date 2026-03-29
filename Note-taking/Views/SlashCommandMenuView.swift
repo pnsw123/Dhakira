@@ -8,6 +8,8 @@ import UIKit
 
 struct SlashCommandMenuView: View {
     let commands: [SlashCommand]
+    /// Index of the keyboard-highlighted row (0 = top). Passed from the coordinator.
+    var selectedIndex: Int = 0
     let onSelect: (SlashCommand) -> Void
     let onDismiss: () -> Void
 
@@ -27,31 +29,46 @@ struct SlashCommandMenuView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(sections, id: \.0) { section, items in
-                    // Section header
-                    Text(section.uppercased())
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.secondary)
-                        .tracking(0.8)
-                        .padding(.horizontal, 12)
-                        .padding(.top, 10)
-                        .padding(.bottom, 4)
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Flatten all commands to get a global flat index for keyboard highlight.
+                    let flat = commands
+                    var flatIdx = 0
+                    ForEach(sections, id: \.0) { section, items in
+                        // Section header
+                        Text(section.uppercased())
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.secondary)
+                            .tracking(0.8)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 10)
+                            .padding(.bottom, 4)
 
-                    ForEach(items, id: \.id) { cmd in
-                        Button {
-                            onSelect(cmd)
-                        } label: {
-                            commandRow(cmd, isSelected: false)
+                        ForEach(items, id: \.id) { cmd in
+                            let idx = flat.firstIndex(where: { $0.id == cmd.id }) ?? 0
+                            Button {
+                                onSelect(cmd)
+                            } label: {
+                                commandRow(cmd, isSelected: idx == selectedIndex)
+                            }
+                            .buttonStyle(.plain)
+                            .id(cmd.id)
                         }
-                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.bottom, 8)
+            }
+            .frame(maxHeight: 320)
+            // Scroll to keep the highlighted row visible when navigating with arrow keys.
+            .onChange(of: selectedIndex) { _, _ in
+                if selectedIndex < commands.count {
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        proxy.scrollTo(commands[selectedIndex].id, anchor: .center)
                     }
                 }
             }
-            .padding(.bottom, 8)
         }
-        .frame(maxHeight: 320)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .glassEffect(.regular, in: .rect(cornerRadius: 14))
         .shadow(color: Color.primary.opacity(0.15), radius: 12, y: 4)

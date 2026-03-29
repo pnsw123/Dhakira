@@ -258,7 +258,9 @@ final class RichEditorCommands {
 
     static func applyBlockquote(attributedText: inout NSAttributedString, selectedRange: NSRange) {
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
-        guard mutable.length > 0 else { return }
+        // Do NOT guard on mutable.length > 0 — inserting "│ " into an empty document is valid.
+        // The old guard caused Enter + /quote to silently do nothing when the document was empty
+        // (only content was "/quote" which just got deleted by the slash coordinator).
 
         // Same end-of-string fix as toggleBulletList: allow safeLoc == mutable.length.
         let safeLoc = min(selectedRange.location, mutable.length)
@@ -349,6 +351,27 @@ final class RichEditorCommands {
             // Re-set the attribute to force UITextView to redraw the attachment.
             mutable.removeAttribute(.attachment, range: range)
             mutable.addAttribute(.attachment, value: cb, range: range)
+
+            // Apply or remove strikethrough + color on the text after the checkbox on this line.
+            let textStart = range.upperBound
+            let textEnd   = lineRange.upperBound
+            if textStart < textEnd {
+                let textRange = NSRange(location: textStart, length: textEnd - textStart)
+                if cb.isChecked {
+                    mutable.addAttribute(.strikethroughStyle,
+                                         value: NSUnderlineStyle.single.rawValue,
+                                         range: textRange)
+                    mutable.addAttribute(.foregroundColor,
+                                         value: UIColor.secondaryLabel,
+                                         range: textRange)
+                } else {
+                    mutable.removeAttribute(.strikethroughStyle, range: textRange)
+                    mutable.addAttribute(.foregroundColor,
+                                         value: UIColor.label,
+                                         range: textRange)
+                }
+            }
+
             found = true
             stop.pointee = true
         }
