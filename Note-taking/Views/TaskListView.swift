@@ -347,6 +347,10 @@ struct TaskListView: View {
 
     private func softDeleteTask(_ task: TaskItem) {
         log.info("softDeleteTask: '\(task.title)'")
+        if let eventId = task.calendarEventId {
+            Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
+            task.calendarEventId = nil
+        }
         withAnimation(.smooth(duration: 0.3)) {
             task.isDeleted = true
             task.deletedAt = Date()

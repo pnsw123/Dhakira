@@ -1104,18 +1104,23 @@ struct TaskDetailView: View {
     }
 
     private func saveBody() {
-        NoteBodyBinding.save(attributedText, into: task,
+        // Always read from the live UITextView — the @State attributedText binding lags
+        // behind normal typing because RichTextKit's updateUIView() is intentionally empty.
+        let liveText = richTextView?.attributedText ?? attributedText
+        NoteBodyBinding.save(liveText, into: task,
                              onSaveError: { saveError = $0 })
-        // Issue #63: scan the title for dates and sync to Apple Calendar asynchronously.
+        // Issue #63: scan the title AND body for dates and sync to Apple Calendar asynchronously.
         // This is fire-and-forget — the save completes immediately; the sync happens in the
         // background and never blocks or delays the user experience.
         let taskId = task.id
         let title = task.title
+        let bodyText = liveText.string
         let existingEventId = task.calendarEventId
         Task {
             await syncCalendarIfNeeded(
                 taskId: taskId,
                 title: title,
+                bodyText: bodyText,
                 existingEventId: existingEventId
             )
         }
@@ -1128,15 +1133,19 @@ struct TaskDetailView: View {
     /// Scans the task title for a date. If found, creates or updates a calendar event.
     /// If the date is removed from the title, deletes the old event. Runs entirely in the
     /// background — never called from the main thread in a blocking way.
-    private func syncCalendarIfNeeded(taskId: UUID, title: String, existingEventId: String?) async {
-        let detected = dateDetector.detectDates(in: title)
+    private func syncCalendarIfNeeded(taskId: UUID, title: String, bodyText: String, existingEventId: String?) async {
+        // Scan title and body separately, merge, then keep only future dates.
+        let titleDates = dateDetector.detectDates(in: title).map(\.date)
+        let bodyDates  = bodyText.isEmpty ? [] : dateDetector.detectDates(in: bodyText).map(\.date)
+        let now        = Date()
+        let futureDates = (titleDates + bodyDates).filter { $0 > now }
 
-        if let first = detected.first {
-            // Date found — create / update the calendar event.
+        if let first = futureDates.min() {
+            // Earliest future date found — create / update the calendar event.
             let deepLinkURL = DeepLinkHandler.taskURL(for: taskId)
             let newEventId = await CalendarSyncService.shared.syncDateToCalendar(
                 title: title,
-                date: first.date,
+                date: first,
                 existingEventId: existingEventId,
                 deepLinkURL: deepLinkURL
             )
@@ -1145,13 +1154,13 @@ struct TaskDetailView: View {
                 task.calendarEventId = newEventId
             }
         } else if let staleId = existingEventId {
-            // No date in title but we have a stored event — delete it.
+            // No future date anywhere — delete the stale calendar event.
             await CalendarSyncService.shared.deleteEvent(withId: staleId)
             await MainActor.run {
                 task.calendarEventId = nil
             }
         }
-        // No date + no existing event → nothing to do.
+        // No future date + no existing event → nothing to do.
     }
 }
 

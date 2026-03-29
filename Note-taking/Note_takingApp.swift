@@ -140,7 +140,13 @@ private actor StartupWorker {
             return
         }
         log.info("cleanup30DayDeletedTasks: permanently removing \(toRemove.count) expired task(s)")
-        toRemove.forEach { modelContext.delete($0) }
+        for task in toRemove {
+            if let eventId = task.calendarEventId {
+                let idToDelete = eventId
+                Task.detached { await CalendarSyncService.shared.deleteEvent(withId: idToDelete) }
+            }
+            modelContext.delete(task)
+        }
         try? modelContext.save()
     }
 }

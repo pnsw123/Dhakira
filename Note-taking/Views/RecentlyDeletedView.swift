@@ -138,6 +138,9 @@ struct RecentlyDeletedView: View {
 
     private func permanentlyDelete(_ task: TaskItem) {
         log.info("permanentlyDelete: '\(task.title)'")
+        if let eventId = task.calendarEventId {
+            Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
+        }
         withAnimation(.smooth(duration: 0.3)) {
             modelContext.delete(task)
         }
