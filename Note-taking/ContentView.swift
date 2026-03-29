@@ -115,4 +115,6 @@ struct ContentView: View {
 
     return ContentView(pendingDeepLinkTaskId: .constant(nil))
         .modelContainer(container)
+        .environment(ThemeManager.shared)
+        .environment(StoreKitManager.shared)
 }
