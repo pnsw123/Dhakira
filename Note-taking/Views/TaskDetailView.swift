@@ -108,6 +108,7 @@ struct TaskDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
+                .accessibilityIdentifier("task-title-field")
 
             Rectangle()
                 .fill(Color(uiColor: .opaqueSeparator))
@@ -393,6 +394,7 @@ struct TaskDetailView: View {
                 .foregroundStyle(Color.primary)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
+                .accessibilityIdentifier("btn-attachment-menu")
         }
         .menuStyle(.button)
     }
@@ -1625,6 +1627,7 @@ struct AudioRecorderView: View {
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.accentColor)
                 }
+                .accessibilityIdentifier("btn-save-recording")
             } else {
                 // Invisible spacer for alignment
                 Text("Save")
@@ -1649,6 +1652,7 @@ struct AudioRecorderView: View {
                             .foregroundStyle(.white)
                     }
             }
+            .accessibilityIdentifier("btn-record")
         case .recording:
             // Stop button (red square inside circle) — matches Apple Notes
             Button { stopRecording() } label: {
@@ -1661,6 +1665,7 @@ struct AudioRecorderView: View {
                             .frame(width: 22, height: 22)
                     }
             }
+            .accessibilityIdentifier("btn-stop-recording")
         case .paused:
             // Resume recording
             Button { resumeRecording() } label: {
