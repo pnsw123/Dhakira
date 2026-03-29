@@ -154,6 +154,11 @@ final class RichEditorCommands {
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
         let paragraphRange = (mutable.string as NSString).paragraphRange(for: selectedRange)
 
+        // attribute(_:at:) requires index < length — crashes with NSRangeException on empty string.
+        // When text is empty after slash deletion, bail here; the caller sets typingAttributes
+        // so the heading font applies as soon as the user starts typing.
+        guard mutable.length > 0 else { return }
+
         // If already this heading, revert to body
         let existingFont = mutable.attribute(.font, at: paragraphRange.location, effectiveRange: nil) as? UIFont
         let targetFont = level.font
@@ -169,6 +174,9 @@ final class RichEditorCommands {
     static func toggleBulletList(attributedText: inout NSAttributedString, selectedRange: NSRange) {
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
         let paragraphRange = (mutable.string as NSString).paragraphRange(for: selectedRange)
+
+        // Same NSRangeException guard as applyHeading — attribute(_:at:) crashes on empty string.
+        guard mutable.length > 0 else { return }
 
         let existingStyle = mutable.attribute(.paragraphStyle, at: paragraphRange.location, effectiveRange: nil) as? NSParagraphStyle
         let hasList = (existingStyle?.textLists.isEmpty == false)
@@ -312,6 +320,27 @@ final class RichEditorCommands {
     static func applyTextColor(_ color: UIColor, context: RichTextContext) {
         log.debug("applyTextColor (typing attr): \(color.description)")
         context.setColor(.foreground, to: color)
+    }
+
+    // MARK: - Table Insertion (Issue #56)
+
+    /// Insert a `TableAttachment` at `cursorLocation` in the attributed string.
+    /// Returns the new cursor location (right after the inserted attachment character).
+    @discardableResult
+    static func insertTableAttachment(
+        rows: Int,
+        cols: Int,
+        attributedText: inout NSAttributedString,
+        cursorLocation: Int
+    ) -> Int {
+        let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
+        let safeLocation = max(0, min(cursorLocation, mutable.length))
+        let attachment = TableAttachment(rows: rows, cols: cols)
+        let attachmentStr = NSAttributedString(attachment: attachment)
+        mutable.replaceCharacters(in: NSRange(location: safeLocation, length: 0), with: attachmentStr)
+        attributedText = mutable
+        log.debug("insertTableAttachment: inserted \(rows)×\(cols) table at \(safeLocation)")
+        return safeLocation + 1   // one UTF-16 code unit for the attachment character
     }
 
     // MARK: - Body text reset

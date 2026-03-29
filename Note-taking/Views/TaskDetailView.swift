@@ -57,6 +57,7 @@ struct TaskDetailView: View {
         .init(id: "strikethrough",   icon: "strikethrough"),
         .init(id: "fontSizeDown",    icon: "textformat.size.smaller"),
         .init(id: "fontSizeUp",      icon: "textformat.size.larger"),
+        .init(id: "tablecells",      icon: "tablecells"),
         .init(id: "paperclip",       icon: "paperclip"),
         .init(id: "pencil",          icon: "pencil.tip.crop.circle"),
         .init(id: "text.alignleft",  icon: "text.alignleft"),
@@ -72,6 +73,9 @@ struct TaskDetailView: View {
         let id: String
         let icon: String
     }
+
+    // Table picker — shown above toolbar when user taps the tablecells button (Issue #56)
+    @State private var showTablePicker = false
 
     // Attachment service — single enum replaces 6 Bool flags (Issue #49)
     @State private var attachmentService = AttachmentService()
@@ -98,7 +102,10 @@ struct TaskDetailView: View {
                 .padding(.top, 4)
                 .padding(.bottom, 8)
 
-            Divider().padding(.horizontal, 20)
+            Rectangle()
+                .fill(Color(uiColor: .separator))
+                .frame(height: 0.5)
+                .padding(.horizontal, 20)
 
             ZStack(alignment: .topLeading) {
                 // Native RichTextKit editor (Issue #38)
@@ -242,10 +249,40 @@ struct TaskDetailView: View {
             }
 
             if showToolbar && !isDrawingMode {
+                // Table grid picker — floats above the toolbar when the tablecells button is tapped
+                if showTablePicker {
+                    HStack {
+                        Spacer()
+                        TableGridPickerView(
+                            onInsert: { rows, cols in
+                                withAnimation(.spring(response: 0.3)) {
+                                    showTablePicker = false
+                                }
+                                insertTable(rows: rows, cols: cols)
+                            },
+                            onDismiss: {
+                                withAnimation(.spring(response: 0.3)) {
+                                    showTablePicker = false
+                                }
+                            }
+                        )
+                        .padding(.trailing, 16)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 editorToolbar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        // Dismiss table picker on tap outside
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                if showTablePicker {
+                    withAnimation(.spring(response: 0.3)) { showTablePicker = false }
+                }
+            }
+        )
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -302,6 +339,11 @@ struct TaskDetailView: View {
         .background(attachmentService.presentationHooks(attributedText: $attributedText))
         .onAppear { loadToolbarOrder(); loadBody() }
         .onDisappear { saveBody() }
+        // Issue #58: save the body whenever a table cell is edited inside a view provider
+        .onReceive(NotificationCenter.default.publisher(for: TableAttachmentViewProvider.cellDidChangeNotification)) { _ in
+            saveBody()
+            log.debug("TaskDetailView: saved body after table cell edit")
+        }
     }
 
     // MARK: - Toolbar (Issues #39–#43)
@@ -338,6 +380,12 @@ struct TaskDetailView: View {
         switch item.id {
         case "paperclip":
             attachmentMenuButton
+        case "tablecells":
+            toolbarButton(item.icon) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                    showTablePicker.toggle()
+                }
+            }
         default:
             toolbarButton(item.icon) {
                 handleToolbarTap(item.id)
@@ -629,81 +677,88 @@ struct TaskDetailView: View {
     private func applySlashCommand(_ cmd: SlashCommand) {
         log.info("applySlashCommand: '\(cmd.id)' (\(cmd.label))")
 
+        // UITextView is required for every path below — bail early if not ready.
+        guard let tv = richTextView else {
+            log.warning("applySlashCommand: richTextView is nil — aborting")
+            return
+        }
+
         // Read slash location BEFORE commandSelected clears frozenState.
-        // richTextContext.selectedRange resets to 0 when the menu steals focus,
-        // so we rely on the coordinator's frozen slash position instead.
         let slashLoc = slashCoordinator.currentSlashLocation
 
-        // Coordinator removes '/' + filter text using frozen cursor (no focus dependency)
-        slashCoordinator.commandSelected(cmd, applyTo: &attributedText, cursorLocation: 0)
+        // ── Ground truth is the LIVE UITextView content ──────────────────────────
+        // RichTextEditor.updateUIView() is intentionally empty in RichTextKit, so
+        // the SwiftUI `attributedText` binding can lag behind what the UITextView
+        // actually shows. All mutations must start from tv.attributedText, matching
+        // the same pattern that handleToolbarTap already uses in this file.
+        var workingText: NSAttributedString = tv.attributedText ?? NSAttributedString()
 
-        // After deletion, insertion point is where the '/' was
+        // Step 1: coordinator deletes '/' + filter text FROM workingText, dismisses menu.
+        slashCoordinator.commandSelected(cmd, applyTo: &workingText, cursorLocation: 0)
+
         var newCursor = max(0, slashLoc >= 0 ? slashLoc : 0)
         let selRange = NSRange(location: newCursor, length: 0)
 
-        // Apply the selected command to the attributedText binding
+        // Step 2: apply the chosen command to workingText.
         var isColorCommand = false
         switch cmd.id {
         case "bulletList":
-            RichEditorCommands.toggleBulletList(attributedText: &attributedText, selectedRange: selRange)
+            RichEditorCommands.toggleBulletList(attributedText: &workingText, selectedRange: selRange)
         case "todoList":
-            // insertChecklist returns the new cursor position (after the inserted "☐ ")
-            newCursor = RichEditorCommands.insertChecklist(attributedText: &attributedText, cursorLocation: newCursor)
+            newCursor = RichEditorCommands.insertChecklist(attributedText: &workingText, cursorLocation: newCursor)
         case "quote":
-            RichEditorCommands.applyBlockquote(attributedText: &attributedText, selectedRange: selRange)
+            RichEditorCommands.applyBlockquote(attributedText: &workingText, selectedRange: selRange)
         case "heading1":
-            RichEditorCommands.applyHeading(.h1, attributedText: &attributedText, selectedRange: selRange)
+            RichEditorCommands.applyHeading(.h1, attributedText: &workingText, selectedRange: selRange)
         case "heading2":
-            RichEditorCommands.applyHeading(.h2, attributedText: &attributedText, selectedRange: selRange)
+            RichEditorCommands.applyHeading(.h2, attributedText: &workingText, selectedRange: selRange)
         case "heading3":
-            RichEditorCommands.applyHeading(.h3, attributedText: &attributedText, selectedRange: selRange)
+            RichEditorCommands.applyHeading(.h3, attributedText: &workingText, selectedRange: selRange)
         case _ where cmd.id.hasPrefix("color"):
             isColorCommand = true
         default:
             log.warning("applySlashCommand: unhandled command id '\(cmd.id)'")
         }
 
-        // Push every change (including slash deletion) directly into the live UITextView.
-        // RichTextKit's SwiftUI binding does NOT propagate back synchronously — same fix
-        // used by handleToolbarTap (tv.attributedText = updated).
-        if let tv = richTextView {
-            tv.attributedText = attributedText
-            tv.becomeFirstResponder()
-            // Clamp cursor so it's always within the updated text length.
-            let safeCursor = max(0, min(newCursor, (tv.text as NSString).length))
-            tv.selectedRange = NSRange(location: safeCursor, length: 0)
+        // Step 3: push result to UITextView synchronously, then sync the binding.
+        // Synchronous = no state-divergence window between binding and TV.
+        // Two-step (tv then binding) mirrors how handleToolbarTap works.
+        tv.attributedText = workingText
+        tv.becomeFirstResponder()
+        let safeCursor = max(0, min(newCursor, (tv.text as NSString).length))
+        tv.selectedRange = NSRange(location: safeCursor, length: 0)
+        attributedText = workingText   // keep SwiftUI binding in sync
 
-            // Set typing attributes so future keystrokes inherit the block style.
-            switch cmd.id {
-            case "heading1":
-                tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h1.font
-            case "heading2":
-                tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h2.font
-            case "heading3":
-                tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h3.font
-            case "todoList":
-                tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
-                tv.typingAttributes[.foregroundColor] = UIColor.label
-            case "bulletList":
-                let bulletList = NSTextList(markerFormat: .disc, options: 0)
-                let bulletStyle = NSMutableParagraphStyle()
-                bulletStyle.textLists = [bulletList]
-                bulletStyle.firstLineHeadIndent = 15
-                bulletStyle.headIndent = 30
-                tv.typingAttributes[.paragraphStyle] = bulletStyle
-            case "quote":
-                let quoteStyle = NSMutableParagraphStyle()
-                quoteStyle.firstLineHeadIndent = 20
-                quoteStyle.headIndent = 20
-                quoteStyle.tailIndent = -20
-                tv.typingAttributes[.paragraphStyle] = quoteStyle
-                tv.typingAttributes[.foregroundColor] = UIColor.secondaryLabel
-            default:
-                break
-            }
+        // Step 4: typing attributes — next keystroke inherits the block style.
+        switch cmd.id {
+        case "heading1":
+            tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h1.font
+        case "heading2":
+            tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h2.font
+        case "heading3":
+            tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h3.font
+        case "todoList":
+            tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
+            tv.typingAttributes[.foregroundColor] = UIColor.label
+        case "bulletList":
+            let bulletList = NSTextList(markerFormat: .disc, options: 0)
+            let bulletStyle = NSMutableParagraphStyle()
+            bulletStyle.textLists = [bulletList]
+            bulletStyle.firstLineHeadIndent = 15
+            bulletStyle.headIndent = 30
+            tv.typingAttributes[.paragraphStyle] = bulletStyle
+        case "quote":
+            let quoteStyle = NSMutableParagraphStyle()
+            quoteStyle.firstLineHeadIndent = 20
+            quoteStyle.headIndent = 20
+            quoteStyle.tailIndent = -20
+            tv.typingAttributes[.paragraphStyle] = quoteStyle
+            tv.typingAttributes[.foregroundColor] = UIColor.secondaryLabel
+        default:
+            break
         }
 
-        // Color: set typing attribute AFTER focus is restored so it sticks
+        // Color: applied after focus so the typing attribute sticks.
         if isColorCommand {
             if let nc = NamedColor.find(id: cmd.id) {
                 RichEditorCommands.applyTextColor(nc.uiColor, context: richTextContext)
@@ -744,6 +799,29 @@ struct TaskDetailView: View {
             .init(id: "recordAudio",   icon: "mic",              label: "Record Audio"),
             .init(id: "attachFile",    icon: "paperclip",        label: "Attach File"),
         ]
+    }
+
+    // MARK: - Table Insertion (Issue #56)
+
+    /// Insert a TableAttachment at the current cursor position and sync the live UITextView.
+    private func insertTable(rows: Int, cols: Int) {
+        log.info("insertTable: \(rows)×\(cols)")
+        let cursorLoc = richTextView?.selectedRange.location ?? attributedText.length
+        let newCursor = RichEditorCommands.insertTableAttachment(
+            rows: rows,
+            cols: cols,
+            attributedText: &attributedText,
+            cursorLocation: cursorLoc
+        )
+        let capturedText = attributedText
+        let capturedCursor = newCursor
+        DispatchQueue.main.async { [weak richTextView] in
+            guard let tv = richTextView else { return }
+            tv.attributedText = capturedText
+            tv.becomeFirstResponder()
+            let safe = max(0, min(capturedCursor, (tv.text as NSString).length))
+            tv.selectedRange = NSRange(location: safe, length: 0)
+        }
     }
 
     private func triggerAttachment(_ id: String) {
