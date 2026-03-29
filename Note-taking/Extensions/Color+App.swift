@@ -117,13 +117,13 @@ extension Color {
     // Issue #70 — https://github.com/pnsw123/prod-note/issues/70
 
     /// Main screen background — comes from the active theme
-    static var screenBackground: Color { Color(ThemeManager.shared.current.screenBackground) }
+    static var screenBackground: Color { ThemeManager.shared.current.screenBackground }
     /// Row/card background — comes from the active theme
-    static var rowBackground: Color    { Color(ThemeManager.shared.current.surfaceBackground) }
+    static var rowBackground: Color    { ThemeManager.shared.current.surfaceBackground }
     /// FAB button background — comes from the active theme
-    static var fabColor: Color         { Color(ThemeManager.shared.current.fabBackground) }
+    static var fabColor: Color         { ThemeManager.shared.current.fabBackground }
     /// FAB icon color — comes from the active theme
-    static var fabIcon: Color          { Color(ThemeManager.shared.current.fabIcon) }
+    static var fabIcon: Color          { ThemeManager.shared.current.fabIcon }
 }
 
 // MARK: - Light/dark adaptive color helper

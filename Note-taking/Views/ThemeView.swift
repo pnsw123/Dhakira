@@ -16,40 +16,40 @@ struct ThemeView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVGrid(
-                    columns: [GridItem(.flexible()), GridItem(.flexible())],
-                    spacing: 16
-                ) {
-                    ForEach(filteredThemes) { theme in
-                        NavigationLink {
-                            ThemeDetailView(theme: theme, namespace: namespace)
-                                .navigationTransition(.zoom(sourceID: theme.id, in: namespace))
-                        } label: {
-                            ThemeCardView(
-                                theme: theme,
-                                isSelected: themeManager.current.id == theme.id,
-                                namespace: namespace
-                            )
-                            .containerRelativeFrame(.horizontal, count: 2, spacing: 12)
-                            .scrollTransition { content, phase in
-                                content
-                                    .opacity(phase.isIdentity ? 1 : 0)
-                                    .scaleEffect(phase.isIdentity ? 1 : 0.85)
-                            }
+        // No NavigationStack here — ThemeView is always pushed via navigationDestination
+        // from an existing navigation context. Nesting NavigationStack is unsupported.
+        ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                spacing: 16
+            ) {
+                ForEach(filteredThemes) { theme in
+                    NavigationLink {
+                        ThemeDetailView(theme: theme, namespace: namespace)
+                            .navigationTransition(.zoom(sourceID: theme.id, in: namespace))
+                    } label: {
+                        ThemeCardView(
+                            theme: theme,
+                            isSelected: themeManager.current.id == theme.id,
+                            namespace: namespace
+                        )
+                        .containerRelativeFrame(.horizontal, count: 2, spacing: 12)
+                        .scrollTransition { content, phase in
+                            content
+                                .opacity(phase.isIdentity ? 1 : 0)
+                                .scaleEffect(phase.isIdentity ? 1 : 0.85)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 16)
             }
-            .contentMargins(16, for: .scrollContent)
-            .searchable(text: $searchText, placement: .navigationBarDrawer, prompt: "Search themes")
-            .navigationTitle("Themes")
-            .navigationBarTitleDisplayMode(.large)
-            .modifier(SoftScrollEdge())
+            .padding(.horizontal, 16)
         }
+        .contentMargins(16, for: .scrollContent)
+        .searchable(text: $searchText, placement: .navigationBarDrawer, prompt: "Search themes")
+        .navigationTitle("Themes")
+        .navigationBarTitleDisplayMode(.large)
+        .modifier(SoftScrollEdge())
     }
 }
 

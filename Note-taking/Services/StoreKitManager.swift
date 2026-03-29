@@ -76,7 +76,7 @@ final class StoreKitManager {
 
     // MARK: — Restore / check current entitlements on launch
     func restoreEntitlements() async {
-        for await result in Transaction.currentEntitlements {
+        for await result in StoreKit.Transaction.currentEntitlements {
             if let transaction = try? result.payloadValue {
                 purchasedIds.insert(transaction.productID)
                 if transaction.productID == "com.prodnote.theme.pro" {
@@ -89,7 +89,7 @@ final class StoreKitManager {
     // MARK: — Continuous listener for updates (family sharing, Ask to Buy approval, refunds)
     private func startTransactionListener() -> Task<Void, Error> {
         Task.detached(priority: .background) { [weak self] in
-            for await result in Transaction.updates {
+            for await result in StoreKit.Transaction.updates {
                 if let transaction = try? result.payloadValue {
                     await self?.handleVerifiedTransaction(transaction)
                 }

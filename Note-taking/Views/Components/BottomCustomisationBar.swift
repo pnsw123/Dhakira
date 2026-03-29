@@ -80,6 +80,7 @@ struct BottomCustomisationBar: View {
             }
 
         case .blur:
+            #if canImport(UIKit)
             if let img = themeManager.backgroundImage {
                 Image(uiImage: img)
                     .resizable()
@@ -91,6 +92,10 @@ struct BottomCustomisationBar: View {
                 Text("No background photo selected")
                     .foregroundStyle(.secondary)
             }
+            #else
+            Text("No background photo selected")
+                .foregroundStyle(.secondary)
+            #endif
         }
     }
 
@@ -163,7 +168,9 @@ struct BottomCustomisationBar: View {
     // via CGImageSourceCreateThumbnailAtIndex (85% memory savings vs UIImage(data:))
     private func loadPhoto(from item: PhotosPickerItem?) async {
         guard let data = try? await item?.loadTransferable(type: Data.self) else { return }
+        #if canImport(UIKit)
         themeManager.applyBackground(data: data)
+        #endif
     }
 }
 
