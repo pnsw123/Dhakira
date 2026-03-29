@@ -65,7 +65,7 @@ final class TableAttachmentViewProvider: NSTextAttachmentViewProvider {
 
         self.host = hosting
         self.view = hosting.view
-        log.debug("TableAttachmentViewProvider.loadView: rendered \(tableAttachment.tableData.rows)×\(tableAttachment.tableData.cols) table, size=\(size.debugDescription)")
+        log.debug("TableAttachmentViewProvider.loadView: rendered \(tableData.rows)×\(tableData.cols) table, size=\(size.debugDescription)")
     }
 
     /// Preferred attachment bounds — used by TextKit 2 to reserve space in the text container.
@@ -76,12 +76,18 @@ final class TableAttachmentViewProvider: NSTextAttachmentViewProvider {
         proposedLineFragment: CGRect,
         position: CGPoint
     ) -> CGRect {
-        guard let tableAttachment = textAttachment as? TableAttachment else {
+        let rows: Int
+        if let ta = textAttachment as? TableAttachment {
+            rows = ta.tableData.rows
+        } else if let data = textAttachment?.contents,
+                  case .success(let decoded) = TableAttachmentCodec.decode(data) {
+            rows = decoded.rows
+        } else {
             return .zero
         }
         let width = min(proposedLineFragment.width > 0 ? proposedLineFragment.width : 280, 320)
         let rowHeight: CGFloat = 36
-        let height = CGFloat(tableAttachment.tableData.rows) * rowHeight + 2 // +2 for border
+        let height = CGFloat(rows) * rowHeight + 2
         return CGRect(origin: .zero, size: CGSize(width: width, height: height))
     }
 

@@ -35,7 +35,8 @@ struct NativeEditorView: View {
                 tv.typingAttributes[.foregroundColor] = UIColor.label
                 // Register the table view provider so TextKit 2 renders TableAttachment
                 // as a live inline SwiftUI grid (Issue #57).
-                tv.registerTextAttachmentViewProviderClass(
+                // NSTextAttachment.registerViewProviderClass is a class method (iOS 15+).
+                NSTextAttachment.registerViewProviderClass(
                     TableAttachmentViewProvider.self,
                     forFileType: TableAttachment.utType.identifier
                 )
