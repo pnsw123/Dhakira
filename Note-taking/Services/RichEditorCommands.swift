@@ -204,12 +204,15 @@ final class RichEditorCommands {
         log.debug("applyBlockquote: range=\(paragraphRange.location)-\(paragraphRange.length)")
 
         let style = NSMutableParagraphStyle()
-        style.firstLineHeadIndent = 20
-        style.headIndent = 20
-        style.tailIndent = -20
+        style.firstLineHeadIndent = 16
+        style.headIndent = 16
+        style.tailIndent = -16
 
         mutable.addAttribute(.paragraphStyle, value: style, range: paragraphRange)
-        mutable.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: paragraphRange)
+        // Use .label (adaptive) so text is always readable in both light and dark mode.
+        // A subtle systemFill background gives the block a visual distinction (acts as the "quote bar" effect).
+        mutable.addAttribute(.foregroundColor, value: UIColor.label, range: paragraphRange)
+        mutable.addAttribute(.backgroundColor, value: UIColor.systemFill, range: paragraphRange)
         attributedText = mutable
     }
 

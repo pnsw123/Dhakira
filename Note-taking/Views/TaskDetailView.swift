@@ -49,6 +49,10 @@ struct TaskDetailView: View {
     /// anchor the slash menu right below the cursor instead of at the bottom.
     @State private var slashCursorGlobalRect: CGRect = .zero
 
+    /// Tracks the text length after each keystroke so we can detect a single
+    /// newline insertion (Return key) for block-continuation logic.
+    @State private var prevTextLength: Int = 0
+
     // Default toolbar order — user can drag-reorder, saved to UserDefaults.
     static let defaultToolbarItems: [EditorTool] = [
         .init(id: "bold",            icon: "bold"),
@@ -123,6 +127,9 @@ struct TaskDetailView: View {
                 .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidChangeNotification)) { note in
                     guard let tv = note.object as? UITextView,
                           tv === richTextView else { return }
+                    // Return key continuation must run before slash evaluation so that
+                    // inserting "☐ " on a new todo line doesn't accidentally open the menu.
+                    handleReturnKey(tv: tv)
                     evaluateSlashCommand()
                 }
                 .onChange(of: richTextContext.selectedRange) { _, range in
@@ -749,11 +756,12 @@ struct TaskDetailView: View {
             tv.typingAttributes[.paragraphStyle] = bulletStyle
         case "quote":
             let quoteStyle = NSMutableParagraphStyle()
-            quoteStyle.firstLineHeadIndent = 20
-            quoteStyle.headIndent = 20
-            quoteStyle.tailIndent = -20
+            quoteStyle.firstLineHeadIndent = 16
+            quoteStyle.headIndent = 16
+            quoteStyle.tailIndent = -16
             tv.typingAttributes[.paragraphStyle] = quoteStyle
-            tv.typingAttributes[.foregroundColor] = UIColor.secondaryLabel
+            tv.typingAttributes[.foregroundColor] = UIColor.label
+            tv.typingAttributes[.backgroundColor] = UIColor.systemFill
         default:
             break
         }
@@ -768,6 +776,180 @@ struct TaskDetailView: View {
         }
 
         log.debug("applySlashCommand: done — pushed to UITextView, cursor at \(newCursor)")
+    }
+
+    // MARK: - Enter Key Block Continuation
+
+    /// Called on every UITextView.textDidChangeNotification.
+    /// Detects when the user pressed Return inside a block (bullet / todo / quote)
+    /// and either continues the block or exits it (double-Enter on an empty line).
+    private func handleReturnKey(tv: UITextView) {
+        guard let tvText = tv.attributedText else { return }
+        let cursorLoc = tv.selectedRange.location
+        let str = tvText.string as NSString
+        let textLen = str.length
+
+        defer { prevTextLength = textLen }
+
+        // Only trigger when exactly ONE character was inserted AND it is a newline ('\n').
+        // This filters out paste, delete, and every other edit type.
+        guard textLen == prevTextLength + 1,
+              cursorLoc > 0,
+              str.character(at: cursorLoc - 1) == 0x0A else { return }
+
+        // We need at least one character before the newline to inspect.
+        guard cursorLoc >= 2 else { return }
+
+        // Find the paragraph BEFORE the just-inserted newline.
+        // cursorLoc - 1 is the '\n'; cursorLoc - 2 is the last char of the previous line.
+        let prevCharLoc = cursorLoc - 2
+        let prevParRange = str.paragraphRange(for: NSRange(location: prevCharLoc, length: 0))
+
+        var prevLineText = str.substring(with: prevParRange)
+        if prevLineText.hasSuffix("\n") { prevLineText = String(prevLineText.dropLast()) }
+        let isEmptyPrevLine = prevLineText.isEmpty
+
+        // Determine block type from the previous paragraph's style.
+        guard prevParRange.location < tvText.length else { return }
+        let existingStyle = tvText.attribute(.paragraphStyle, at: prevParRange.location, effectiveRange: nil) as? NSParagraphStyle
+        let hasBullet = !(existingStyle?.textLists.isEmpty ?? true)
+        let hasQuote  = !hasBullet && (existingStyle?.firstLineHeadIndent ?? 0) >= 16
+        let isTodo    = prevLineText.hasPrefix("☐ ") || prevLineText.hasPrefix("☑ ")
+
+        guard hasBullet || isTodo || hasQuote else { return }
+
+        if isEmptyPrevLine {
+            // Double-Enter: exit the block by clearing formatting on both the previous
+            // empty paragraph and the newly created paragraph.
+            exitBlock(tv: tv, prevParRange: prevParRange, cursorLoc: cursorLoc)
+        } else if hasBullet {
+            continueBulletLine(tv: tv, cursorLoc: cursorLoc, style: existingStyle)
+        } else if isTodo {
+            continueTodoLine(tv: tv, cursorLoc: cursorLoc)
+        } else if hasQuote {
+            continueQuoteLine(tv: tv, cursorLoc: cursorLoc, style: existingStyle)
+        }
+    }
+
+    /// Remove block formatting from the last empty continuation line and the new cursor line,
+    /// returning the user to plain body text.
+    private func exitBlock(tv: UITextView, prevParRange: NSRange, cursorLoc: Int) {
+        guard let tvText = tv.attributedText else { return }
+        let mutable = NSMutableAttributedString(attributedString: tvText)
+        let plainStyle = NSMutableParagraphStyle()
+
+        func clearRange(_ r: NSRange) {
+            guard r.length > 0, r.location < mutable.length else { return }
+            let safe = NSRange(location: r.location, length: min(r.length, mutable.length - r.location))
+            guard safe.length > 0 else { return }
+            mutable.addAttribute(.paragraphStyle, value: plainStyle, range: safe)
+            mutable.removeAttribute(.backgroundColor, range: safe)
+            mutable.removeAttribute(.foregroundColor, range: safe)
+        }
+
+        clearRange(prevParRange)
+        let currentParRange = (mutable.string as NSString).paragraphRange(for: NSRange(location: cursorLoc, length: 0))
+        clearRange(currentParRange)
+
+        tv.attributedText = mutable
+        tv.selectedRange  = NSRange(location: cursorLoc, length: 0)
+        tv.typingAttributes = [
+            .font:            UIFont.preferredFont(forTextStyle: .body),
+            .foregroundColor: UIColor.label,
+        ]
+        attributedText = mutable
+        log.debug("handleReturnKey: exitBlock, cursor=\(cursorLoc)")
+    }
+
+    /// Apply the same NSTextList paragraph style to the newly created bullet line.
+    private func continueBulletLine(tv: UITextView, cursorLoc: Int, style: NSParagraphStyle?) {
+        guard let tvText = tv.attributedText else { return }
+        let mutable = NSMutableAttributedString(attributedString: tvText)
+        let currentParRange = (mutable.string as NSString).paragraphRange(for: NSRange(location: cursorLoc, length: 0))
+
+        let newStyle: NSMutableParagraphStyle
+        if let s = style?.mutableCopy() as? NSMutableParagraphStyle {
+            newStyle = s
+        } else {
+            newStyle = NSMutableParagraphStyle()
+            newStyle.textLists          = [NSTextList(markerFormat: .disc, options: 0)]
+            newStyle.firstLineHeadIndent = 15
+            newStyle.headIndent          = 30
+        }
+
+        if currentParRange.length > 0, currentParRange.location < mutable.length {
+            let safeLen = min(currentParRange.length, mutable.length - currentParRange.location)
+            if safeLen > 0 {
+                mutable.addAttribute(.paragraphStyle, value: newStyle,
+                                     range: NSRange(location: currentParRange.location, length: safeLen))
+            }
+        }
+
+        tv.attributedText = mutable
+        tv.selectedRange  = NSRange(location: cursorLoc, length: 0)
+        tv.typingAttributes[.paragraphStyle]   = newStyle
+        tv.typingAttributes[.foregroundColor]  = UIColor.label
+        tv.typingAttributes[.font]             = UIFont.preferredFont(forTextStyle: .body)
+        attributedText = mutable
+        log.debug("handleReturnKey: continued bullet, cursor=\(cursorLoc)")
+    }
+
+    /// Insert a new "☐ " checkbox at the start of the new line.
+    private func continueTodoLine(tv: UITextView, cursorLoc: Int) {
+        guard let tvText = tv.attributedText else { return }
+        let mutable = NSMutableAttributedString(attributedString: tvText)
+
+        let item = NSAttributedString(string: "☐ ", attributes: [
+            .font:            UIFont.preferredFont(forTextStyle: .body),
+            .foregroundColor: UIColor.label,
+        ])
+        let safeInsert = max(0, min(cursorLoc, mutable.length))
+        mutable.insert(item, at: safeInsert)
+
+        let newCursor = min(safeInsert + 2, mutable.length)
+        tv.attributedText = mutable
+        tv.selectedRange  = NSRange(location: newCursor, length: 0)
+        tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
+        tv.typingAttributes[.foregroundColor] = UIColor.label
+        // prevTextLength must account for the 2 characters we just inserted.
+        prevTextLength = mutable.length
+        attributedText = mutable
+        log.debug("handleReturnKey: continued todo, cursor=\(newCursor)")
+    }
+
+    /// Apply the same quote paragraph style + background to the new continuation line.
+    private func continueQuoteLine(tv: UITextView, cursorLoc: Int, style: NSParagraphStyle?) {
+        guard let tvText = tv.attributedText else { return }
+        let mutable = NSMutableAttributedString(attributedString: tvText)
+        let currentParRange = (mutable.string as NSString).paragraphRange(for: NSRange(location: cursorLoc, length: 0))
+
+        let newStyle: NSMutableParagraphStyle
+        if let s = style?.mutableCopy() as? NSMutableParagraphStyle {
+            newStyle = s
+        } else {
+            newStyle = NSMutableParagraphStyle()
+            newStyle.firstLineHeadIndent = 16
+            newStyle.headIndent          = 16
+            newStyle.tailIndent          = -16
+        }
+
+        if currentParRange.length > 0, currentParRange.location < mutable.length {
+            let safeLen = min(currentParRange.length, mutable.length - currentParRange.location)
+            if safeLen > 0 {
+                let safeRange = NSRange(location: currentParRange.location, length: safeLen)
+                mutable.addAttribute(.paragraphStyle,  value: newStyle,            range: safeRange)
+                mutable.addAttribute(.foregroundColor, value: UIColor.label,       range: safeRange)
+                mutable.addAttribute(.backgroundColor, value: UIColor.systemFill,  range: safeRange)
+            }
+        }
+
+        tv.attributedText = mutable
+        tv.selectedRange  = NSRange(location: cursorLoc, length: 0)
+        tv.typingAttributes[.paragraphStyle]  = newStyle
+        tv.typingAttributes[.foregroundColor] = UIColor.label
+        tv.typingAttributes[.backgroundColor] = UIColor.systemFill
+        attributedText = mutable
+        log.debug("handleReturnKey: continued quote, cursor=\(cursorLoc)")
     }
 
     // MARK: - Export (Issue #45 — native, no WKWebView)
@@ -864,11 +1046,59 @@ struct TaskDetailView: View {
     private func loadBody() {
         NoteBodyBinding.load(from: task, into: &attributedText,
                              onLoadError: { loadError = $0 })
+        // Sync so the first Return key press is detected correctly.
+        prevTextLength = attributedText.length
     }
 
     private func saveBody() {
         NoteBodyBinding.save(attributedText, into: task,
                              onSaveError: { saveError = $0 })
+        // Issue #63: scan the title for dates and sync to Apple Calendar asynchronously.
+        // This is fire-and-forget — the save completes immediately; the sync happens in the
+        // background and never blocks or delays the user experience.
+        let taskId = task.id
+        let title = task.title
+        let existingEventId = task.calendarEventId
+        Task {
+            await syncCalendarIfNeeded(
+                taskId: taskId,
+                title: title,
+                existingEventId: existingEventId
+            )
+        }
+    }
+
+    // MARK: - Calendar Sync (Issue #63)
+
+    private let dateDetector = DateDetectionService()
+
+    /// Scans the task title for a date. If found, creates or updates a calendar event.
+    /// If the date is removed from the title, deletes the old event. Runs entirely in the
+    /// background — never called from the main thread in a blocking way.
+    private func syncCalendarIfNeeded(taskId: UUID, title: String, existingEventId: String?) async {
+        let detected = dateDetector.detectDates(in: title)
+
+        if let first = detected.first {
+            // Date found — create / update the calendar event.
+            let deepLinkURL = DeepLinkHandler.taskURL(for: taskId)
+            let newEventId = await CalendarSyncService.shared.syncDateToCalendar(
+                title: title,
+                date: first.date,
+                existingEventId: existingEventId,
+                deepLinkURL: deepLinkURL
+            )
+            // Persist the returned event ID back to the task on the main actor.
+            await MainActor.run {
+                task.calendarEventId = newEventId
+            }
+        } else if let staleId = existingEventId {
+            // No date in title but we have a stored event — delete it.
+            await CalendarSyncService.shared.deleteEvent(withId: staleId)
+            await MainActor.run {
+                task.calendarEventId = nil
+            }
+        }
+        // No date + no existing event → nothing to do.
     }
 }
 

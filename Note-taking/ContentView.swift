@@ -7,6 +7,10 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "ContentView"
 struct ContentView: View {
     @State private var showHome = false
 
+    /// Task UUID to navigate to via deep link (prodnote://task/{uuid}).
+    /// Set by Note_takingApp when the OS delivers an incoming URL.
+    @Binding var pendingDeepLinkTaskId: UUID?
+
     var body: some View {
         NavigationStack {
             Group {
@@ -14,8 +18,11 @@ struct ContentView: View {
                     HomeView(onClose: { showHome = false })
                         .transition(.opacity)
                 } else {
-                    TaskListView(onShowHome: { showHome = true })
-                        .transition(.opacity)
+                    TaskListView(
+                        onShowHome: { showHome = true },
+                        pendingDeepLinkTaskId: $pendingDeepLinkTaskId
+                    )
+                    .transition(.opacity)
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: showHome)
@@ -49,6 +56,6 @@ struct ContentView: View {
         ctx.insert(t)
     }
 
-    return ContentView()
+    return ContentView(pendingDeepLinkTaskId: .constant(nil))
         .modelContainer(container)
 }

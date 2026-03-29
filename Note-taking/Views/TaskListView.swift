@@ -13,6 +13,24 @@ struct TaskListView: View {
     /// Called when the root view's < button is tapped. Owned by ContentView so
     /// HomeView is only registered once in the NavigationStack (avoids crashes).
     var onShowHome: (() -> Void)? = nil
+    /// Task UUID delivered by a deep link (prodnote://task/{uuid}).
+    /// When non-nil this view locates the matching task and navigates to its detail page.
+    /// Only the root ContentView passes a real binding; secondary appearances use a constant.
+    @Binding var pendingDeepLinkTaskId: UUID?
+
+    // Convenience initialiser for callers that do not need deep-link support.
+    init(taskList: TaskList? = nil, onShowHome: (() -> Void)? = nil) {
+        self.taskList = taskList
+        self.onShowHome = onShowHome
+        self._pendingDeepLinkTaskId = .constant(nil)
+    }
+
+    // Full initialiser used by ContentView.
+    init(taskList: TaskList? = nil, onShowHome: (() -> Void)? = nil, pendingDeepLinkTaskId: Binding<UUID?>) {
+        self.taskList = taskList
+        self.onShowHome = onShowHome
+        self._pendingDeepLinkTaskId = pendingDeepLinkTaskId
+    }
 
     @Query(sort: \TaskItem.sortOrder, order: .forward)
     private var allTasks: [TaskItem]
@@ -231,6 +249,20 @@ struct TaskListView: View {
                         }
                     }
                 }
+            }
+            // Deep link navigation — Issue #61
+            // When Note_takingApp receives prodnote://task/{uuid}, it stores the UUID here.
+            // We find the matching TaskItem and open its detail page. If the UUID is not
+            // found (task deleted, or from another device), we stay on the current screen.
+            .onChange(of: pendingDeepLinkTaskId) { _, taskId in
+                guard let taskId else { return }
+                if let match = allTasks.first(where: { $0.id == taskId }) {
+                    selectedTask = match
+                } else {
+                    log.warning("Deep link: task \(taskId) not found in local database — ignoring")
+                }
+                // Always clear so the link isn't replayed on re-render.
+                pendingDeepLinkTaskId = nil
             }
     }
 

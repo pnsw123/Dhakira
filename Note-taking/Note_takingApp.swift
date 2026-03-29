@@ -8,6 +8,10 @@ struct Note_takingApp: App {
 
     private let log = Logger(subsystem: "notes.Note-taking", category: "App")
 
+    /// Task UUID received via deep link (prodnote://task/{uuid}).
+    /// Passed into ContentView so it can navigate to the correct task detail page.
+    @State private var pendingDeepLinkTaskId: UUID? = nil
+
     init() {
         log.info("App init — building ModelContainer via AppSchemaBuilder")
         do {
@@ -21,11 +25,20 @@ struct Note_takingApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(pendingDeepLinkTaskId: $pendingDeepLinkTaskId)
                 .task {
+                    // Request calendar permission once on first launch (Issue #60).
+                    await CalendarPermissionService.shared.requestIfNeeded()
                     // Run all startup work on a background actor so the UI renders immediately.
                     let worker = StartupWorker(modelContainer: container)
                     await worker.run()
+                }
+                // Warm launch: app already running, user taps a calendar event deep link.
+                .onOpenURL { url in
+                    log.info("onOpenURL: \(url.absoluteString)")
+                    if let taskId = DeepLinkHandler.handleIncomingURL(url) {
+                        pendingDeepLinkTaskId = taskId
+                    }
                 }
         }
         .modelContainer(container)
