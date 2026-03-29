@@ -75,6 +75,7 @@ extension AppTheme {
     // ─────────────────────────────────────────────
     // FREE — Default (current warm off-white look)
     // ─────────────────────────────────────────────
+    // Default theme uses iOS semantic (adaptive) colors so it follows system dark/light mode.
     static let defaultLight = AppTheme(
         id: "default",
         name: "Default",
@@ -92,22 +93,34 @@ extension AppTheme {
             Color(red: 0.965, green: 0.960, blue: 0.948)
         ],
         backgroundStyle: .gradient,
-        screenBackground:   Color(red: 0.969, green: 0.969, blue: 0.961),
-        surfaceBackground:  Color(red: 0.980, green: 0.980, blue: 0.976),
-        editorBackground:   Color(red: 0.980, green: 0.980, blue: 0.976),
-        primaryText:        Color(red: 0.110, green: 0.110, blue: 0.118),
-        secondaryText:      Color(red: 0.430, green: 0.430, blue: 0.448),
-        placeholderText:    Color(red: 0.620, green: 0.620, blue: 0.630),
+        // Adaptive: light values from the original warm cream palette,
+        // dark values mirror iOS system dark-mode colors for a native feel.
+        screenBackground:   Color(light: Color(red: 0.969, green: 0.969, blue: 0.961),
+                                  dark:  Color(red: 0.000, green: 0.000, blue: 0.000)),
+        surfaceBackground:  Color(light: Color(red: 0.980, green: 0.980, blue: 0.976),
+                                  dark:  Color(red: 0.110, green: 0.110, blue: 0.118)),
+        editorBackground:   Color(light: Color(red: 0.980, green: 0.980, blue: 0.976),
+                                  dark:  Color(red: 0.110, green: 0.110, blue: 0.118)),
+        primaryText:        Color(light: Color(red: 0.110, green: 0.110, blue: 0.118),
+                                  dark:  Color(red: 0.965, green: 0.965, blue: 0.973)),
+        secondaryText:      Color(light: Color(red: 0.430, green: 0.430, blue: 0.448),
+                                  dark:  Color(red: 0.557, green: 0.557, blue: 0.576)),
+        placeholderText:    Color(light: Color(red: 0.620, green: 0.620, blue: 0.630),
+                                  dark:  Color(red: 0.231, green: 0.231, blue: 0.247)),
         accentColor:        Color(red: 0.000, green: 0.478, blue: 1.000),
         linkColor:          Color(red: 0.000, green: 0.478, blue: 1.000),
         quoteBarColor:      Color(red: 0.000, green: 0.478, blue: 1.000),
         priorityHigh:       Color(red: 0.910, green: 0.251, blue: 0.251),
         priorityMedium:     Color(red: 0.878, green: 0.439, blue: 0.125),
-        fabBackground:      Color(red: 0.235, green: 0.227, blue: 0.212),
-        fabIcon:            .white,
-        separatorColor:     Color(red: 0.900, green: 0.900, blue: 0.895),
+        fabBackground:      Color(light: Color(red: 0.235, green: 0.227, blue: 0.212),
+                                  dark:  Color(red: 0.965, green: 0.965, blue: 0.973)),
+        fabIcon:            Color(light: .white,
+                                  dark:  Color(red: 0.000, green: 0.000, blue: 0.000)),
+        separatorColor:     Color(light: Color(red: 0.900, green: 0.900, blue: 0.895),
+                                  dark:  Color(red: 0.329, green: 0.329, blue: 0.345)),
         checkboxActive:     Color(red: 0.000, green: 0.478, blue: 1.000),
-        checkboxInactive:   Color(red: 0.780, green: 0.780, blue: 0.800),
+        checkboxInactive:   Color(light: Color(red: 0.780, green: 0.780, blue: 0.800),
+                                  dark:  Color(red: 0.350, green: 0.350, blue: 0.380)),
         preferredScheme:    nil
     )
 

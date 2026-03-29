@@ -201,7 +201,8 @@ final class VoiceRecordingE2ETests: XCTestCase {
             return
         }
         screenshot("step2-recording-active")
-        sleep(2)
+        // Keep the run loop alive while recording — sleep() blocks XCTest's XPC accessibility bridge.
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 2))
 
         // --- Stop recording ---
         stopBtn.tap()

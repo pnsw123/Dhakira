@@ -1,5 +1,9 @@
 import SwiftUI
 import WidgetKit
+#if canImport(UIKit)
+import UIKit
+import ImageIO
+#endif
 
 // MARK: - ThemeManager
 // @Observable singleton that owns the active theme, custom background image, and persistence.
@@ -14,8 +18,12 @@ final class ThemeManager {
 
     // MARK: — Published state
     var current: AppTheme = .defaultLight
-    var backgroundImage: UIImage? = nil
     var backgroundOpacity: Double = 0.35
+
+    // backgroundImage only exists on UIKit platforms (iOS, iPadOS)
+    #if canImport(UIKit)
+    var backgroundImage: UIImage? = nil
+    #endif
 
     // MARK: — Persistence keys
     @ObservationIgnored
@@ -30,12 +38,14 @@ final class ThemeManager {
         if let saved = AppTheme.all.first(where: { $0.id == selectedThemeId }) {
             current = saved
         }
-        // Restore background image (downsample on load — WWDC18 #416)
+        // Restore background image — UIKit only (WWDC18 #416)
+        #if canImport(UIKit)
         if !backgroundImagePath.isEmpty,
            let url = URL(string: backgroundImagePath),
            FileManager.default.fileExists(atPath: url.path) {
             backgroundImage = downsample(imageAt: url, to: UIScreen.main.bounds.size)
         }
+        #endif
     }
 
     // MARK: — Apply theme
@@ -46,7 +56,8 @@ final class ThemeManager {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    // MARK: — Apply background image
+    // MARK: — Apply background image (UIKit / iOS only)
+    #if canImport(UIKit)
     func applyBackground(data: Data) {
         let url = backgroundURL()
         try? data.write(to: url)
@@ -63,12 +74,14 @@ final class ThemeManager {
         syncToAppGroup()
         WidgetCenter.shared.reloadAllTimelines()
     }
+    #endif
 
     // MARK: — App Group sync (widgets read from here)
     private func syncToAppGroup() {
         guard let defaults = UserDefaults(suiteName: "group.com.prodnote.shared") else { return }
         defaults.set(current.id, forKey: "themeId")
-        // Copy background image to shared container
+        #if canImport(UIKit)
+        // Copy background image JPEG to shared container so the widget can read it
         let sharedURL = FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: "group.com.prodnote.shared")?
             .appendingPathComponent("theme_background.jpg")
@@ -76,11 +89,15 @@ final class ThemeManager {
            let jpeg = img.jpegData(compressionQuality: 0.85) {
             try? jpeg.write(to: sharedURL)
         }
+        #endif
     }
 
-    // MARK: — Downsampling (WWDC18 #416)
+    // MARK: — Downsampling (WWDC18 #416, UIKit only)
     // CGImageSourceCreateThumbnailAtIndex: 87MB raw 12MP → ~11MB (85% savings)
-    private func downsample(imageAt url: URL, to pointSize: CGSize, scale: CGFloat = UIScreen.main.scale) -> UIImage? {
+    #if canImport(UIKit)
+    private func downsample(imageAt url: URL,
+                            to pointSize: CGSize,
+                            scale: CGFloat = UITraitCollection.current.displayScale) -> UIImage? {
         let imageSourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, imageSourceOptions) else { return nil }
         let maxDimension = max(pointSize.width, pointSize.height) * scale
@@ -93,6 +110,7 @@ final class ThemeManager {
         guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else { return nil }
         return UIImage(cgImage: thumbnail)
     }
+    #endif
 
     private func backgroundURL() -> URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -110,6 +128,7 @@ struct WithAppBackground: ViewModifier {
 
     func body(content: Content) -> some View {
         ZStack {
+            #if canImport(UIKit)
             if let img = themeManager.backgroundImage {
                 Image(uiImage: img)
                     .resizable()
@@ -118,9 +137,13 @@ struct WithAppBackground: ViewModifier {
                 Color.black.opacity(colorScheme == .dark ? 0.55 : 0.25)
                     .ignoresSafeArea(.all)
             } else {
-                Color(themeManager.current.screenBackground)
+                themeManager.current.screenBackground
                     .ignoresSafeArea(.all)
             }
+            #else
+            themeManager.current.screenBackground
+                .ignoresSafeArea(.all)
+            #endif
             content
         }
     }
