@@ -1241,37 +1241,87 @@ struct TaskDetailView: View {
 
     private let dateDetector = DateDetectionService()
 
-    /// Scans the task title for a date. If found, creates or updates a calendar event.
-    /// If the date is removed from the title, deletes the old event. Runs entirely in the
-    /// background — never called from the main thread in a blocking way.
+    /// Scans the task title (and body) for a date. If found, creates or updates a
+    /// calendar event. If the date is removed, deletes the old event.
+    /// Runs entirely in the background — never blocks the UI.
     private func syncCalendarIfNeeded(taskId: UUID, title: String, bodyText: String, existingEventId: String?) async {
-        // Scan title and body separately, merge, then keep only future dates.
-        let titleDates = dateDetector.detectDates(in: title).map(\.date)
-        let bodyDates  = bodyText.isEmpty ? [] : dateDetector.detectDates(in: bodyText).map(\.date)
-        let now        = Date()
-        let futureDates = (titleDates + bodyDates).filter { $0 > now }
+        let cal = Calendar.current
+        let now = Date()
 
-        if let first = futureDates.min() {
-            // Earliest future date found — create / update the calendar event.
-            let deepLinkURL = DeepLinkHandler.taskURL(for: taskId)
-            let newEventId = await CalendarSyncService.shared.syncDateToCalendar(
-                title: title,
-                date: first,
-                existingEventId: existingEventId,
-                deepLinkURL: deepLinkURL
-            )
-            // Persist the returned event ID back to the task on the main actor.
-            await MainActor.run {
-                task.calendarEventId = newEventId
+        // Scan title first — title dates take priority.
+        // We keep the full DetectedDate so we can strip the date text from the event title.
+        let titleDetected = dateDetector.detectDates(in: title)
+        let bodyDetected  = bodyText.isEmpty ? [] : dateDetector.detectDates(in: bodyText)
+
+        // Accept dates that are in the future OR are today (handles "meeting at 5pm"
+        // typed at 5:01pm — the intent is clearly today, not yesterday).
+        // Old behaviour (filter { $0 > now }) was silently dropping same-day past times.
+        func isRelevant(_ date: Date) -> Bool {
+            date > now || cal.isDateInToday(date)
+        }
+
+        let relevantTitle = titleDetected.filter { isRelevant($0.date) }
+        let relevantBody  = bodyDetected.filter  { isRelevant($0.date) }
+        let allRelevant   = relevantTitle + relevantBody
+
+        guard let earliest = allRelevant.min(by: { $0.date < $1.date }) else {
+            // No relevant date found — delete any stale calendar event.
+            if let staleId = existingEventId {
+                await CalendarSyncService.shared.deleteEvent(withId: staleId)
+                await MainActor.run { task.calendarEventId = nil }
             }
-        } else if let staleId = existingEventId {
-            // No future date anywhere — delete the stale calendar event.
-            await CalendarSyncService.shared.deleteEvent(withId: staleId)
-            await MainActor.run {
-                task.calendarEventId = nil
+            return
+        }
+
+        // Build a clean event title by stripping the detected date text from the task title.
+        // Example: "watch one piece at 4pm" → "watch one piece"
+        // If the date came from the body (not title), keep the full title as-is.
+        let eventTitle: String
+        if relevantTitle.contains(where: { $0.date == earliest.date }) {
+            eventTitle = strippingDateText(earliest, from: title)
+        } else {
+            eventTitle = title
+        }
+
+        let deepLinkURL = DeepLinkHandler.taskURL(for: taskId)
+        let newEventId = await CalendarSyncService.shared.syncDateToCalendar(
+            title: eventTitle.isEmpty ? title : eventTitle,
+            date: earliest.date,
+            existingEventId: existingEventId,
+            deepLinkURL: deepLinkURL
+        )
+        await MainActor.run { task.calendarEventId = newEventId }
+    }
+
+    /// Returns `title` with the date match text removed, trimmed of surrounding whitespace.
+    /// "watch one piece at 4pm" → "watch one piece"
+    /// "Dentist on March 10th" → "Dentist on March 10th" stripped → "Dentist on"
+    ///
+    /// Strategy: convert to NSString, remove the matched NSRange, then trim.
+    private func strippingDateText(_ detected: DetectedDate, from title: String) -> String {
+        let ns = title as NSString
+        let matchRange = NSRange(detected.range, in: title)
+        // Expand leftward to swallow a leading preposition separator (" at ", " on ", " ", ", ")
+        var start = matchRange.location
+        var length = matchRange.length
+        let separators = [" at ", " on ", ", ", " "]
+        for sep in separators {
+            let sepLen = sep.utf16.count
+            if start >= sepLen {
+                let candidate = ns.substring(with: NSRange(location: start - sepLen, length: sepLen))
+                if candidate.lowercased() == sep {
+                    start  -= sepLen
+                    length += sepLen
+                    break
+                }
             }
         }
-        // No future date + no existing event → nothing to do.
+        // Expand rightward past trailing whitespace
+        while start + length < ns.length, ns.character(at: start + length) == 32 /* space */ {
+            length += 1
+        }
+        let cleaned = ns.replacingCharacters(in: NSRange(location: start, length: length), with: "")
+        return cleaned.trimmingCharacters(in: .whitespaces)
     }
 }
 
