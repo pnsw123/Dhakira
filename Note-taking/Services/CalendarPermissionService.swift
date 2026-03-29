@@ -67,7 +67,7 @@ final class CalendarPermissionService: ObservableObject {
 
     // MARK: - Private
 
-    private func cache(result: Bool) {
+    func cache(result: Bool) {
         UserDefaults.standard.set(result, forKey: Self.cacheKey)
         isGranted = result
     }

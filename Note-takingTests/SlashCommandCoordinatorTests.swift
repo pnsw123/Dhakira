@@ -53,17 +53,18 @@ final class SlashCommandCoordinatorTests: XCTestCase {
     // MARK: - #4 commandSelected deletes the slash trigger text (frozen-state fix)
 
     func test_commandSelected_deletesSlashTriggerText() {
-        // Simulate: user typed "Hello /text", cursor at position 11
-        var text = NSAttributedString(string: "Hello /text")
-        coordinator.textDidChange(text: text, cursorLocation: 11)
+        // Simulate: user typed "Hello /bul", cursor at position 10
+        // "/bul" matches "Bulleted List" so filteredCommands will be non-empty.
+        var text = NSAttributedString(string: "Hello /bul")
+        coordinator.textDidChange(text: text, cursorLocation: 10)
 
         guard let cmd = coordinator.filteredCommands.first else {
-            XCTFail("Expected at least one command to be available")
+            XCTFail("Expected at least one command to be available for filter 'bul'")
             return
         }
 
-        // Apply the command — should delete "/text" (positions 6-11)
-        coordinator.commandSelected(cmd, applyTo: &text, cursorLocation: 11)
+        // Apply the command — should delete "/bul" (positions 6-10)
+        coordinator.commandSelected(cmd, applyTo: &text, cursorLocation: 10)
 
         // The attributed string should now be "Hello " (slash + filter removed)
         XCTAssertEqual(text.string, "Hello ",

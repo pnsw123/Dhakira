@@ -114,173 +114,7 @@ struct TaskDetailView: View {
                 .frame(height: 1)
                 .padding(.horizontal, 20)
 
-            ZStack(alignment: .topLeading) {
-                // Native RichTextKit editor (Issue #38)
-                NativeEditorView(
-                    attributedText: $attributedText,
-                    context: richTextContext,
-                    onEditorReady: { tv in
-                        richTextView = tv
-                        // Attach checkbox tap handler (Bug #1 fix)
-                        let tap = UITapGestureRecognizer(
-                            target: checkboxCoordinator,
-                            action: #selector(CheckboxTapCoordinator.handleTap(_:))
-                        )
-                        tap.delegate = checkboxCoordinator
-                        tv.addGestureRecognizer(tap)
-                        // Restore quote border overlay after text is loaded into the view.
-                        DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
-                    }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 4)
-                // UIKit notification — fires on every keystroke, stable since iOS 2.
-                // Replaces unreliable SwiftUI onChange triggers for slash detection.
-                .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidChangeNotification)) { note in
-                    guard let tv = note.object as? UITextView,
-                          tv === richTextView else { return }
-                    // Return key continuation must run before slash evaluation so that
-                    // inserting "☐ " on a new todo line doesn't accidentally open the menu.
-                    handleReturnKey(tv: tv)
-                    evaluateSlashCommand()
-                    // Keep quote border overlay in sync as the user types (bar grows with wrapped lines).
-                    DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
-                }
-                .onChange(of: richTextContext.selectedRange) { _, range in
-                    let hasSelection = range.length > 0
-                    if hasSelection, let tv = richTextView {
-                        let nsLen = (tv.text as NSString).length
-                        let loc = min(range.location, max(0, nsLen))
-                        let len = min(range.length, nsLen - loc)
-                        if len > 0,
-                           let start = tv.position(from: tv.beginningOfDocument, offset: loc),
-                           let end   = tv.position(from: start, offset: len),
-                           let tRange = tv.textRange(from: start, to: end) {
-                            let r = tv.firstRect(for: tRange)
-                            if !r.isNull, !r.isInfinite, r.width < 5000 {
-                                selectionGlobalRect = tv.convert(r, to: nil)
-                            } else {
-                                selectionGlobalRect = .zero
-                            }
-                        } else {
-                            selectionGlobalRect = .zero
-                        }
-                    } else {
-                        selectionGlobalRect = .zero
-                    }
-                    if hasSelection {
-                        savedColorSelection = range
-                    }
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showColorPalette = hasSelection
-                    }
-                }
-
-                // Always in the hierarchy so the Coordinator (and PKToolPicker)
-                // are never destroyed. Hidden with opacity when not needed.
-                DrawingCanvasView(
-                    drawingData: $task.drawingData,
-                    isActive: $isDrawingMode,
-                    onCanvasReady: { canvas, picker in
-                        pkCanvasView = canvas
-                        pkToolPicker = picker
-                    }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(isDrawingMode || task.drawingData != nil ? 1 : 0)
-                .allowsHitTesting(isDrawingMode)
-
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Color palette — floats below the system "Copy / Paste" callout,
-            // anchored to the selected text rect (Issue #44).
-            .overlay(alignment: .topLeading) {
-                if showColorPalette && !isDrawingMode && !selectionGlobalRect.isEmpty {
-                    GeometryReader { geo in
-                        let gf = geo.frame(in: .global)
-                        // Position the palette just below the selection rect.
-                        // selectionGlobalRect is in window coords; subtract the ZStack's
-                        // global origin to get local coordinates.
-                        // +8 gap below selection + ~44pt system Cut/Copy/Paste bar height + 8pt padding
-                        let localY = selectionGlobalRect.maxY - gf.minY + 60
-                        if localY > 0 && localY < geo.size.height {
-                            ColorPaletteView(
-                                mode: $paletteMode,
-                                onApplyHighlight: { color in
-                                    applyColorAttribute(key: .backgroundColor,
-                                                        value: color,
-                                                        range: savedColorSelection)
-                                },
-                                onApplyFontColor: { color in
-                                    applyColorAttribute(key: .foregroundColor,
-                                                        value: color,
-                                                        range: savedColorSelection)
-                                },
-                                onRemoveFontColor: {
-                                    // Use UIColor.label (adaptive: black in light, white in dark)
-                                    // instead of nil, which would remove the attribute and fall
-                                    // back to a static black regardless of color scheme.
-                                    applyColorAttribute(key: .foregroundColor,
-                                                        value: UIColor.label,
-                                                        range: savedColorSelection)
-                                },
-                                onRemoveHighlight: {
-                                    applyColorAttribute(key: .backgroundColor,
-                                                        value: nil,
-                                                        range: savedColorSelection)
-                                },
-                                onDismiss: { showColorPalette = false },
-                                initialFontColorName: detectedFontColorName(),
-                                initialHighlightName: detectedHighlightName()
-                            )
-                            .fixedSize()
-                            // Center horizontally around the selection midpoint,
-                            // clamped so it doesn't clip off screen edges.
-                            .frame(maxWidth: geo.size.width, alignment: .center)
-                            .offset(y: localY)
-                        }
-                    }
-                    .transition(.opacity)
-                }
-            }
-            // Slash command menu — uses the same global-rect approach as the color palette
-            // so it always appears directly below the caret regardless of scroll or insets.
-            // When the menu would clip below the bottom of the ZStack (e.g. keyboard up,
-            // cursor near the last line), it flips to appear ABOVE the caret instead.
-            .overlay(alignment: .topLeading) {
-                if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty {
-                    GeometryReader { geo in
-                        let gf = geo.frame(in: .global)
-                        let caretMaxY: CGFloat = slashCursorGlobalRect == .zero
-                            ? gf.minY + 40
-                            : slashCursorGlobalRect.maxY
-                        let caretMinY: CGFloat = slashCursorGlobalRect == .zero
-                            ? gf.minY + 20
-                            : slashCursorGlobalRect.minY
-                        let localX: CGFloat = slashCursorGlobalRect == .zero
-                            ? 16
-                            : max(0, min(slashCursorGlobalRect.minX - gf.minX, geo.size.width - 264))
-                        // Menu max height is 320; show above caret if it would clip below.
-                        let menuMaxH: CGFloat = 320
-                        let belowY = caretMaxY - gf.minY + 6
-                        let wouldClip = belowY + menuMaxH > geo.size.height
-                        let localY: CGFloat = wouldClip
-                            ? caretMinY - gf.minY - menuMaxH - 6   // above caret
-                            : belowY                                  // below caret (default)
-                        if localY > -menuMaxH && localY < geo.size.height {
-                            SlashCommandMenuView(
-                                commands: slashCoordinator.filteredCommands,
-                                selectedIndex: slashCoordinator.selectedIndex,
-                                onSelect: { cmd in applySlashCommand(cmd) },
-                                onDismiss: { slashCoordinator.dismiss() }
-                            )
-                            .offset(x: localX, y: localY)
-                            .transition(.opacity)
-                            .animation(.easeInOut(duration: 0.15), value: slashCoordinator.isMenuVisible)
-                        }
-                    }
-                }
-            }
+            editorArea
 
             if showToolbar && !isDrawingMode {
                 editorToolbar
@@ -386,6 +220,114 @@ struct TaskDetailView: View {
 
     // MARK: - Toolbar (Issues #39–#43)
 
+    // MARK: - Editor area sub-views (extracted to keep body type-checkable)
+
+    private var editorArea: some View {
+        ZStack(alignment: .topLeading) {
+            NativeEditorView(
+                attributedText: $attributedText,
+                context: richTextContext,
+                onEditorReady: { tv in
+                    richTextView = tv
+                    let tap = UITapGestureRecognizer(
+                        target: checkboxCoordinator,
+                        action: #selector(CheckboxTapCoordinator.handleTap(_:))
+                    )
+                    tap.delegate = checkboxCoordinator
+                    tv.addGestureRecognizer(tap)
+                    DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
+                }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 4)
+            .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidChangeNotification)) { note in
+                guard let tv = note.object as? UITextView, tv === richTextView else { return }
+                handleReturnKey(tv: tv)
+                evaluateSlashCommand()
+                DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
+            }
+            .onChange(of: richTextContext.selectedRange) { _, range in
+                onSelectionChanged(range)
+            }
+
+            DrawingCanvasView(
+                drawingData: $task.drawingData,
+                isActive: $isDrawingMode,
+                onCanvasReady: { canvas, picker in
+                    pkCanvasView = canvas
+                    pkToolPicker = picker
+                }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .opacity(isDrawingMode || task.drawingData != nil ? 1 : 0)
+            .allowsHitTesting(isDrawingMode)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .topLeading) { colorPaletteOverlay }
+        .overlay(alignment: .topLeading) { slashMenuOverlay }
+    }
+
+    @ViewBuilder private var colorPaletteOverlay: some View {
+        if showColorPalette && !isDrawingMode && !selectionGlobalRect.isEmpty {
+            GeometryReader { geo in
+                let gf = geo.frame(in: .global)
+                let localY = selectionGlobalRect.maxY - gf.minY + 60
+                if localY > 0 && localY < geo.size.height {
+                    ColorPaletteView(
+                        mode: $paletteMode,
+                        onApplyHighlight: { color in
+                            applyColorAttribute(key: .backgroundColor, value: color, range: savedColorSelection)
+                        },
+                        onApplyFontColor: { color in
+                            applyColorAttribute(key: .foregroundColor, value: color, range: savedColorSelection)
+                        },
+                        onRemoveFontColor: {
+                            applyColorAttribute(key: .foregroundColor, value: UIColor.label, range: savedColorSelection)
+                        },
+                        onRemoveHighlight: {
+                            applyColorAttribute(key: .backgroundColor, value: nil, range: savedColorSelection)
+                        },
+                        onDismiss: { showColorPalette = false },
+                        initialFontColorName: detectedFontColorName(),
+                        initialHighlightName: detectedHighlightName()
+                    )
+                    .fixedSize()
+                    .frame(maxWidth: geo.size.width, alignment: .center)
+                    .offset(y: localY)
+                }
+            }
+            .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder private var slashMenuOverlay: some View {
+        if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty {
+            GeometryReader { geo in
+                let gf = geo.frame(in: .global)
+                let caretMaxY: CGFloat = slashCursorGlobalRect == .zero ? gf.minY + 40 : slashCursorGlobalRect.maxY
+                let caretMinY: CGFloat = slashCursorGlobalRect == .zero ? gf.minY + 20 : slashCursorGlobalRect.minY
+                let localX: CGFloat = slashCursorGlobalRect == .zero
+                    ? 16
+                    : max(0, min(slashCursorGlobalRect.minX - gf.minX, geo.size.width - 264))
+                let menuMaxH: CGFloat = 320
+                let belowY = caretMaxY - gf.minY + 6
+                let wouldClip = belowY + menuMaxH > geo.size.height
+                let localY: CGFloat = wouldClip ? caretMinY - gf.minY - menuMaxH - 6 : belowY
+                if localY > -menuMaxH && localY < geo.size.height {
+                    SlashCommandMenuView(
+                        commands: slashCoordinator.filteredCommands,
+                        selectedIndex: slashCoordinator.selectedIndex,
+                        onSelect: { cmd in applySlashCommand(cmd) },
+                        onDismiss: { slashCoordinator.dismiss() }
+                    )
+                    .offset(x: localX, y: localY)
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.15), value: slashCoordinator.isMenuVisible)
+                }
+            }
+        }
+    }
+
     private var editorToolbar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 2) {
@@ -411,6 +353,7 @@ struct TaskDetailView: View {
         .glassEffect(.regular, in: .rect(cornerRadius: 18))
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+        .accessibilityIdentifier("editor-toolbar")
     }
 
     @ViewBuilder
@@ -1221,6 +1164,32 @@ struct TaskDetailView: View {
                              onLoadError: { loadError = $0 })
         // Sync so the first Return key press is detected correctly.
         prevTextLength = attributedText.length
+    }
+
+    private func onSelectionChanged(_ range: NSRange) {
+        let hasSelection = range.length > 0
+        if hasSelection, let tv = richTextView {
+            let nsLen = (tv.text as NSString).length
+            let loc = min(range.location, max(0, nsLen))
+            let len = min(range.length, nsLen - loc)
+            if len > 0,
+               let start = tv.position(from: tv.beginningOfDocument, offset: loc),
+               let end   = tv.position(from: start, offset: len),
+               let tRange = tv.textRange(from: start, to: end) {
+                let r = tv.firstRect(for: tRange)
+                if !r.isNull, !r.isInfinite, r.width < 5000 {
+                    selectionGlobalRect = tv.convert(r, to: nil)
+                } else {
+                    selectionGlobalRect = .zero
+                }
+            } else {
+                selectionGlobalRect = .zero
+            }
+        } else {
+            selectionGlobalRect = .zero
+        }
+        if hasSelection { savedColorSelection = range }
+        withAnimation(.easeInOut(duration: 0.2)) { showColorPalette = hasSelection }
     }
 
     private func saveBody() {
