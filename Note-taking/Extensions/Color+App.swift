@@ -94,9 +94,15 @@ extension UIColor {
 }
 
 extension Color {
-    // MARK: - Priority colors
-    static let priorityHighColor = Color(red: 0.910, green: 0.251, blue: 0.251)    // #E84040
-    static let priorityMediumColor = Color(red: 0.878, green: 0.439, blue: 0.125)  // #E07020
+    // MARK: - Priority colors (adaptive: brighter in dark mode for contrast)
+    static let priorityHighColor = Color(
+        light: Color(red: 0.910, green: 0.251, blue: 0.251),   // #E84040 — dark red on white
+        dark:  Color(red: 1.000, green: 0.420, blue: 0.420)    // #FF6B6B — softer red on dark
+    )
+    static let priorityMediumColor = Color(
+        light: Color(red: 0.878, green: 0.439, blue: 0.125),   // #E07020 — deep orange on white
+        dark:  Color(red: 1.000, green: 0.604, blue: 0.290)    // #FF9A4A — lighter orange on dark
+    )
 
     static func forPriority(_ priority: String) -> Color {
         switch priority {

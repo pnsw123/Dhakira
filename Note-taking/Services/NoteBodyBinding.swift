@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "NoteBodyBinding")
@@ -29,7 +30,9 @@ struct NoteBodyBinding {
         switch NoteBodyCodec.decode(data) {
         case .success(let str):
             logger.info("NoteBodyBinding.load: loaded \(str.length) chars for task '\(task.title)'")
-            attributedText = str
+            // RTF hardcodes black as the default text color. Strip it so the text view's
+            // adaptive .label color takes over — otherwise text is invisible in dark mode.
+            attributedText = str.removingRTFDefaultBlack()
         case .failure(let error):
             logger.error("NoteBodyBinding.load: decode failed for task '\(task.title)' — \(error.localizedDescription)")
             onLoadError?(error)
@@ -64,5 +67,27 @@ struct NoteBodyBinding {
             onSaveError?(error)
             // Do NOT overwrite task.body — preserve the last good save
         }
+    }
+}
+
+// MARK: - Dark-mode RTF color fix
+
+private extension NSAttributedString {
+    /// RTF always encodes a default foreground color (black: r≈0, g≈0, b≈0).
+    /// In dark mode that makes all text invisible. This strips any near-black
+    /// foreground color so the UITextView's adaptive `.label` color shows through.
+    /// Intentional user colors (red, blue, etc.) are left untouched.
+    func removingRTFDefaultBlack() -> NSAttributedString {
+        let mutable = NSMutableAttributedString(attributedString: self)
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        mutable.enumerateAttribute(.foregroundColor, in: fullRange, options: []) { value, range, _ in
+            guard let color = value as? UIColor else { return }
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            color.getRed(&r, green: &g, blue: &b, alpha: &a)
+            if r < 0.15 && g < 0.15 && b < 0.15 && a > 0.9 {
+                mutable.removeAttribute(.foregroundColor, range: range)
+            }
+        }
+        return mutable
     }
 }

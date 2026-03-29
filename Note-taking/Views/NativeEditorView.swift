@@ -28,6 +28,10 @@ struct NativeEditorView: View {
             // viewConfiguration fires once inside makeUIView — safe to capture here.
             if let tv = view as? UITextView {
                 log.debug("NativeEditorView: UITextView ready")
+                // Use adaptive .label color so text is visible in both light and dark mode.
+                // Without this, UIKit defaults to black which disappears on dark backgrounds.
+                tv.textColor = .label
+                tv.typingAttributes[.foregroundColor] = UIColor.label
                 DispatchQueue.main.async { onEditorReady?(tv) }
             }
         }

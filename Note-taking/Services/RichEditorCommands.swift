@@ -207,17 +207,24 @@ final class RichEditorCommands {
 
     // MARK: - To-do Checklists (#41)
 
-    /// Insert a checklist item at the current cursor position
-    static func insertChecklist(attributedText: inout NSAttributedString, cursorLocation: Int) {
-        log.debug("insertChecklist: inserting at cursor=\(cursorLocation)")
+    /// Insert a checklist item at the current cursor position.
+    /// Returns the new cursor location (right after the inserted "☐ ").
+    @discardableResult
+    static func insertChecklist(attributedText: inout NSAttributedString, cursorLocation: Int) -> Int {
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
-        let insertRange = NSRange(location: cursorLocation, length: 0)
+        // Clamp so replaceCharacters never throws an NSRangeException.
+        let safeLocation = max(0, min(cursorLocation, mutable.length))
+        log.debug("insertChecklist: inserting at \(safeLocation) (requested \(cursorLocation), length \(mutable.length))")
         let item = NSAttributedString(
             string: "☐ ",
-            attributes: [.font: UIFont.preferredFont(forTextStyle: .body)]
+            attributes: [
+                .font: UIFont.preferredFont(forTextStyle: .body),
+                .foregroundColor: UIColor.label   // explicit adaptive color so it's never invisible
+            ]
         )
-        mutable.replaceCharacters(in: insertRange, with: item)
+        mutable.replaceCharacters(in: NSRange(location: safeLocation, length: 0), with: item)
         attributedText = mutable
+        return safeLocation + 2   // "☐" (1 UTF-16 unit) + space (1) = 2
     }
 
     /// Toggle ☐/☑ on the line at the given location
@@ -237,48 +244,6 @@ final class RichEditorCommands {
             log.debug("toggleCheckbox: no checkbox found at location=\(location)")
         }
         attributedText = mutable
-    }
-
-    // MARK: - Tables (#43)
-    // NSTextTable is AppKit-only. HTML tables render broken on iOS (cells stack vertically).
-    // Use a monospaced text grid with Unicode box-drawing characters — renders correctly
-    // in UITextView and survives RTF round-trip.
-
-    static func insertTable(rows: Int, cols: Int, attributedText: inout NSAttributedString, cursorLocation: Int) {
-        let cellWidth = 10 // characters per cell
-        let font = UIFont.monospacedSystemFont(ofSize: 15, weight: .regular)
-        let headerFont = UIFont.monospacedSystemFont(ofSize: 15, weight: .semibold)
-        let bodyFont = UIFont.preferredFont(forTextStyle: .body)
-
-        // Build the text table line by line
-        let hBar = String(repeating: "─", count: cellWidth)
-        let topBorder    = "┌" + Array(repeating: hBar, count: cols).joined(separator: "┬") + "┐\n"
-        let middleBorder = "├" + Array(repeating: hBar, count: cols).joined(separator: "┼") + "┤\n"
-        let bottomBorder = "└" + Array(repeating: hBar, count: cols).joined(separator: "┴") + "┘\n"
-
-        let result = NSMutableAttributedString()
-        // Newline before table for spacing
-        result.append(NSAttributedString(string: "\n", attributes: [.font: bodyFont]))
-
-        result.append(NSAttributedString(string: topBorder, attributes: [.font: font]))
-        for row in 0..<rows {
-            let cellContent = String(repeating: " ", count: cellWidth)
-            let line = "│" + Array(repeating: cellContent, count: cols).joined(separator: "│") + "│\n"
-            let cellFont = row == 0 ? headerFont : font
-            result.append(NSAttributedString(string: line, attributes: [.font: cellFont]))
-            if row < rows - 1 {
-                result.append(NSAttributedString(string: middleBorder, attributes: [.font: font]))
-            }
-        }
-        result.append(NSAttributedString(string: bottomBorder, attributes: [.font: font]))
-        // Newline after table to resume normal text
-        result.append(NSAttributedString(string: "\n", attributes: [.font: bodyFont]))
-
-        let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
-        let safeLocation = min(cursorLocation, mutable.length)
-        mutable.insert(result, at: safeLocation)
-        attributedText = mutable
-        log.debug("insertTable: inserted \(rows)×\(cols) text table at position \(safeLocation)")
     }
 
     // MARK: - Alignment — via RichTextContext

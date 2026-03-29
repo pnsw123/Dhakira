@@ -103,11 +103,7 @@ struct DrawingCanvasView: UIViewRepresentable {
             super.init()
 
             canvasView.drawingPolicy = .anyInput
-            // Always white paper — matches Apple Notes. In dark mode, users
-            // expect "paper" to stay white with dark ink, not a black void
-            // with auto-inverted white ink.
-            canvasView.backgroundColor = .white
-            canvasView.overrideUserInterfaceStyle = .light
+            canvasView.backgroundColor = .systemBackground
             canvasView.isScrollEnabled = false
             canvasView.delegate = self
 

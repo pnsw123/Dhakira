@@ -31,11 +31,6 @@ struct TaskDetailView: View {
     /// References to PencilKit objects — obtained via onCanvasReady, managed here.
     @State private var pkCanvasView: PKCanvasView?
     @State private var pkToolPicker: PKToolPicker?
-    @State private var showTablePicker = false
-    /// Cursor position captured when the table picker opens — preserved because
-    /// tapping the picker dismisses the keyboard and resets richTextContext.selectedRange.
-    @State private var savedTableCursorLocation: Int = 0
-
     // Slash command coordinator — replaces 3 @State vars + double evaluate() (Issue #48)
     @StateObject private var slashCoordinator = SlashCommandCoordinator()
 
@@ -68,7 +63,6 @@ struct TaskDetailView: View {
         .init(id: "text.aligncenter",icon: "text.aligncenter"),
         .init(id: "text.alignright", icon: "text.alignright"),
         .init(id: "list.bullet",     icon: "list.bullet"),
-        .init(id: "tablecells",      icon: "tablecells"),
     ]
     @State private var toolbarItems: [EditorTool] = TaskDetailView.defaultToolbarItems
     @AppStorage("editorToolbarOrder") private var savedToolbarOrder: String = ""
@@ -229,7 +223,7 @@ struct TaskDetailView: View {
                         let gf = geo.frame(in: .global)
                         let localY: CGFloat = slashCursorGlobalRect == .zero
                             ? 40
-                            : slashCursorGlobalRect.maxY - gf.minY + 4
+                            : slashCursorGlobalRect.maxY - gf.minY + 6
                         let localX: CGFloat = slashCursorGlobalRect == .zero
                             ? 16
                             : max(0, min(slashCursorGlobalRect.minX - gf.minX, geo.size.width - 264))
@@ -248,28 +242,8 @@ struct TaskDetailView: View {
             }
 
             if showToolbar && !isDrawingMode {
-                ZStack(alignment: .bottom) {
-                    editorToolbar
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-
-                    // Table grid picker — floats above toolbar (Issue #43)
-                    if showTablePicker {
-                        TableGridPickerView(
-                            onInsert: { rows, cols in
-                                RichEditorCommands.insertTable(
-                                    rows: rows, cols: cols,
-                                    attributedText: &attributedText,
-                                    cursorLocation: savedTableCursorLocation
-                                )
-                                showTablePicker = false
-                            },
-                            onDismiss: { showTablePicker = false }
-                        )
-                        .offset(y: -60)
-                        .transition(.scale.combined(with: .opacity))
-                        .zIndex(10)
-                    }
-                }
+                editorToolbar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         #if !os(macOS)
@@ -290,7 +264,7 @@ struct TaskDetailView: View {
             ToolbarItemGroup(placement: .confirmationAction) {
                 if isDrawingMode {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.35)) { isDrawingMode = false }
+                        withAnimation(.spring(response: 0.3)) { isDrawingMode = false }
                         // Re-focus the text editor so the keyboard area is tappable again.
                         // Delay must be longer than the animation to avoid stealing first
                         // responder from PKCanvasView if user re-enters drawing quickly.
@@ -397,17 +371,11 @@ struct TaskDetailView: View {
 
         // Special-case non-dispatcher actions first
         switch id {
-        case "tablecells":
-            log.debug("handleToolbarTap: toggling table picker")
-            savedTableCursorLocation = richTextContext.selectedRange.location
-            withAnimation(.spring(response: 0.3)) { showTablePicker.toggle() }
-            return
         case "pencil":
             log.debug("handleToolbarTap: entering drawing mode")
             richTextView?.resignFirstResponder()
             saveBody()
-            showTablePicker = false
-            withAnimation(.easeInOut(duration: 0.35)) { isDrawingMode = true }
+            isDrawingMode = true
             // Show PKToolPicker explicitly — UIKit needs a moment after
             // the SwiftUI state change for the canvas to be interactable.
             showDrawingToolPicker()
@@ -535,12 +503,14 @@ struct TaskDetailView: View {
 
         if slashCoordinator.isMenuVisible {
             let safeLoc = min(cursorLoc, max(0, (tv.text as NSString).length))
-            if let pos = tv.position(from: tv.beginningOfDocument, offset: safeLoc),
-               let tRange = tv.textRange(from: pos, to: pos) {
-                let r = tv.firstRect(for: tRange)
+            if let pos = tv.position(from: tv.beginningOfDocument, offset: safeLoc) {
+                // caretRect(for:) is the correct API for an insertion-point rect —
+                // it always returns a full line-height rect, unlike firstRect(for: emptyRange)
+                // which can return zero height and cause the menu to land on top of the cursor.
+                let r = tv.caretRect(for: pos)
                 let converted = tv.convert(r, to: nil)
-                log.debug("⚠️ SLASH: cursorRect=\(converted.debugDescription), isNull=\(r.isNull), isInf=\(r.isInfinite), height=\(converted.height)")
-                if !r.isNull, !r.isInfinite {
+                log.debug("⚠️ SLASH: caretRect=\(converted.debugDescription), isNull=\(r.isNull), isInf=\(r.isInfinite), height=\(converted.height)")
+                if !r.isNull, !r.isInfinite, r.height > 0 {
                     slashCursorGlobalRect = converted
                 }
             } else {
@@ -668,18 +638,17 @@ struct TaskDetailView: View {
         slashCoordinator.commandSelected(cmd, applyTo: &attributedText, cursorLocation: 0)
 
         // After deletion, insertion point is where the '/' was
-        let newCursor = max(0, slashLoc >= 0 ? slashLoc : 0)
+        var newCursor = max(0, slashLoc >= 0 ? slashLoc : 0)
         let selRange = NSRange(location: newCursor, length: 0)
 
         // Apply the selected command to the attributedText binding
         var isColorCommand = false
         switch cmd.id {
-        case "text":
-            RichEditorCommands.applyBodyText(attributedText: &attributedText, selectedRange: selRange)
         case "bulletList":
             RichEditorCommands.toggleBulletList(attributedText: &attributedText, selectedRange: selRange)
         case "todoList":
-            RichEditorCommands.insertChecklist(attributedText: &attributedText, cursorLocation: newCursor)
+            // insertChecklist returns the new cursor position (after the inserted "☐ ")
+            newCursor = RichEditorCommands.insertChecklist(attributedText: &attributedText, cursorLocation: newCursor)
         case "quote":
             RichEditorCommands.applyBlockquote(attributedText: &attributedText, selectedRange: selRange)
         case "heading1":
@@ -688,8 +657,6 @@ struct TaskDetailView: View {
             RichEditorCommands.applyHeading(.h2, attributedText: &attributedText, selectedRange: selRange)
         case "heading3":
             RichEditorCommands.applyHeading(.h3, attributedText: &attributedText, selectedRange: selRange)
-        case "table":
-            savedTableCursorLocation = newCursor
         case _ where cmd.id.hasPrefix("color"):
             isColorCommand = true
         default:
@@ -702,11 +669,11 @@ struct TaskDetailView: View {
         if let tv = richTextView {
             tv.attributedText = attributedText
             tv.becomeFirstResponder()
-            tv.selectedRange = NSRange(location: newCursor, length: 0)
+            // Clamp cursor so it's always within the updated text length.
+            let safeCursor = max(0, min(newCursor, (tv.text as NSString).length))
+            tv.selectedRange = NSRange(location: safeCursor, length: 0)
 
             // Set typing attributes so future keystrokes inherit the block style.
-            // This is critical when the slash was on an empty line — the paragraph has
-            // no text to format yet, but the user expects Notion-like: "the block IS a heading."
             switch cmd.id {
             case "heading1":
                 tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h1.font
@@ -714,10 +681,9 @@ struct TaskDetailView: View {
                 tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h2.font
             case "heading3":
                 tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h3.font
-            case "text":
+            case "todoList":
                 tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
-                tv.typingAttributes.removeValue(forKey: .paragraphStyle)
-                tv.typingAttributes.removeValue(forKey: .foregroundColor)
+                tv.typingAttributes[.foregroundColor] = UIColor.label
             case "bulletList":
                 let bulletList = NSTextList(markerFormat: .disc, options: 0)
                 let bulletStyle = NSMutableParagraphStyle()
@@ -735,11 +701,6 @@ struct TaskDetailView: View {
             default:
                 break
             }
-        }
-
-        // Table picker: open after TV is updated so picker appears over clean text
-        if cmd.id == "table" {
-            withAnimation(.spring(response: 0.3)) { showTablePicker = true }
         }
 
         // Color: set typing attribute AFTER focus is restored so it sticks
@@ -833,110 +794,6 @@ struct TaskDetailView: View {
     }
 }
 
-// MARK: - TableGridPickerView
-
-struct TableGridPickerView: View {
-    let onInsert: (Int, Int) -> Void
-    let onDismiss: () -> Void
-
-    @State private var selectedRow = 2
-    @State private var selectedCol = 3
-
-    private let maxRows = 6
-    private let maxCols = 6
-    private let cellSize: CGFloat = 32
-    private let cellGap: CGFloat  = 5
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header row
-            HStack {
-                Text("Insert Table")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .symbolRenderingMode(.hierarchical)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.bottom, 16)
-
-            // Interactive grid — drag finger to choose size
-            let gridW = CGFloat(maxCols) * cellSize + CGFloat(maxCols - 1) * cellGap
-            let gridH = CGFloat(maxRows) * cellSize + CGFloat(maxRows - 1) * cellGap
-
-            ZStack(alignment: .topLeading) {
-                VStack(spacing: cellGap) {
-                    ForEach(1...maxRows, id: \.self) { row in
-                        HStack(spacing: cellGap) {
-                            ForEach(1...maxCols, id: \.self) { col in
-                                let active = row <= selectedRow && col <= selectedCol
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(active
-                                          ? Color.accentColor.opacity(0.85)
-                                          : Color.primary.opacity(0.07))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .strokeBorder(
-                                                active ? Color.accentColor : Color.primary.opacity(0.18),
-                                                lineWidth: 1
-                                            )
-                                    )
-                                    .frame(width: cellSize, height: cellSize)
-                            }
-                        }
-                    }
-                }
-                // Invisible overlay captures drag/tap across the whole grid
-                Color.clear
-                    .frame(width: gridW, height: gridH)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                let col = min(maxCols, max(1, Int(value.location.x / (cellSize + cellGap)) + 1))
-                                let row = min(maxRows, max(1, Int(value.location.y / (cellSize + cellGap)) + 1))
-                                if row != selectedRow || col != selectedCol {
-                                    selectedRow = row
-                                    selectedCol = col
-                                }
-                            }
-                            .onEnded { _ in
-                                onInsert(selectedRow, selectedCol)
-                            }
-                    )
-            }
-            .frame(width: gridW, height: gridH)
-            .padding(.bottom, 14)
-
-            // Size label
-            Text("\(selectedRow) × \(selectedCol)")
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 14)
-
-            // Insert button — tap alternative to lifting the finger off the grid
-            Button {
-                onInsert(selectedRow, selectedCol)
-            } label: {
-                Text("Insert")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .foregroundStyle(Color.accentColor)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(20)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .glassEffect(.regular, in: .rect(cornerRadius: 22))
-        .padding(.horizontal, 28)
-    }
-}
 
 // AttachmentCoordinator and AttachmentPresenters removed — replaced by AttachmentService (Issue #49)
 
@@ -1224,7 +1081,7 @@ struct AudioRecorderView: View {
             // Timer display
             Text(formattedTime(elapsedSeconds))
                 .font(.system(size: 54, weight: .light, design: .monospaced))
-                .foregroundStyle(isRecording ? Color.red : Color.primary)
+                .foregroundStyle(isRecording ? Color(uiColor: .systemRed) : Color.primary)
                 .contentTransition(.numericText())
                 .animation(.easeInOut(duration: 0.1), value: elapsedSeconds)
                 .padding(.bottom, 20)
@@ -1258,7 +1115,7 @@ struct AudioRecorderView: View {
             HStack(alignment: .center, spacing: 2.5) {
                 ForEach(Array(displaySamples(width: geo.size.width).enumerated()), id: \.offset) { _, amplitude in
                     RoundedRectangle(cornerRadius: 1.5)
-                        .fill(isRecording ? Color.red : Color.primary.opacity(0.35))
+                        .fill(isRecording ? Color(uiColor: .systemRed) : Color.primary.opacity(0.35))
                         .frame(width: 3, height: max(4, amplitude * geo.size.height))
                 }
             }
@@ -1289,7 +1146,7 @@ struct AudioRecorderView: View {
             } label: {
                 Text(state == .stopped ? "Delete" : "Cancel")
                     .font(.system(size: 17))
-                    .foregroundStyle(state == .stopped ? Color.red : Color.primary)
+                    .foregroundStyle(state == .stopped ? Color(uiColor: .systemRed) : Color.primary)
             }
 
             Spacer()
@@ -1325,7 +1182,7 @@ struct AudioRecorderView: View {
             // Big red record button
             Button { requestAndRecord() } label: {
                 Circle()
-                    .fill(Color.red)
+                    .fill(Color(uiColor: .systemRed))
                     .frame(width: 64, height: 64)
                     .overlay {
                         Image(systemName: "mic.fill")
@@ -1337,7 +1194,7 @@ struct AudioRecorderView: View {
             // Stop button (red square inside circle) — matches Apple Notes
             Button { stopRecording() } label: {
                 Circle()
-                    .fill(Color.red)
+                    .fill(Color(uiColor: .systemRed))
                     .frame(width: 64, height: 64)
                     .overlay {
                         RoundedRectangle(cornerRadius: 4)
@@ -1349,7 +1206,7 @@ struct AudioRecorderView: View {
             // Resume recording
             Button { resumeRecording() } label: {
                 Circle()
-                    .fill(Color.red)
+                    .fill(Color(uiColor: .systemRed))
                     .frame(width: 64, height: 64)
                     .overlay {
                         Image(systemName: "mic.fill")

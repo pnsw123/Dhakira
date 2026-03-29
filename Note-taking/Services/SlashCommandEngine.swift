@@ -15,8 +15,8 @@ struct SlashCommand: Identifiable, Equatable {
 
     static let all: [SlashCommand] = {
         var commands: [SlashCommand] = [
-            // Basic Blocks
-            SlashCommand(id: "text",       section: "Basic Blocks", label: "Text",         iconText: "T",   iconColor: .label),
+            // Basic Blocks — "Text" removed: stripping formatting attributes in a dark-mode
+            // text view leaves no foreground color, so text renders black and becomes invisible.
             SlashCommand(id: "bulletList", section: "Basic Blocks", label: "Bulleted List", iconText: "•",  iconColor: .label),
             SlashCommand(id: "todoList",   section: "Basic Blocks", label: "To-do List",   iconText: "✓",   iconColor: .label),
             SlashCommand(id: "quote",      section: "Basic Blocks", label: "Quote",        iconText: "\"",  iconColor: .label),
@@ -24,8 +24,6 @@ struct SlashCommand: Identifiable, Equatable {
             SlashCommand(id: "heading1",   section: "Headings",     label: "Heading 1",    iconText: "H1",  iconColor: .label),
             SlashCommand(id: "heading2",   section: "Headings",     label: "Heading 2",    iconText: "H2",  iconColor: .label),
             SlashCommand(id: "heading3",   section: "Headings",     label: "Heading 3",    iconText: "H3",  iconColor: .label),
-            // Media
-            SlashCommand(id: "table",      section: "Media",        label: "Table",        iconText: "Tbl", iconColor: .label),
         ]
         // Colors — generated from NamedColor.forEditor (single source of truth)
         let colorCommands = NamedColor.forEditor.map { nc in

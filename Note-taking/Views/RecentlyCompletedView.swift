@@ -93,7 +93,7 @@ struct RecentlyCompletedView: View {
                 .background(Color.screenBackground)
                 .overlay(alignment: .bottom) {
                     Rectangle()
-                        .fill(Color.black.opacity(0.06))
+                        .fill(Color.primary.opacity(0.06))
                         .frame(height: 0.5)
                 }
             }

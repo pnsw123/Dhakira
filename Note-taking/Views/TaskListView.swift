@@ -117,6 +117,16 @@ struct TaskListView: View {
             .animation(.smooth(duration: 0.35), value: filteredTasks.count)
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .overlay {
+                if filteredTasks.isEmpty && !isAddingTask {
+                    ContentUnavailableView {
+                        Label("No Tasks", systemImage: "checklist")
+                    } description: {
+                        Text("Double-tap to add one.")
+                    }
+                    .foregroundStyle(.secondary)
+                }
+            }
             .background(Color.screenBackground)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top) {
@@ -176,7 +186,7 @@ struct TaskListView: View {
                 .background(Color.screenBackground)
                 .overlay(alignment: .bottom) {
                     Rectangle()
-                        .fill(Color.black.opacity(0.06))
+                        .fill(Color.primary.opacity(0.06))
                         .frame(height: 0.5)
                 }
             }
@@ -312,28 +322,13 @@ struct TaskListView: View {
     }
 
     private func moveTask(from source: IndexSet, to destination: Int) {
-        guard let sourceIndex = source.first else { return }
-        let movedItem = filteredTasks[sourceIndex]
-        log.info("moveTask: '\(movedItem.title)' from index \(sourceIndex) to \(destination)")
-        var newItems = filteredTasks
-        newItems.move(fromOffsets: source, toOffset: destination)
-        let newIndex = newItems.firstIndex(where: { $0.id == movedItem.id }) ?? destination
-
-        let prevOrder = newIndex > 0 ? newItems[newIndex - 1].sortOrder : nil
-        let nextOrder = newIndex < newItems.count - 1 ? newItems[newIndex + 1].sortOrder : nil
-
-        switch (prevOrder, nextOrder) {
-        case (nil, let n?):
-            movedItem.sortOrder = n - 1000
-        case (let p?, nil):
-            movedItem.sortOrder = p + 1000
-        case (let p?, let n?) where n - p > 1:
-            movedItem.sortOrder = (p + n) / 2
-        default:
-            for (index, item) in newItems.enumerated() {
-                item.sortOrder = index * 1000
-            }
+        var reordered = filteredTasks
+        reordered.move(fromOffsets: source, toOffset: destination)
+        for (index, item) in reordered.enumerated() {
+            item.sortOrder = index
         }
+        try? modelContext.save()
+        log.info("moveTask: reindexed \(reordered.count) tasks after move")
     }
 
     private func indentLevel(for task: TaskItem) -> CGFloat {

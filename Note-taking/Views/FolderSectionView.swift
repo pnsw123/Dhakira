@@ -370,7 +370,7 @@ private struct SwipeToDeleteModifier: ViewModifier {
     func body(content: Content) -> some View {
         ZStack(alignment: .trailing) {
             // Red delete button — fixed on the right, revealed as content slides left
-            Color.red
+            Color(uiColor: .systemRed)
                 .frame(width: snapWidth)
                 .overlay(
                     Image(systemName: "trash")

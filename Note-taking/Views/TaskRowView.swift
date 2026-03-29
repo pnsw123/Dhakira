@@ -94,7 +94,7 @@ struct TaskRowView: View {
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundStyle(
                                     hasRealContent
-                                        ? Color(red: 0.102, green: 0.498, blue: 0.910) // #1A7FE8
+                                        ? Color(uiColor: .systemBlue)
                                         : Color.secondary.opacity(0.4)
                                 )
                         }
