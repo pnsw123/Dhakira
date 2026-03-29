@@ -806,22 +806,22 @@ struct TaskDetailView: View {
     /// Insert a TableAttachment at the current cursor position and sync the live UITextView.
     private func insertTable(rows: Int, cols: Int) {
         log.info("insertTable: \(rows)×\(cols)")
-        let cursorLoc = richTextView?.selectedRange.location ?? attributedText.length
+        guard let tv = richTextView else { return }
+        let cursorLoc = tv.selectedRange.location
         let newCursor = RichEditorCommands.insertTableAttachment(
             rows: rows,
             cols: cols,
             attributedText: &attributedText,
             cursorLocation: cursorLoc
         )
-        let capturedText = attributedText
-        let capturedCursor = newCursor
-        DispatchQueue.main.async { [weak richTextView] in
-            guard let tv = richTextView else { return }
-            tv.attributedText = capturedText
-            tv.becomeFirstResponder()
-            let safe = max(0, min(capturedCursor, (tv.text as NSString).length))
-            tv.selectedRange = NSRange(location: safe, length: 0)
-        }
+        // Synchronous update — same pattern as all other toolbar commands.
+        // DispatchQueue.main.async would cause a second layout pass on top of
+        // the one SwiftUI already triggered from the binding change, which makes
+        // TextKit 2 call loadView() twice and bombs the UI.
+        tv.attributedText = attributedText
+        tv.becomeFirstResponder()
+        let safe = max(0, min(newCursor, tv.attributedText.length))
+        tv.selectedRange = NSRange(location: safe, length: 0)
     }
 
     private func triggerAttachment(_ id: String) {

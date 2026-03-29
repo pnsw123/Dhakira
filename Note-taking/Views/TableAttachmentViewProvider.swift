@@ -60,6 +60,14 @@ final class TableAttachmentViewProvider: NSTextAttachmentViewProvider {
         let hosting = UIHostingController(rootView: tableView)
         hosting.view.backgroundColor = .clear
         hosting.view.translatesAutoresizingMaskIntoConstraints = false
+
+        // UIHostingController must be embedded in a parent VC — without this
+        // SwiftUI's update cycle has no owner and crashes on the first render.
+        let textView = textLayoutManager?.textContainer?.textView
+        let parentVC = textView?.parentViewController
+        parentVC?.addChild(hosting)
+        hosting.didMove(toParent: parentVC)
+
         let size = hosting.sizeThatFits(in: CGSize(width: 280, height: UIView.layoutFittingCompressedSize.height))
         hosting.view.frame = CGRect(origin: .zero, size: size)
 
@@ -111,6 +119,19 @@ final class TableAttachmentViewProvider: NSTextAttachmentViewProvider {
             TableGridViewEditable(state: state)
                 .frame(maxWidth: 320)
         )
+    }
+}
+
+// MARK: - UIView parent VC helper
+
+private extension UIView {
+    var parentViewController: UIViewController? {
+        var responder: UIResponder? = self
+        while let r = responder {
+            if let vc = r as? UIViewController { return vc }
+            responder = r.next
+        }
+        return nil
     }
 }
 
