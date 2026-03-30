@@ -64,19 +64,21 @@ struct TaskDetailView: View {
     /// newline insertion (Return key) for block-continuation logic.
     @State private var prevTextLength: Int = 0
 
-    // Default toolbar order — user can drag-reorder, saved to UserDefaults.
+    // Default toolbar order — most-used items first. User can drag-reorder; saved to UserDefaults.
     static let defaultToolbarItems: [EditorTool] = [
-        .init(id: "bold",            icon: "bold"),
-        .init(id: "italic",          icon: "italic"),
-        .init(id: "underline",       icon: "underline"),
-        .init(id: "strikethrough",   icon: "strikethrough"),
-        .init(id: "fontSizeDown",    icon: "textformat.size.smaller"),
-        .init(id: "fontSizeUp",      icon: "textformat.size.larger"),
-        .init(id: "paperclip",       icon: "paperclip"),
-        .init(id: "pencil",          icon: "pencil.tip.crop.circle"),
-        .init(id: "text.alignleft",  icon: "text.alignleft"),
-        .init(id: "text.aligncenter",icon: "text.aligncenter"),
-        .init(id: "text.alignright", icon: "text.alignright"),
+        .init(id: "bold",             icon: "bold"),
+        .init(id: "italic",           icon: "italic"),
+        .init(id: "checklist",        icon: "checklist"),           // to-do list
+        .init(id: "list.bullet",      icon: "list.bullet"),         // bullet list
+        .init(id: "underline",        icon: "underline"),
+        .init(id: "strikethrough",    icon: "strikethrough"),
+        .init(id: "fontSizeUp",       icon: "textformat.size.larger"),
+        .init(id: "fontSizeDown",     icon: "textformat.size.smaller"),
+        .init(id: "text.alignleft",   icon: "text.alignleft"),
+        .init(id: "text.aligncenter", icon: "text.aligncenter"),
+        .init(id: "text.alignright",  icon: "text.alignright"),
+        .init(id: "paperclip",        icon: "paperclip"),
+        .init(id: "pencil",           icon: "pencil.tip.crop.circle"),
     ]
     @State private var toolbarItems: [EditorTool] = TaskDetailView.defaultToolbarItems
     @AppStorage("editorToolbarOrder") private var savedToolbarOrder: String = ""
@@ -470,6 +472,19 @@ struct TaskDetailView: View {
             )
             tv.attributedText = attributedText
             tv.selectedRange = range
+            return
+        case "checklist":
+            // Insert a to-do item at the current cursor — same result as /todo slash command.
+            guard let tv = richTextView else { return }
+            tv.becomeFirstResponder()
+            let cursorLoc = tv.selectedRange.location
+            let newCursor = RichEditorCommands.insertChecklist(
+                attributedText: &attributedText,
+                cursorLocation: cursorLoc
+            )
+            tv.attributedText = attributedText
+            tv.selectedRange = NSRange(location: newCursor, length: 0)
+            prevTextLength = attributedText.length
             return
         default:
             break
