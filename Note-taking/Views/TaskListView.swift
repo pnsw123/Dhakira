@@ -385,8 +385,9 @@ struct TaskListView: View {
     }
 
     private func setPriority(_ task: TaskItem, to priority: String) {
-        log.info("setPriority: '\(task.title)' → \(priority)")
-        task.priority = priority
+        let newPriority = task.priority == priority ? "default" : priority
+        log.info("setPriority: '\(task.title)' → \(newPriority)")
+        task.priority = newPriority
     }
 
     private func softDeleteTask(_ task: TaskItem) {
