@@ -2,13 +2,14 @@ import SwiftUI
 
 // MARK: - PhoneMockupView
 // Renders a phone-frame outline with live theme-coloured content inside.
-// App/All scope: shows a fake but realistic task-list UI using the theme's actual colours.
-// Widgets scope: shows WidgetPreviewLayout (scaled down real widget sizes).
+// Reads ThemeManager from environment so gradient/colour/photo overrides update in real time.
 // Issue #74 — https://github.com/pnsw123/prod-note/issues/74
 
 struct PhoneMockupView: View {
     let theme: AppTheme
     let scope: ThemeScope
+
+    @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -23,13 +24,11 @@ struct PhoneMockupView: View {
             // Content — non-interactive
             Group {
                 if scope == .widgets {
-                    // Widgets scope: scale real widget-size rects to fit the frame
                     WidgetPreviewLayout(theme: theme)
                         .scaleEffect(0.35)
                         .padding(.top, 20)
                 } else {
-                    // App / All scope: realistic task-list preview using theme colours
-                    AppPreviewContent(theme: theme)
+                    AppPreviewContent(theme: theme, themeManager: themeManager)
                 }
             }
             .allowsHitTesting(false)
@@ -43,6 +42,7 @@ struct PhoneMockupView: View {
 
 private struct AppPreviewContent: View {
     let theme: AppTheme
+    let themeManager: ThemeManager
 
     private struct Row: Identifiable {
         let id = UUID()
@@ -52,108 +52,147 @@ private struct AppPreviewContent: View {
     }
 
     private let rows: [Row] = [
-        Row(title: "Morning standup",     done: false, priority: "high"),
+        Row(title: "Morning standup",      done: false, priority: "high"),
         Row(title: "Review pull requests", done: false, priority: "medium"),
         Row(title: "Update documentation", done: true,  priority: "none"),
-        Row(title: "Team lunch 12pm",     done: false, priority: "none"),
+        Row(title: "Team lunch 12pm",      done: false, priority: "none"),
         Row(title: "Write weekly report",  done: false, priority: "high"),
         Row(title: "Check emails",         done: true,  priority: "none"),
         Row(title: "Plan next sprint",     done: false, priority: "medium"),
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottomTrailing) {
 
-            // ── Status-bar spacer ──────────────────────────────
-            theme.screenBackground
-                .frame(height: 18)
+            // ── Full-screen background layer ────────────────────
+            // Mirrors WithAppBackground: gradient / colour / theme default
+            backgroundLayer
+                .ignoresSafeArea()
 
-            // ── Navigation bar ─────────────────────────────────
-            HStack {
-                Text("Tasks")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(theme.primaryText)
-                Spacer()
-                // FAB placeholder
-                Circle()
-                    .fill(theme.fabBackground)
-                    .frame(width: 22, height: 22)
-                    .overlay(
-                        Image(systemName: "plus")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(theme.fabIcon)
-                    )
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(theme.screenBackground)
-
-            // ── Separator ──────────────────────────────────────
-            Rectangle()
-                .fill(theme.separatorColor)
-                .frame(height: 0.5)
-
-            // ── Task list ──────────────────────────────────────
+            // ── App content stack ───────────────────────────────
             VStack(spacing: 0) {
-                ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
-                    HStack(spacing: 8) {
-                        // Checkbox
-                        ZStack {
-                            Circle()
-                                .strokeBorder(
-                                    row.done ? theme.checkboxActive : theme.checkboxInactive,
-                                    lineWidth: 1
-                                )
-                                .frame(width: 16, height: 16)
-                            if row.done {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 7, weight: .bold))
-                                    .foregroundStyle(theme.checkboxActive)
+
+                // Status-bar spacer
+                Color.clear.frame(height: 18)
+
+                // Nav bar — mirrors safeAreaInset(.top) in TaskListView
+                HStack(spacing: 0) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(theme.accentColor)
+                        .padding(.leading, 10)
+
+                    Text("Tasks")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(theme.primaryText)
+                        .padding(.leading, 6)
+
+                    Spacer()
+
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.accentColor)
+                        .padding(.trailing, 12)
+                }
+                .padding(.vertical, 9)
+                .background(theme.screenBackground)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(theme.separatorColor)
+                        .frame(height: 0.5)
+                }
+
+                // Task rows
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
+                        HStack(spacing: 8) {
+                            // Checkbox
+                            ZStack {
+                                Circle()
+                                    .strokeBorder(
+                                        row.done ? theme.checkboxActive : theme.checkboxInactive,
+                                        lineWidth: 1
+                                    )
+                                    .frame(width: 16, height: 16)
+                                if row.done {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 7, weight: .bold))
+                                        .foregroundStyle(theme.checkboxActive)
+                                }
+                            }
+
+                            // Title
+                            Text(row.title)
+                                .font(.system(size: 11))
+                                .foregroundStyle(row.done ? theme.secondaryText : theme.primaryText)
+                                .strikethrough(row.done, color: theme.secondaryText)
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            // Priority dot
+                            if row.priority == "high" {
+                                Circle().fill(theme.priorityHigh).frame(width: 5, height: 5)
+                            } else if row.priority == "medium" {
+                                Circle().fill(theme.priorityMedium).frame(width: 5, height: 5)
                             }
                         }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(theme.surfaceBackground)
 
-                        // Title
-                        Text(row.title)
-                            .font(.system(size: 11))
-                            .foregroundStyle(row.done ? theme.secondaryText : theme.primaryText)
-                            .strikethrough(row.done, color: theme.secondaryText)
-                            .lineLimit(1)
-
-                        Spacer()
-
-                        // Priority dot
-                        if row.priority == "high" {
-                            Circle().fill(theme.priorityHigh).frame(width: 5, height: 5)
-                        } else if row.priority == "medium" {
-                            Circle().fill(theme.priorityMedium).frame(width: 5, height: 5)
+                        if i < rows.count - 1 {
+                            Rectangle()
+                                .fill(theme.separatorColor)
+                                .frame(height: 0.5)
+                                .padding(.leading, 38)
                         }
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(theme.surfaceBackground)
-
-                    if i < rows.count - 1 {
-                        Rectangle()
-                            .fill(theme.separatorColor)
-                            .frame(height: 0.5)
-                            .padding(.leading, 38)
-                    }
                 }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
 
-            Spacer()
+                Spacer()
+            }
+
+            // ── FAB — bottom-right, matches safeAreaInset(.bottom) in TaskListView ──
+            Circle()
+                .fill(theme.fabBackground)
+                .frame(width: 28, height: 28)
+                .overlay(
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(theme.fabIcon)
+                )
+                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                .padding(.trailing, 12)
+                .padding(.bottom, 14)
         }
-        .background(theme.screenBackground)
+    }
+
+    // Mirrors WithAppBackground priority order:
+    // gradient override → colour override → theme default background
+    @ViewBuilder
+    private var backgroundLayer: some View {
+        if let gradColors = themeManager.backgroundGradientColors {
+            LinearGradient(
+                colors: gradColors,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else if let color = themeManager.backgroundColorOverride {
+            color
+        } else {
+            theme.screenBackground
+        }
     }
 }
 
 // MARK: - Preview
 
 #Preview {
-    HStack(spacing: 16) {
+    HStack(spacing: 12) {
         PhoneMockupView(theme: .defaultLight, scope: .app)
         PhoneMockupView(theme: .midnight,     scope: .app)
         PhoneMockupView(theme: .nord,         scope: .widgets)
@@ -161,4 +200,6 @@ private struct AppPreviewContent: View {
     .frame(height: 490)
     .padding()
     .background(Color.gray)
+    .environment(ThemeManager.shared)
+    .environment(StoreKitManager.shared)
 }
