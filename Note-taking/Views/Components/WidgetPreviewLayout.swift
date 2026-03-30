@@ -40,7 +40,7 @@ struct WidgetPreviewLayout: View {
                     sectionHeader("LARGE · 4×4")
                     LargeWidgetPreview(theme: theme, taskCount: taskCount)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 240)
+                        .frame(height: 330)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
                 }
@@ -59,19 +59,11 @@ struct WidgetPreviewLayout: View {
     }
 }
 
-// MARK: - Widget Gradient Background
-// Creates a subtle diagonal gradient using theme mesh colors for a premium feel.
+// MARK: - Widget Background
+// Matches the actual widget background — solid screenBackground, same as the app.
 
-private func widgetGradient(theme: AppTheme) -> some View {
-    LinearGradient(
-        colors: [
-            theme.meshColors.count > 3 ? theme.meshColors[3] : theme.screenBackground,
-            theme.screenBackground,
-            theme.meshColors.count > 5 ? theme.meshColors[5] : theme.screenBackground
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+private func widgetBackground(theme: AppTheme) -> some View {
+    theme.screenBackground
 }
 
 // MARK: - Small Widget (2×2)
@@ -82,7 +74,7 @@ private struct SmallWidgetPreview: View {
 
     var body: some View {
         ZStack {
-            widgetGradient(theme: theme)
+            widgetBackground(theme: theme)
             VStack(alignment: .leading, spacing: 4) {
                 Image(systemName: "checklist")
                     .font(.system(size: 20, weight: .semibold))
@@ -113,7 +105,7 @@ private struct MediumWidgetPreview: View {
 
     var body: some View {
         ZStack {
-            widgetGradient(theme: theme)
+            widgetBackground(theme: theme)
             HStack(spacing: 0) {
                 // Left — count stat
                 VStack(alignment: .leading, spacing: 4) {
@@ -179,7 +171,7 @@ private struct LargeWidgetPreview: View {
 
     var body: some View {
         ZStack {
-            widgetGradient(theme: theme)
+            widgetBackground(theme: theme)
             VStack(alignment: .leading, spacing: 0) {
                 // Header
                 HStack(alignment: .firstTextBaseline) {
