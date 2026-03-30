@@ -271,8 +271,11 @@ struct TaskListView: View {
                 pendingDeepLinkTaskId = nil
             }
             // Keep widget snapshot up-to-date whenever the task list changes.
+            // Watch count (add/delete), priorities (flag changes), and titles (edits).
             .onAppear { syncWidget() }
             .onChange(of: filteredTasks.count) { _, _ in syncWidget() }
+            .onChange(of: filteredTasks.map(\.priority)) { _, _ in syncWidget() }
+            .onChange(of: filteredTasks.map(\.title)) { _, _ in syncWidget() }
     }
 
     private func syncWidget() {
