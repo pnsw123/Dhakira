@@ -21,6 +21,10 @@ struct ThemeDetailView: View {
     private var isOwned: Bool { !theme.isPaid || store.isOwned(theme) }
 
     var body: some View {
+        let _ = print("🎨 [THEME-DIAG] ThemeDetailView.body START — theme: \(theme.id)")
+        let _ = print("🎨 [THEME-DIAG] ThemeDetailView — reading themeManager.current.id: \(themeManager.current.id)")
+        let _ = print("🎨 [THEME-DIAG] ThemeDetailView — reading store.isPurchasing: \(store.isPurchasing)")
+        let _ = print("🎨 [THEME-DIAG] ThemeDetailView — isOwned: \(isOwned)")
         ZStack {
             // Full-screen MeshGradient background
             themeBackground
@@ -70,6 +74,7 @@ struct ThemeDetailView: View {
         .modifier(BackgroundExtension())
         .sheet(isPresented: $showPaywall) {
             ThemePaywallView(theme: theme)
+                .environment(store)
         }
     }
 
@@ -97,15 +102,27 @@ struct ThemeDetailView: View {
         }
     }
 
+    // Bug 4 fix: clamp all points to [0, 1] to prevent MeshGradient bleeding outside the screen
     private func animatedPoints(t: Double) -> [SIMD2<Float>] {
         let s = Float(sin(t * 0.25) * 0.10)
         let c = Float(cos(t * 0.18) * 0.10)
+        func cl(_ v: Float) -> Float { min(max(v, 0), 1) }
         return [
-            [0, 0], [0.5 + s, 0], [1, 0],
-            [0, 0.5 + c], [0.5 - s, 0.5 + s], [1, 0.5 - c],
-            [0, 1], [0.5 + c, 1], [1, 1]
+            [0, 0], [cl(0.5 + s), 0], [1, 0],
+            [0, cl(0.5 + c)], [cl(0.5 - s), cl(0.5 + s)], [1, cl(0.5 - c)],
+            [0, 1], [cl(0.5 + c), 1], [1, 1]
         ]
     }
+}
+
+// MARK: - Preview
+
+#Preview {
+    NavigationStack {
+        ThemeDetailView(theme: .midnight, namespace: Namespace().wrappedValue)
+    }
+    .environment(ThemeManager.shared)
+    .environment(StoreKitManager.shared)
 }
 
 // MARK: — iOS 26 availability gates

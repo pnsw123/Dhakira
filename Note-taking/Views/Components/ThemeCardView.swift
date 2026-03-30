@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 // MARK: - ThemeCardView
 // Reusable animated card used in the theme gallery grid.
@@ -19,6 +20,7 @@ struct ThemeCardView: View {
     }
 
     var body: some View {
+        let _ = print("🎨 [THEME-DIAG] ThemeCardView.body — theme: \(theme.id), themeManager.current.id: \(themeManager.current.id), isOwned: \(isOwned)")
         ZStack(alignment: .topTrailing) {
 
             // Layer 1 — animated MeshGradient background
@@ -35,7 +37,8 @@ struct ThemeCardView: View {
                 Text(theme.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Text(theme.isPaid ? (isOwned ? "Owned" : "$1.99") : "Free")
+                // Bug 8 fix: read live price from StoreKit so non-USD storefronts show correctly
+                Text(theme.isPaid ? (isOwned ? "Owned" : (store.product(for: theme)?.displayPrice ?? "—")) : "Free")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -107,23 +110,37 @@ struct ThemeCardView: View {
     }
 
     // Slowly animate interior control points so the gradient feels alive
+    // Bug 4 fix: clamp all points to [0, 1] to prevent MeshGradient bleeding outside the frame
     private func animatedPoints(t: Double) -> [SIMD2<Float>] {
         let s = Float(sin(t * 0.3) * 0.08)
         let c = Float(cos(t * 0.2) * 0.08)
+        func cl(_ v: Float) -> Float { min(max(v, 0), 1) }
         return [
-            [0, 0], [0.5 + s, 0], [1, 0],
-            [0, 0.5 + c], [0.5 - s, 0.5 + s], [1, 0.5 - c],
-            [0, 1], [0.5 + c, 1], [1, 1]
+            [0, 0], [cl(0.5 + s), 0], [1, 0],
+            [0, cl(0.5 + c)], [cl(0.5 - s), cl(0.5 + s)], [1, cl(0.5 - c)],
+            [0, 1], [cl(0.5 + c), 1], [1, 1]
         ]
     }
 }
 
+// MARK: - Preview
+
+#Preview {
+    ThemeCardView(theme: .midnight, isSelected: false, namespace: Namespace().wrappedValue)
+        .environment(ThemeManager.shared)
+        .environment(StoreKitManager.shared)
+        .padding()
+}
+
 // MARK: — iOS 26 symbol effect availability gate
+// .drawOn requires iOS 26 (per PRELAUNCH-REQUIREMENTS.md) — NOT iOS 18.
+// Guarding with iOS 18 caused a crash on iOS 18–25 because .drawOn
+// is unavailable there (SourceKit correctly flags it as macOS/iOS 26+).
 
 private struct DrawOnSymbolEffect: ViewModifier {
     let trigger: Bool
     func body(content: Content) -> some View {
-        if #available(iOS 18, *) {
+        if #available(iOS 26, *) {
             content.symbolEffect(.drawOn, isActive: trigger)
         } else {
             content

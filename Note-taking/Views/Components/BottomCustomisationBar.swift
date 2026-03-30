@@ -32,6 +32,7 @@ struct BottomCustomisationBar: View {
     }
 
     var body: some View {
+        let _ = print("🎨 [THEME-DIAG] BottomCustomisationBar.body START — reading themeManager.current.id: \(themeManager.current.id)")
         VStack(spacing: 16) {
             // Tab content
             tabContent
@@ -52,8 +53,9 @@ struct BottomCustomisationBar: View {
         switch selectedTab {
         case .color:
             ColorPicker("Background color", selection: $customColor, supportsOpacity: false)
-                .onChange(of: customColor) { _, _ in
-                    // TODO: apply custom color override to ThemeManager
+                .onChange(of: customColor) { _, newColor in
+                    // Bug 2 fix: wire color selection to ThemeManager
+                    themeManager.applyColorOverride(newColor)
                 }
 
         case .gradient:
@@ -139,7 +141,8 @@ struct BottomCustomisationBar: View {
         let colors = gradientPresets[index]
         Button {
             selectedGradientIndex = index
-            // TODO: apply gradient preset to ThemeManager
+            // Bug 2 fix: wire gradient selection to ThemeManager
+            themeManager.applyGradientOverride(colors)
         } label: {
             if #available(iOS 18, *) {
                 MeshGradient(
@@ -172,6 +175,14 @@ struct BottomCustomisationBar: View {
         themeManager.applyBackground(data: data)
         #endif
     }
+}
+
+// MARK: - Preview
+
+#Preview {
+    BottomCustomisationBar(theme: .midnight)
+        .environment(ThemeManager.shared)
+        .padding()
 }
 
 // MARK: — iOS 26 glass container availability gate

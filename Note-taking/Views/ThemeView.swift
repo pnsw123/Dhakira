@@ -7,7 +7,9 @@ import SwiftUI
 
 struct ThemeView: View {
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(StoreKitManager.self) private var store
     @State private var searchText = ""
+    @State private var selectedTheme: AppTheme? = nil
     @Namespace private var namespace
 
     private var filteredThemes: [AppTheme] {
@@ -16,17 +18,23 @@ struct ThemeView: View {
     }
 
     var body: some View {
+        let _ = print("🎨 [THEME-DIAG] ThemeView.body evaluated — themeManager reachable: true, themes: \(filteredThemes.count)")
         // No NavigationStack here — ThemeView is always pushed via navigationDestination
         // from an existing navigation context. Nesting NavigationStack is unsupported.
+        //
+        // NOTE: NavigationLink { destination } causes SwiftUI's NavigationHostingControllerCache
+        // to pre-create UIHostingControllers for ALL visible destinations immediately, before the
+        // environment chain is ready. This crashes @Environment(Observable.self) lookups.
+        // Fix: use navigationDestination(item:) so the destination is only created on tap,
+        // inside the live environment. (iOS 18 SwiftUI bug with zoom transitions + @Observable)
         ScrollView {
             LazyVGrid(
                 columns: [GridItem(.flexible()), GridItem(.flexible())],
                 spacing: 16
             ) {
                 ForEach(filteredThemes) { theme in
-                    NavigationLink {
-                        ThemeDetailView(theme: theme, namespace: namespace)
-                            .navigationTransition(.zoom(sourceID: theme.id, in: namespace))
+                    Button {
+                        selectedTheme = theme
                     } label: {
                         ThemeCardView(
                             theme: theme,
@@ -45,12 +53,29 @@ struct ThemeView: View {
             }
             .padding(.horizontal, 16)
         }
+        .navigationDestination(item: $selectedTheme) { theme in
+            let _ = print("🎨 [THEME-DIAG] navigationDestination fired — building ThemeDetailView for theme: \(theme.id)")
+            ThemeDetailView(theme: theme, namespace: namespace)
+                .environment(themeManager)
+                .environment(store)
+                .navigationTransition(.zoom(sourceID: theme.id, in: namespace))
+        }
         .contentMargins(16, for: .scrollContent)
         .searchable(text: $searchText, placement: .navigationBarDrawer, prompt: "Search themes")
         .navigationTitle("Themes")
         .navigationBarTitleDisplayMode(.large)
         .modifier(SoftScrollEdge())
     }
+}
+
+// MARK: - Preview
+
+#Preview {
+    NavigationStack {
+        ThemeView()
+    }
+    .environment(ThemeManager.shared)
+    .environment(StoreKitManager.shared)
 }
 
 // MARK: - iOS 26 soft scroll edge

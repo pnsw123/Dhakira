@@ -25,7 +25,7 @@ struct PhoneMockupView: View {
                     WidgetPreviewLayout(theme: theme)
                 } else {
                     // Solid colour placeholder until HomeView reads ThemeManager from environment.
-                    Color(theme.screenBackground)
+                    theme.screenBackground
                 }
             }
             .scaleEffect(0.35)

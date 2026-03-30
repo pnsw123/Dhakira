@@ -5,6 +5,11 @@ import StoreKit
 // Native StoreKit UI sheet shown when user taps Apply on an unowned paid theme.
 // Issue #76 — https://github.com/pnsw123/prod-note/issues/76
 
+#Preview {
+    ThemePaywallView(theme: .academia)
+        .environment(StoreKitManager.shared)
+}
+
 struct ThemePaywallView: View {
     let theme: AppTheme
     @Environment(StoreKitManager.self) private var store
@@ -14,12 +19,21 @@ struct ThemePaywallView: View {
         NavigationStack {
             VStack(spacing: 24) {
                 // Single theme ProductView (iOS 17 native UI)
+                // Bug 3 fix: show loading spinner while products are fetching on first launch
                 if let product = store.product(for: theme) {
                     ProductView(id: product.id) {
-                        // Custom icon
                         Image(systemName: "paintbrush.fill")
                     }
                     .productViewStyle(.large)
+                } else if store.products.isEmpty {
+                    ProgressView("Loading…")
+                        .task { await store.fetchProducts() }
+                } else {
+                    // Products loaded but this specific one is missing — fall back to pro bundle
+                    Text("This theme is included in the Pro bundle below.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
 
                 Divider()

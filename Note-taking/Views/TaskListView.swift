@@ -231,6 +231,8 @@ struct TaskListView: View {
             }
             .navigationDestination(isPresented: $showTheme) {
                 ThemeView()
+                    .environment(ThemeManager.shared)
+                    .environment(StoreKitManager.shared)
             }
             .contentShape(Rectangle())
             .simultaneousGesture(

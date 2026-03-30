@@ -25,9 +25,13 @@ final class ThemeManager {
     var backgroundImage: UIImage? = nil
     #endif
 
+    // Bug 2 fix: custom background overrides (in-session; cleared when a theme is applied)
+    var backgroundColorOverride: Color? = nil
+    var backgroundGradientColors: [Color]? = nil
+
     // MARK: — Persistence keys
     @ObservationIgnored
-    @AppStorage("selectedThemeId") private var selectedThemeId: String = "defaultLight"
+    @AppStorage("selectedThemeId") private var selectedThemeId: String = "default"
 
     @ObservationIgnored
     @AppStorage("backgroundImagePath") private var backgroundImagePath: String = ""
@@ -39,11 +43,13 @@ final class ThemeManager {
             current = saved
         }
         // Restore background image — UIKit only (WWDC18 #416)
+        // Bug 1 fix: store and restore as plain path string, not file:// URL absoluteString
         #if canImport(UIKit)
-        if !backgroundImagePath.isEmpty,
-           let url = URL(string: backgroundImagePath),
-           FileManager.default.fileExists(atPath: url.path) {
-            backgroundImage = downsample(imageAt: url, to: UIScreen.main.bounds.size)
+        if !backgroundImagePath.isEmpty {
+            let url = URL(fileURLWithPath: backgroundImagePath)
+            if FileManager.default.fileExists(atPath: url.path) {
+                backgroundImage = Self.downsample(imageAt: url)
+            }
         }
         #endif
     }
@@ -52,19 +58,34 @@ final class ThemeManager {
     func apply(_ theme: AppTheme) {
         current = theme
         selectedThemeId = theme.id
+        backgroundColorOverride = nil
+        backgroundGradientColors = nil
         syncToAppGroup()
         WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: — Apply background image (UIKit / iOS only)
     #if canImport(UIKit)
+    // Bug 1 + Bug 5 fix: store as plain path (not absoluteString), write file on background thread.
+    // Uses DispatchQueue + Task (not Task.detached) to avoid Swift 6 Sendable / actor-isolation errors.
     func applyBackground(data: Data) {
         let url = backgroundURL()
-        try? data.write(to: url)
-        backgroundImagePath = url.absoluteString
-        backgroundImage = downsample(imageAt: url, to: UIScreen.main.bounds.size)
-        syncToAppGroup()
-        WidgetCenter.shared.reloadAllTimelines()
+        Task {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                DispatchQueue.global(qos: .utility).async {
+                    try? data.write(to: url)
+                    cont.resume()
+                }
+            }
+            // Back on the calling actor (main) after the file write completes
+            let img = Self.downsample(imageAt: url)
+            self.backgroundImagePath = url.path
+            self.backgroundImage = img
+            self.backgroundColorOverride = nil
+            self.backgroundGradientColors = nil
+            self.syncToAppGroup()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 
     func clearBackground() {
@@ -75,6 +96,25 @@ final class ThemeManager {
         WidgetCenter.shared.reloadAllTimelines()
     }
     #endif
+
+    // MARK: — Color / Gradient overrides (Bug 2 fix: wire up Color + Gradient tabs)
+    func applyColorOverride(_ color: Color) {
+        backgroundColorOverride = color
+        backgroundGradientColors = nil
+        #if canImport(UIKit)
+        backgroundImage = nil
+        backgroundImagePath = ""
+        #endif
+    }
+
+    func applyGradientOverride(_ colors: [Color]) {
+        backgroundGradientColors = colors
+        backgroundColorOverride = nil
+        #if canImport(UIKit)
+        backgroundImage = nil
+        backgroundImagePath = ""
+        #endif
+    }
 
     // MARK: — App Group sync (widgets read from here)
     private func syncToAppGroup() {
@@ -93,19 +133,20 @@ final class ThemeManager {
     }
 
     // MARK: — Downsampling (WWDC18 #416, UIKit only)
+    // nonisolated static: pure computation — safe to call from any actor or background queue.
+    // Fixed maxPixelSize avoids UIScreen.main (deprecated iOS 26).
+    // 3510 = 1170 logical pts × 3x — covers the largest iPhone Pro Max at full resolution.
     // CGImageSourceCreateThumbnailAtIndex: 87MB raw 12MP → ~11MB (85% savings)
     #if canImport(UIKit)
-    private func downsample(imageAt url: URL,
-                            to pointSize: CGSize,
-                            scale: CGFloat = UITraitCollection.current.displayScale) -> UIImage? {
+    nonisolated private static func downsample(imageAt url: URL,
+                                               maxPixelSize: CGFloat = 3510) -> UIImage? {
         let imageSourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, imageSourceOptions) else { return nil }
-        let maxDimension = max(pointSize.width, pointSize.height) * scale
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceShouldCacheImmediately: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxDimension
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
         ]
         guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else { return nil }
         return UIImage(cgImage: thumbnail)
@@ -135,6 +176,12 @@ struct WithAppBackground: ViewModifier {
                     .scaledToFill()
                     .ignoresSafeArea(.all)
                 Color.black.opacity(colorScheme == .dark ? 0.55 : 0.25)
+                    .ignoresSafeArea(.all)
+            } else if let color = themeManager.backgroundColorOverride {
+                color
+                    .ignoresSafeArea(.all)
+            } else if let gradColors = themeManager.backgroundGradientColors {
+                LinearGradient(colors: gradColors, startPoint: .topLeading, endPoint: .bottomTrailing)
                     .ignoresSafeArea(.all)
             } else {
                 themeManager.current.screenBackground

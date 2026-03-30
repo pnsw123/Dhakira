@@ -36,17 +36,18 @@ struct FakeWidgetView: View {
 
     var body: some View {
         ZStack {
-            Color(theme.screenBackground)
+            // Bug 7 fix: Color values are already SwiftUI.Color — no Color() wrapper needed
+            theme.screenBackground
             VStack(alignment: .leading, spacing: 4) {
                 Image(systemName: "checklist")
                     .font(.title2)
-                    .foregroundStyle(Color(theme.accentColor))
+                    .foregroundStyle(theme.accentColor)
                 Text("ProdNote")
                     .font(.caption.bold())
-                    .foregroundStyle(Color(theme.primaryText))
+                    .foregroundStyle(theme.primaryText)
                 Text("3 tasks today")
                     .font(.caption2)
-                    .foregroundStyle(Color(theme.secondaryText))
+                    .foregroundStyle(theme.secondaryText)
             }
             .padding(12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

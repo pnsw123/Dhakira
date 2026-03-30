@@ -78,9 +78,12 @@ final class StoreKitManager {
     func restoreEntitlements() async {
         for await result in StoreKit.Transaction.currentEntitlements {
             if let transaction = try? result.payloadValue {
-                purchasedIds.insert(transaction.productID)
-                if transaction.productID == "com.prodnote.theme.pro" {
-                    purchasedIds.formUnion(Self.allProductIds)
+                // Bug 6 fix: mutate @Observable state on main actor to prevent EXC_BAD_ACCESS
+                await MainActor.run {
+                    purchasedIds.insert(transaction.productID)
+                    if transaction.productID == "com.prodnote.theme.pro" {
+                        purchasedIds.formUnion(Self.allProductIds)
+                    }
                 }
             }
         }
@@ -97,6 +100,8 @@ final class StoreKitManager {
         }
     }
 
+    // Bug 6 fix: @MainActor ensures all purchasedIds mutations happen on the main thread
+    @MainActor
     private func handleVerifiedTransaction(_ transaction: StoreKit.Transaction) async {
         if transaction.revocationDate != nil {
             purchasedIds.remove(transaction.productID)
