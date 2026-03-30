@@ -110,14 +110,14 @@ struct TaskListView: View {
                 if isAddingTask {
                     HStack(alignment: .top, spacing: 14) {
                         Circle()
-                            .stroke(Color.secondary.opacity(0.4), lineWidth: 1.5)
+                            .stroke(Color.checkboxInactive, lineWidth: 1.5)
                             .frame(width: 22, height: 22)
                             .frame(width: 28, height: 28)
                             .padding(.top, 1)
 
                         TextField("New Task", text: $newTaskTitle, axis: .vertical)
                             .font(.system(size: 17, weight: .regular))
-                            .foregroundStyle(Color.primary)
+                            .foregroundStyle(Color.primaryText)
                             .lineLimit(1...3)
                             .focused($newTaskFieldFocused)
                             .onSubmit { commitNewTask() }
@@ -157,7 +157,7 @@ struct TaskListView: View {
                         }) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(Color.primary)
+                                .foregroundStyle(Color.primaryText)
                                 .frame(width: 36, height: 36)
                         }
                         .buttonStyle(.plain)
@@ -171,7 +171,7 @@ struct TaskListView: View {
                         }) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(Color.primary)
+                                .foregroundStyle(Color.primaryText)
                                 .frame(width: 36, height: 36)
                         }
                         .buttonStyle(.plain)
@@ -209,7 +209,7 @@ struct TaskListView: View {
                 .background(Color.screenBackground)
                 .overlay(alignment: .bottom) {
                     Rectangle()
-                        .fill(Color.primary.opacity(0.06))
+                        .fill(Color.separatorColor)
                         .frame(height: 0.5)
                 }
             }
@@ -217,9 +217,9 @@ struct TaskListView: View {
                 Button(action: addTask) {
                     Image(systemName: "plus")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(Color.fabIcon)
                         .frame(width: 48, height: 48)
-                        .background(.regularMaterial, in: Circle())
+                        .background(Color.fabColor, in: Circle())
                         .glassEffect(.regular.interactive(), in: .circle)
                 }
                 .buttonStyle(.plain)
@@ -228,9 +228,11 @@ struct TaskListView: View {
             }
             .navigationDestination(item: $selectedTask) { task in
                 TaskDetailView(task: task)
+                    .withAppBackground()
             }
             .navigationDestination(isPresented: $showTheme) {
                 ThemeView()
+                    .withAppBackground()
                     .environment(ThemeManager.shared)
                     .environment(StoreKitManager.shared)
             }

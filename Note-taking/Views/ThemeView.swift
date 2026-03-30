@@ -52,10 +52,13 @@ struct ThemeView: View {
                 .environment(store)
                 .navigationTransition(.zoom(sourceID: theme.id, in: namespace))
         }
+        .scrollContentBackground(.hidden)
         .contentMargins(16, for: .scrollContent)
         .searchable(text: $searchText, placement: .navigationBarDrawer, prompt: "Search themes")
         .navigationTitle("Themes")
         .navigationBarTitleDisplayMode(.large)
+        .toolbarBackground(Color.screenBackground, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .modifier(SoftScrollEdge())
     }
 }

@@ -113,7 +113,7 @@ struct HomeView: View {
                     }) {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color.primary)
+                            .foregroundStyle(Color.primaryText)
                             .frame(width: 36, height: 36)
                     }
                     .buttonStyle(.plain)
@@ -125,7 +125,7 @@ struct HomeView: View {
                 .background(Color.screenBackground)
                 .overlay(alignment: .bottom) {
                     Rectangle()
-                        .fill(Color.primary.opacity(0.06))
+                        .fill(Color.separatorColor)
                         .frame(height: 0.5)
                 }
             }

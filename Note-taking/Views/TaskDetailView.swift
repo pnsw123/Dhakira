@@ -101,7 +101,7 @@ struct TaskDetailView: View {
         VStack(spacing: 0) {
             Text(formattedDate)
                 .font(.caption)
-                .foregroundStyle(Color.secondary)
+                .foregroundStyle(Color.secondaryText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -115,7 +115,7 @@ struct TaskDetailView: View {
                 .accessibilityIdentifier("task-title-field")
 
             Rectangle()
-                .fill(Color(uiColor: .opaqueSeparator))
+                .fill(Color.separatorColor)
                 .frame(height: 1)
                 .padding(.horizontal, 20)
 

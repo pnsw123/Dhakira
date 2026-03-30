@@ -117,13 +117,23 @@ extension Color {
     // Issue #70 — https://github.com/pnsw123/prod-note/issues/70
 
     /// Main screen background — comes from the active theme
-    static var screenBackground: Color { ThemeManager.shared.current.screenBackground }
+    static var screenBackground: Color  { ThemeManager.shared.current.screenBackground }
     /// Row/card background — comes from the active theme
-    static var rowBackground: Color    { ThemeManager.shared.current.surfaceBackground }
+    static var rowBackground: Color     { ThemeManager.shared.current.surfaceBackground }
+    /// Editor/note body background — comes from the active theme
+    static var editorBackground: Color  { ThemeManager.shared.current.editorBackground }
+    /// Primary text — comes from the active theme
+    static var primaryText: Color       { ThemeManager.shared.current.primaryText }
+    /// Secondary / subdued text — comes from the active theme
+    static var secondaryText: Color     { ThemeManager.shared.current.secondaryText }
+    /// Hairline divider — comes from the active theme
+    static var separatorColor: Color    { ThemeManager.shared.current.separatorColor }
+    /// Unchecked checkbox ring — comes from the active theme
+    static var checkboxInactive: Color  { ThemeManager.shared.current.checkboxInactive }
     /// FAB button background — comes from the active theme
-    static var fabColor: Color         { ThemeManager.shared.current.fabBackground }
+    static var fabColor: Color          { ThemeManager.shared.current.fabBackground }
     /// FAB icon color — comes from the active theme
-    static var fabIcon: Color          { ThemeManager.shared.current.fabIcon }
+    static var fabIcon: Color           { ThemeManager.shared.current.fabIcon }
 }
 
 // MARK: - Light/dark adaptive color helper

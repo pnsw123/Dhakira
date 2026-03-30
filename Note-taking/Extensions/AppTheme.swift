@@ -9,6 +9,7 @@ struct AppTheme: Equatable, Hashable, Identifiable {
     let id: String
     let name: String
     let subtitle: String
+    let tag: String
     let isPaid: Bool
 
     // MARK: — Background
@@ -80,6 +81,7 @@ extension AppTheme {
         id: "default",
         name: "Default",
         subtitle: "Warm & clean",
+        tag: "System",
         isPaid: false,
         meshColors: [
             Color(red: 0.969, green: 0.969, blue: 0.961),
@@ -131,6 +133,7 @@ extension AppTheme {
         id: "midnight",
         name: "Midnight",
         subtitle: "Deep & focused",
+        tag: "Night",
         isPaid: false,
         meshColors: [
             Color(red: 0.098, green: 0.098, blue: 0.102),
@@ -166,11 +169,13 @@ extension AppTheme {
     // ─────────────────────────────────────────────
     // PAID — Academia (warm sepia, library warmth)
     // Target: Millennial women, students
+    // Adaptive: light = cream/parchment, dark = deep amber/brown
     // ─────────────────────────────────────────────
     static let academia = AppTheme(
         id: "academia",
         name: "Academia",
         subtitle: "Warm & scholarly",
+        tag: "Warm",
         isPaid: true,
         meshColors: [
             Color(red: 0.965, green: 0.945, blue: 0.900),
@@ -184,23 +189,39 @@ extension AppTheme {
             Color(red: 0.880, green: 0.820, blue: 0.730)
         ],
         backgroundStyle: .gradient,
-        screenBackground:   Color(red: 0.965, green: 0.945, blue: 0.900),
-        surfaceBackground:  Color(red: 0.975, green: 0.960, blue: 0.920),
-        editorBackground:   Color(red: 0.975, green: 0.960, blue: 0.920),
-        primaryText:        Color(red: 0.220, green: 0.160, blue: 0.090),
-        secondaryText:      Color(red: 0.500, green: 0.400, blue: 0.280),
-        placeholderText:    Color(red: 0.660, green: 0.580, blue: 0.460),
-        accentColor:        Color(red: 0.600, green: 0.340, blue: 0.100),
-        linkColor:          Color(red: 0.600, green: 0.340, blue: 0.100),
-        quoteBarColor:      Color(red: 0.700, green: 0.450, blue: 0.180),
-        priorityHigh:       Color(red: 0.780, green: 0.200, blue: 0.150),
-        priorityMedium:     Color(red: 0.820, green: 0.480, blue: 0.100),
-        fabBackground:      Color(red: 0.320, green: 0.200, blue: 0.080),
-        fabIcon:            Color(red: 0.965, green: 0.945, blue: 0.900),
-        separatorColor:     Color(red: 0.850, green: 0.810, blue: 0.750),
-        checkboxActive:     Color(red: 0.600, green: 0.340, blue: 0.100),
-        checkboxInactive:   Color(red: 0.750, green: 0.680, blue: 0.580),
-        preferredScheme:    .light
+        screenBackground:  Color(light: Color(red: 0.965, green: 0.945, blue: 0.900),
+                                 dark:  Color(red: 0.145, green: 0.110, blue: 0.072)),
+        surfaceBackground: Color(light: Color(red: 0.975, green: 0.960, blue: 0.920),
+                                 dark:  Color(red: 0.190, green: 0.152, blue: 0.100)),
+        editorBackground:  Color(light: Color(red: 0.975, green: 0.960, blue: 0.920),
+                                 dark:  Color(red: 0.190, green: 0.152, blue: 0.100)),
+        primaryText:       Color(light: Color(red: 0.220, green: 0.160, blue: 0.090),
+                                 dark:  Color(red: 0.918, green: 0.875, blue: 0.780)),
+        secondaryText:     Color(light: Color(red: 0.500, green: 0.400, blue: 0.280),
+                                 dark:  Color(red: 0.610, green: 0.528, blue: 0.410)),
+        placeholderText:   Color(light: Color(red: 0.660, green: 0.580, blue: 0.460),
+                                 dark:  Color(red: 0.400, green: 0.345, blue: 0.265)),
+        accentColor:       Color(light: Color(red: 0.600, green: 0.340, blue: 0.100),
+                                 dark:  Color(red: 0.740, green: 0.490, blue: 0.180)),
+        linkColor:         Color(light: Color(red: 0.600, green: 0.340, blue: 0.100),
+                                 dark:  Color(red: 0.740, green: 0.490, blue: 0.180)),
+        quoteBarColor:     Color(light: Color(red: 0.700, green: 0.450, blue: 0.180),
+                                 dark:  Color(red: 0.720, green: 0.480, blue: 0.200)),
+        priorityHigh:      Color(light: Color(red: 0.780, green: 0.200, blue: 0.150),
+                                 dark:  Color(red: 0.900, green: 0.340, blue: 0.260)),
+        priorityMedium:    Color(light: Color(red: 0.820, green: 0.480, blue: 0.100),
+                                 dark:  Color(red: 0.920, green: 0.600, blue: 0.200)),
+        fabBackground:     Color(light: Color(red: 0.320, green: 0.200, blue: 0.080),
+                                 dark:  Color(red: 0.720, green: 0.450, blue: 0.150)),
+        fabIcon:           Color(light: Color(red: 0.965, green: 0.945, blue: 0.900),
+                                 dark:  Color(red: 0.145, green: 0.110, blue: 0.072)),
+        separatorColor:    Color(light: Color(red: 0.850, green: 0.810, blue: 0.750),
+                                 dark:  Color(red: 0.260, green: 0.205, blue: 0.140)),
+        checkboxActive:    Color(light: Color(red: 0.600, green: 0.340, blue: 0.100),
+                                 dark:  Color(red: 0.740, green: 0.490, blue: 0.180)),
+        checkboxInactive:  Color(light: Color(red: 0.750, green: 0.680, blue: 0.580),
+                                 dark:  Color(red: 0.360, green: 0.290, blue: 0.200)),
+        preferredScheme:   nil   // follows system dark / light mode
     )
 
     // ─────────────────────────────────────────────
@@ -211,6 +232,7 @@ extension AppTheme {
         id: "nord",
         name: "Nord",
         subtitle: "Arctic & minimal",
+        tag: "Cool",
         isPaid: true,
         meshColors: [
             Color(red: 0.180, green: 0.204, blue: 0.251),   // #2E3440
@@ -251,6 +273,7 @@ extension AppTheme {
         id: "tokyo-night",
         name: "Tokyo Night",
         subtitle: "City at 2am",
+        tag: "Dark",
         isPaid: true,
         meshColors: [
             Color(red: 0.063, green: 0.075, blue: 0.141),   // deep navy
@@ -291,6 +314,7 @@ extension AppTheme {
         id: "forest",
         name: "Forest",
         subtitle: "Earthy & calm",
+        tag: "Dark",
         isPaid: true,
         meshColors: [
             Color(red: 0.133, green: 0.180, blue: 0.133),
@@ -326,11 +350,13 @@ extension AppTheme {
     // ─────────────────────────────────────────────
     // PAID — Rosé (dusty pink, warm cream)
     // Target: Women 20–35
+    // Adaptive: light = blush/cream, dark = deep burgundy/wine
     // ─────────────────────────────────────────────
     static let rose = AppTheme(
         id: "rose",
         name: "Rosé",
         subtitle: "Soft & romantic",
+        tag: "Active",
         isPaid: true,
         meshColors: [
             Color(red: 0.980, green: 0.930, blue: 0.930),
@@ -344,23 +370,37 @@ extension AppTheme {
             Color(red: 0.950, green: 0.860, blue: 0.870)
         ],
         backgroundStyle: .gradient,
-        screenBackground:   Color(red: 0.980, green: 0.930, blue: 0.930),
-        surfaceBackground:  Color(red: 0.990, green: 0.950, blue: 0.950),
-        editorBackground:   Color(red: 0.990, green: 0.950, blue: 0.950),
-        primaryText:        Color(red: 0.280, green: 0.140, blue: 0.160),
-        secondaryText:      Color(red: 0.560, green: 0.380, blue: 0.400),
-        placeholderText:    Color(red: 0.720, green: 0.560, blue: 0.580),
-        accentColor:        Color(red: 0.780, green: 0.340, blue: 0.420),   // rose accent
-        linkColor:          Color(red: 0.780, green: 0.340, blue: 0.420),
-        quoteBarColor:      Color(red: 0.820, green: 0.440, blue: 0.520),
-        priorityHigh:       Color(red: 0.860, green: 0.200, blue: 0.280),
-        priorityMedium:     Color(red: 0.880, green: 0.500, blue: 0.200),
-        fabBackground:      Color(red: 0.780, green: 0.340, blue: 0.420),
-        fabIcon:            .white,
-        separatorColor:     Color(red: 0.920, green: 0.840, blue: 0.850),
-        checkboxActive:     Color(red: 0.780, green: 0.340, blue: 0.420),
-        checkboxInactive:   Color(red: 0.840, green: 0.720, blue: 0.740),
-        preferredScheme:    .light
+        screenBackground:  Color(light: Color(red: 0.980, green: 0.930, blue: 0.930),
+                                 dark:  Color(red: 0.182, green: 0.098, blue: 0.118)),
+        surfaceBackground: Color(light: Color(red: 0.990, green: 0.950, blue: 0.950),
+                                 dark:  Color(red: 0.235, green: 0.130, blue: 0.158)),
+        editorBackground:  Color(light: Color(red: 0.990, green: 0.950, blue: 0.950),
+                                 dark:  Color(red: 0.235, green: 0.130, blue: 0.158)),
+        primaryText:       Color(light: Color(red: 0.280, green: 0.140, blue: 0.160),
+                                 dark:  Color(red: 0.958, green: 0.858, blue: 0.878)),
+        secondaryText:     Color(light: Color(red: 0.560, green: 0.380, blue: 0.400),
+                                 dark:  Color(red: 0.640, green: 0.465, blue: 0.500)),
+        placeholderText:   Color(light: Color(red: 0.720, green: 0.560, blue: 0.580),
+                                 dark:  Color(red: 0.420, green: 0.305, blue: 0.332)),
+        accentColor:       Color(light: Color(red: 0.780, green: 0.340, blue: 0.420),
+                                 dark:  Color(red: 0.920, green: 0.525, blue: 0.608)),
+        linkColor:         Color(light: Color(red: 0.780, green: 0.340, blue: 0.420),
+                                 dark:  Color(red: 0.920, green: 0.525, blue: 0.608)),
+        quoteBarColor:     Color(light: Color(red: 0.820, green: 0.440, blue: 0.520),
+                                 dark:  Color(red: 0.880, green: 0.500, blue: 0.580)),
+        priorityHigh:      Color(light: Color(red: 0.860, green: 0.200, blue: 0.280),
+                                 dark:  Color(red: 0.960, green: 0.340, blue: 0.420)),
+        priorityMedium:    Color(light: Color(red: 0.880, green: 0.500, blue: 0.200),
+                                 dark:  Color(red: 0.960, green: 0.620, blue: 0.280)),
+        fabBackground:     Color(red: 0.780, green: 0.340, blue: 0.420),   // same rose in both modes
+        fabIcon:           .white,
+        separatorColor:    Color(light: Color(red: 0.920, green: 0.840, blue: 0.850),
+                                 dark:  Color(red: 0.285, green: 0.162, blue: 0.195)),
+        checkboxActive:    Color(light: Color(red: 0.780, green: 0.340, blue: 0.420),
+                                 dark:  Color(red: 0.920, green: 0.525, blue: 0.608)),
+        checkboxInactive:  Color(light: Color(red: 0.840, green: 0.720, blue: 0.740),
+                                 dark:  Color(red: 0.385, green: 0.240, blue: 0.272)),
+        preferredScheme:   nil   // follows system dark / light mode
     )
 
     // ─────────────────────────────────────────────
@@ -371,6 +411,7 @@ extension AppTheme {
         id: "void",
         name: "Void",
         subtitle: "Pure black, OLED",
+        tag: "Minimal",
         isPaid: true,
         meshColors: [
             Color(red: 0.000, green: 0.000, blue: 0.000),

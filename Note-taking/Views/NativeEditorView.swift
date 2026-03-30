@@ -33,10 +33,13 @@ struct NativeEditorView: View {
                 // Without this, UIKit defaults to black which disappears on dark backgrounds.
                 tv.textColor = .label
                 tv.typingAttributes[.foregroundColor] = UIColor.label
+                // Match the editor area background to the active theme so bright / dark
+                // themes don't leave a system-white or system-black rectangle behind.
+                tv.backgroundColor = UIColor(ThemeManager.shared.current.editorBackground)
                 DispatchQueue.main.async { onEditorReady?(tv) }
             }
         }
-        .background(Color(uiColor: .systemBackground))
+        .background(Color.editorBackground)
     }
 }
 

@@ -43,7 +43,7 @@ struct TaskRowView: View {
                                 .foregroundStyle(Color.forPriority(task.priority))
                         } else {
                             Circle()
-                                .stroke(Color.secondary.opacity(0.4), lineWidth: 1.5)
+                                .stroke(Color.checkboxInactive, lineWidth: 1.5)
                                 .frame(width: 22, height: 22)
                         }
                     }
@@ -58,14 +58,14 @@ struct TaskRowView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         TextField("New Task", text: $task.title, axis: .vertical)
                             .font(.system(size: 17, weight: .regular))
-                            .foregroundStyle(Color.primary)
+                            .foregroundStyle(Color.primaryText)
                             .lineLimit(1...3)
                             .focused($isEditing)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                         Text("*")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(Color.secondary.opacity(0.4))
+                            .foregroundStyle(Color.secondaryText.opacity(0.5))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
@@ -77,7 +77,7 @@ struct TaskRowView: View {
                             HStack(alignment: .top, spacing: 8) {
                                 Text(task.title.isEmpty ? "New Task" : task.title)
                                     .font(.system(size: 17, weight: .regular))
-                                    .foregroundStyle(task.isCompleted ? Color.secondary : Color.primary)
+                                    .foregroundStyle(task.isCompleted ? Color.secondaryText : Color.primaryText)
                                     .strikethrough(task.isCompleted)
                                     .multilineTextAlignment(.leading)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -95,7 +95,7 @@ struct TaskRowView: View {
                                 .foregroundStyle(
                                     hasRealContent
                                         ? Color(uiColor: .systemBlue)
-                                        : Color.secondary.opacity(0.4)
+                                        : Color.secondaryText.opacity(0.4)
                                 )
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -108,7 +108,7 @@ struct TaskRowView: View {
 
             // Full-width separator — bypasses List's trailing inset gap
             Rectangle()
-                .fill(Color.primary.opacity(0.08))
+                .fill(Color.separatorColor)
                 .frame(maxWidth: .infinity)
                 .frame(height: 0.5)
         }
