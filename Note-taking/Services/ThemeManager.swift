@@ -164,31 +164,36 @@ final class ThemeManager {
 // Issue #70 — https://github.com/pnsw123/prod-note/issues/70
 
 struct WithAppBackground: ViewModifier {
-    @Environment(ThemeManager.self) var themeManager
+    // Use the singleton directly instead of @Environment so this modifier never
+    // crashes when pushed from a view that didn't explicitly inject ThemeManager.
+    // @Observable tracking still fires re-renders whenever current / overrides change.
     @Environment(\.colorScheme) var colorScheme
 
     func body(content: Content) -> some View {
-        ZStack {
+        // Reading ThemeManager.shared properties here registers observation
+        // dependencies — SwiftUI re-renders automatically on any theme change.
+        let tm = ThemeManager.shared
+        return ZStack {
             #if canImport(UIKit)
-            if let img = themeManager.backgroundImage {
+            if let img = tm.backgroundImage {
                 Image(uiImage: img)
                     .resizable()
                     .scaledToFill()
                     .ignoresSafeArea(.all)
                 Color.black.opacity(colorScheme == .dark ? 0.55 : 0.25)
                     .ignoresSafeArea(.all)
-            } else if let color = themeManager.backgroundColorOverride {
+            } else if let color = tm.backgroundColorOverride {
                 color
                     .ignoresSafeArea(.all)
-            } else if let gradColors = themeManager.backgroundGradientColors {
+            } else if let gradColors = tm.backgroundGradientColors {
                 LinearGradient(colors: gradColors, startPoint: .topLeading, endPoint: .bottomTrailing)
                     .ignoresSafeArea(.all)
             } else {
-                themeManager.current.screenBackground
+                tm.current.screenBackground
                     .ignoresSafeArea(.all)
             }
             #else
-            themeManager.current.screenBackground
+            tm.current.screenBackground
                 .ignoresSafeArea(.all)
             #endif
             content
