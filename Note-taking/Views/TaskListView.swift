@@ -242,12 +242,6 @@ struct TaskListView: View {
                     if !isAddingTask { addTask() }
                 }
             )
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    guard isAddingTask else { return }
-                    newTaskFieldFocused = false
-                }
-            )
             .onChange(of: newTaskFieldFocused) { _, focused in
                 if !focused && isAddingTask {
                     // Short delay — gives addTask() time to intercept if the
