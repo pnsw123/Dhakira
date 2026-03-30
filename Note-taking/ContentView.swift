@@ -5,8 +5,6 @@ import OSLog
 private let log = Logger(subsystem: "notes.Note-taking", category: "ContentView")
 
 /// Identifies which Home-level screen to push onto the navigation stack.
-/// Using item-based navigation (instead of isPresented) avoids a SwiftUI
-/// freeze when the parent Group contains animated conditional content.
 private enum HomeNav: String, Identifiable {
     case recentlyCompleted
     case recentlyDeleted
@@ -14,63 +12,104 @@ private enum HomeNav: String, Identifiable {
 }
 
 struct ContentView: View {
+    /// true = Folders page visible, false = Tasks page visible (iPhone only)
+    @State private var showHome = false
+    /// iPad split-view column visibility
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
 
-    /// Task UUID to navigate to via deep link (prodnote://task/{uuid}).
-    /// Set by Note_takingApp when the OS delivers an incoming URL.
     @Binding var pendingDeepLinkTaskId: UUID?
 
-    /// Persisted ID of the task list the Tasks page is currently showing.
-    /// Falls back to the first available list if the stored one no longer exists.
     @AppStorage("activeTaskListId") private var activeTaskListIdString: String = ""
-
-    /// All task lists — used to resolve the active list and handle fallbacks.
     @Query(sort: \TaskList.createdAt) private var allTaskLists: [TaskList]
 
-    /// The task list currently shown on the Tasks page.
-    /// Resolves the stored ID, falling back to the first list if needed.
     private var activeTaskList: TaskList? {
         if !activeTaskListIdString.isEmpty,
            let id = UUID(uuidString: activeTaskListIdString),
            let found = allTaskLists.first(where: { $0.id == id }) {
             return found
         }
-        // Fallback: use first available list (covers first launch and deleted-list case)
         return allTaskLists.first
     }
 
     @State private var homeNav: HomeNav? = nil
 
-    // Detect layout width for iPad split-view decision.
-    // Using horizontalSizeClass instead of UIDevice.userInterfaceIdiom — works correctly
-    // in Slide Over and Stage Manager. Issue #79.
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
-        // NavigationSplitView collapses to a single column on compact width (iPhone + iPad
-        // Slide Over). On full-width iPad it shows sidebar + detail columns automatically.
-        // Issue #79 — https://github.com/pnsw123/prod-note/issues/79
+        if hSizeClass == .compact {
+            iPhoneLayout
+        } else {
+            iPadLayout
+        }
+    }
+
+    // MARK: — iPhone: lateral slide between Folders and Tasks
+
+    @ViewBuilder
+    private var iPhoneLayout: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                // Folders page — slides in from left
+                NavigationStack {
+                    HomeView(
+                        onClose:          { slideToTasks() },
+                        onSelectTaskList: { list in
+                            activeTaskListIdString = list.id.uuidString
+                            slideToTasks()
+                        },
+                        onShowRecentlyCompleted: { homeNav = .recentlyCompleted },
+                        onShowRecentlyDeleted:   { homeNav = .recentlyDeleted }
+                    )
+                    .withAppBackground()
+                    .scrollContentBackground(.hidden)
+                    .navigationDestination(item: $homeNav) { nav in
+                        switch nav {
+                        case .recentlyCompleted: RecentlyCompletedView().withAppBackground()
+                        case .recentlyDeleted:   RecentlyDeletedView().withAppBackground()
+                        }
+                    }
+                }
+                .frame(width: geo.size.width)
+                .offset(x: showHome ? 0 : -geo.size.width)
+
+                // Tasks page — slides out to the right
+                NavigationStack {
+                    TaskListView(
+                        taskList: activeTaskList,
+                        onShowHome: { slideToHome() },
+                        pendingDeepLinkTaskId: $pendingDeepLinkTaskId
+                    )
+                    .withAppBackground()
+                }
+                .frame(width: geo.size.width)
+                .offset(x: showHome ? geo.size.width : 0)
+            }
+            .animation(.spring(duration: 0.35, bounce: 0.05), value: showHome)
+        }
+        .ignoresSafeArea()
+    }
+
+    // MARK: — iPad: native split view
+
+    @ViewBuilder
+    private var iPadLayout: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             HomeView(
-                onClose: { columnVisibility = .detailOnly },
+                onClose:          { columnVisibility = .detailOnly },
                 onSelectTaskList: { list in
                     activeTaskListIdString = list.id.uuidString
                     columnVisibility = .detailOnly
                 },
                 onShowRecentlyCompleted: { homeNav = .recentlyCompleted },
-                onShowRecentlyDeleted: { homeNav = .recentlyDeleted }
+                onShowRecentlyDeleted:   { homeNav = .recentlyDeleted }
             )
             .withAppBackground()
             .scrollContentBackground(.hidden)
             .navigationDestination(item: $homeNav) { nav in
                 switch nav {
-                case .recentlyCompleted:
-                    RecentlyCompletedView()
-                        .withAppBackground()
-                case .recentlyDeleted:
-                    RecentlyDeletedView()
-                        .withAppBackground()
+                case .recentlyCompleted: RecentlyCompletedView().withAppBackground()
+                case .recentlyDeleted:   RecentlyDeletedView().withAppBackground()
                 }
             }
         } detail: {
@@ -81,16 +120,16 @@ struct ContentView: View {
             )
             .withAppBackground()
         }
-        .onChange(of: pendingDeepLinkTaskId) { _, _ in
-            // Deep link navigation handled inside TaskListView via the binding.
-        }
     }
+
+    // MARK: — Helpers
+
+    private func slideToHome()  { showHome = true  }
+    private func slideToTasks() { showHome = false }
 }
 
 #Preview {
-    // Use AppSchemaBuilder — stays in sync with the app's schema automatically (Issue #52)
     let container = try! AppSchemaBuilder.makeInMemoryContainer()
-
     let ctx = container.mainContext
 
     let defaultFolder = Folder(name: "Default")
