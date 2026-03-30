@@ -71,41 +71,24 @@ struct ThemeCardView: View {
         AnyShape(RoundedRectangle(cornerRadius: 20))
     }
 
-    // MARK: — MeshGradient background (iOS 18+)
+    // MARK: — Card thumbnail background
+    // MeshGradient blurs at small sizes — unusable for thumbnails.
+    // Instead: solid vivid focal colour (meshColors[4]) + radial vignette that darkens
+    // the edges. Creates a clean spotlight effect: vivid centre, dark corners. No blur.
 
     @ViewBuilder
     private var cardBackground: some View {
-        if #available(iOS 18, *) {
-            TimelineView(.animation) { timeline in
-                let t = timeline.date.timeIntervalSinceReferenceDate
-                MeshGradient(
-                    width: 3, height: 3,
-                    points: animatedPoints(t: t),
-                    colors: theme.meshColors
-                )
-            }
-            // Scale up 1.5× so the vivid focal color at index 4 (centre) dominates
-            // the visible thumbnail — looks like a zoomed-in crop of the full wallpaper.
-            .scaleEffect(1.5, anchor: .center)
-        } else {
-            LinearGradient(
-                colors: [theme.meshColors.first ?? .gray,
-                         theme.meshColors.last  ?? .black],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+        ZStack {
+            // Solid vivid focal colour — each theme's most saturated tone
+            theme.meshColors[4]
+            // Radial vignette — edges darken, centre stays pure and vivid
+            RadialGradient(
+                colors: [.clear, .black.opacity(0.72)],
+                center: .center,
+                startRadius: 30,
+                endRadius: 150
             )
         }
-    }
-
-    private func animatedPoints(t: Double) -> [SIMD2<Float>] {
-        let s = Float(sin(t * 0.25) * 0.10)
-        let c = Float(cos(t * 0.18) * 0.10)
-        func cl(_ v: Float) -> Float { min(max(v, 0), 1) }
-        return [
-            [0, 0], [cl(0.5 + s), 0], [1, 0],
-            [0, cl(0.5 + c)], [cl(0.5 - s), cl(0.5 + s)], [1, cl(0.5 - c)],
-            [0, 1], [cl(0.5 + c), 1], [1, 1]
-        ]
     }
 }
 
