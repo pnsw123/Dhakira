@@ -473,6 +473,26 @@ struct TaskDetailView: View {
             tv.attributedText = attributedText
             tv.selectedRange = range
             return
+        case "list.bullet":
+            // toggleBulletList inserts "• " at paragraph start, shifting content right by 2.
+            // The generic dispatcher restores savedRange which lands before the "•" — so we
+            // own cursor placement here exactly like the slash command does (newCursor += 2).
+            guard let tv = richTextView else { return }
+            tv.becomeFirstResponder()
+            let range = tv.selectedRange
+            let nsStr = (tv.attributedText?.string ?? "") as NSString
+            let parRange = nsStr.paragraphRange(for: range)
+            let wasBulleted = nsStr.substring(with: parRange).hasPrefix("• ")
+            RichEditorCommands.toggleBulletList(attributedText: &attributedText, selectedRange: range)
+            tv.attributedText = attributedText
+            // If we just added "• ": shift cursor +2 so it lands after the prefix, not before it.
+            // If we just removed "• ": shift cursor -2 so it stays on the same content character.
+            let shift = wasBulleted ? -2 : 2
+            let maxLoc = (tv.text as NSString).length
+            let newLoc = max(0, min(range.location + shift, maxLoc))
+            tv.selectedRange = NSRange(location: newLoc, length: 0)
+            prevTextLength = attributedText.length
+            return
         case "checklist":
             // Insert a to-do item at the current cursor — same result as /todo slash command.
             guard let tv = richTextView else { return }
