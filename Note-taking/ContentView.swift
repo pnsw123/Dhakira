@@ -45,12 +45,13 @@ struct ContentView: View {
     }
 
     // MARK: — iPhone: lateral slide between Folders and Tasks
+    // Only one view lives in the hierarchy at a time — no touch-blocking or
+    // size-measurement issues. withAnimation drives the move transition.
 
     @ViewBuilder
     private var iPhoneLayout: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                // Folders page — slides in from left
+        ZStack {
+            if showHome {
                 NavigationStack {
                     HomeView(
                         onClose:          { slideToTasks() },
@@ -70,10 +71,8 @@ struct ContentView: View {
                         }
                     }
                 }
-                .frame(width: geo.size.width)
-                .offset(x: showHome ? 0 : -geo.size.width)
-
-                // Tasks page — slides out to the right
+                .transition(.move(edge: .leading))
+            } else {
                 NavigationStack {
                     TaskListView(
                         taskList: activeTaskList,
@@ -82,12 +81,10 @@ struct ContentView: View {
                     )
                     .withAppBackground()
                 }
-                .frame(width: geo.size.width)
-                .offset(x: showHome ? geo.size.width : 0)
+                .transition(.move(edge: .trailing))
             }
-            .animation(.spring(duration: 0.35, bounce: 0.05), value: showHome)
         }
-        .ignoresSafeArea()
+        .animation(.spring(duration: 0.35, bounce: 0.05), value: showHome)
     }
 
     // MARK: — iPad: native split view
