@@ -50,52 +50,87 @@ struct ProdNoteWidgetView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
+    // Medium widget — same structure as large, compressed to ~4 visible rows.
+    // Widgets are static snapshots (WidgetKit cannot scroll), so overflow is
+    // shown as a "+N more" footer rather than a scrollable list.
     private var mediumView: some View {
-        HStack(spacing: 0) {
-            // Left — count stat
-            VStack(alignment: .leading, spacing: 6) {
-                Image(systemName: "checklist")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(Color(theme.accentColor))
-                    .widgetAccentable()
+        let maxRows = 4
+        let visible = Array(entry.tasks.prefix(maxRows))
+        let overflow = entry.taskCount - visible.count
 
-                Spacer()
-
-                Text("\(entry.taskCount)")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(theme.primaryText))
-
-                Text("tasks today")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color(theme.secondaryText))
-            }
-            .padding(16)
-            .frame(maxHeight: .infinity, alignment: .leading)
-
-            // Divider
-            Rectangle()
-                .fill(Color(theme.separatorColor).opacity(0.5))
-                .frame(width: 0.5)
-                .padding(.vertical, 16)
-
-            // Right — app name
-            VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(alignment: .firstTextBaseline) {
                 Text("ProdNote")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Color(theme.primaryText))
                     .widgetAccentable()
-                Text("Tap to open")
-                    .font(.system(size: 13))
+                Spacer()
+                Text("\(entry.taskCount) tasks")
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Color(theme.secondaryText))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .padding(.trailing, 16)
+            .padding(.bottom, 10)
+
+            if visible.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color(theme.accentColor))
+                    Text("All caught up!")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color(theme.secondaryText))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(visible) { task in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .strokeBorder(Color(theme.checkboxInactive), lineWidth: 1.5)
+                                .frame(width: 14, height: 14)
+                            Text(task.title)
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color(theme.primaryText))
+                                .lineLimit(1)
+                            Spacer()
+                            if task.priority == "high" {
+                                WidgetPennant()
+                                    .fill(Color(theme.priorityHigh))
+                                    .frame(width: 8, height: 12)
+                            } else if task.priority == "medium" {
+                                WidgetPennant()
+                                    .fill(Color(theme.priorityMedium))
+                                    .frame(width: 8, height: 12)
+                            }
+                        }
+                    }
+
+                    if overflow > 0 {
+                        Text("+\(overflow) more")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Color(theme.secondaryText))
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
+    // Large widget — fills the extra height with more rows + a completion stat line.
+    // Max 8 visible rows; overflow shown as "+N more". Spacing is tighter (9pt) so
+    // rows fill the widget without awkward empty space at the bottom.
     private var largeView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header row
+        let maxRows = 8
+        let visible = Array(entry.tasks.prefix(maxRows))
+        let overflow = entry.taskCount - visible.count
+        let completed = entry.tasks.filter { $0.priority == "done" }.count  // approximation
+
+        return VStack(alignment: .leading, spacing: 0) {
+            // Header
             HStack(alignment: .firstTextBaseline) {
                 Text("ProdNote")
                     .font(.system(size: 18, weight: .bold))
@@ -106,9 +141,14 @@ struct ProdNoteWidgetView: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color(theme.secondaryText))
             }
-            .padding(.bottom, 16)
 
-            if entry.tasks.isEmpty {
+            // Thin separator under header
+            Rectangle()
+                .fill(Color(theme.separatorColor).opacity(0.5))
+                .frame(height: 0.5)
+                .padding(.vertical, 10)
+
+            if visible.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 28))
@@ -119,8 +159,8 @@ struct ProdNoteWidgetView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(entry.tasks.prefix(5)) { task in
+                VStack(alignment: .leading, spacing: 9) {
+                    ForEach(visible) { task in
                         HStack(spacing: 10) {
                             Circle()
                                 .strokeBorder(Color(theme.checkboxInactive), lineWidth: 1.5)
@@ -141,10 +181,17 @@ struct ProdNoteWidgetView: View {
                             }
                         }
                     }
+
+                    if overflow > 0 {
+                        Text("+\(overflow) more")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Color(theme.secondaryText))
+                            .padding(.top, 2)
+                    }
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 0)
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

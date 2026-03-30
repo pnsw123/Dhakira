@@ -97,62 +97,9 @@ private struct SmallWidgetPreview: View {
 }
 
 // MARK: - Medium Widget (2×4)
-// Mirrors ProdNoteWidgetView.mediumView exactly
+// Mirrors ProdNoteWidgetView.mediumView — header + task rows + flags + overflow footer.
 
 private struct MediumWidgetPreview: View {
-    let theme: AppTheme
-    let taskCount: Int
-
-    var body: some View {
-        ZStack {
-            widgetBackground(theme: theme)
-            HStack(spacing: 0) {
-                // Left — count stat
-                VStack(alignment: .leading, spacing: 4) {
-                    Image(systemName: "checklist")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(theme.accentColor)
-
-                    Spacer()
-
-                    Text("\(taskCount)")
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
-                        .foregroundStyle(theme.primaryText)
-
-                    Text("tasks today")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(theme.secondaryText)
-                }
-                .padding(16)
-                .frame(maxHeight: .infinity, alignment: .leading)
-
-                // Divider
-                Rectangle()
-                    .fill(theme.separatorColor.opacity(0.5))
-                    .frame(width: 0.5)
-                    .padding(.vertical, 16)
-
-                // Right — app name + open prompt
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("ProdNote")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(theme.primaryText)
-                    Text("Tap to open")
-                        .font(.system(size: 12))
-                        .foregroundStyle(theme.secondaryText)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .padding(.trailing, 16)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-}
-
-// MARK: - Large Widget (4×4)
-// Mirrors ProdNoteWidgetView.largeView exactly — includes sample task rows with flags
-
-private struct LargeWidgetPreview: View {
     let theme: AppTheme
     let taskCount: Int
 
@@ -170,48 +117,144 @@ private struct LargeWidgetPreview: View {
     ]
 
     var body: some View {
-        ZStack {
+        let maxRows = 4
+        let visible = Array(samples.prefix(maxRows))
+        let overflow = taskCount - visible.count
+
+        return ZStack {
             widgetBackground(theme: theme)
             VStack(alignment: .leading, spacing: 0) {
                 // Header
                 HStack(alignment: .firstTextBaseline) {
                     Text("ProdNote")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(theme.primaryText)
                     Spacer()
                     Text("\(taskCount) tasks")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(theme.secondaryText)
                 }
-                .padding(.bottom, 14)
+                .padding(.bottom, 8)
 
                 // Task rows
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(samples) { task in
-                        HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 7) {
+                    ForEach(visible) { task in
+                        HStack(spacing: 7) {
                             Circle()
-                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.5)
-                                .frame(width: 14, height: 14)
+                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
+                                .frame(width: 12, height: 12)
                             Text(task.title)
-                                .font(.system(size: 14))
+                                .font(.system(size: 12))
                                 .foregroundStyle(theme.primaryText)
                                 .lineLimit(1)
                             Spacer()
                             if task.priority == "high" {
                                 LargePreviewPennant()
                                     .fill(theme.priorityHigh)
-                                    .frame(width: 8, height: 12)
+                                    .frame(width: 7, height: 10)
                             } else if task.priority == "medium" {
                                 LargePreviewPennant()
                                     .fill(theme.priorityMedium)
-                                    .frame(width: 8, height: 12)
+                                    .frame(width: 7, height: 10)
                             }
                         }
                     }
+                    if overflow > 0 {
+                        Text("+\(overflow) more")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(theme.secondaryText)
+                    }
                 }
-                Spacer()
+
+                Spacer(minLength: 0)
             }
-            .padding(18)
+            .padding(14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+}
+
+// MARK: - Large Widget (4×4)
+// Mirrors ProdNoteWidgetView.largeView — header + separator + 8 task rows + flags + overflow
+
+private struct LargeWidgetPreview: View {
+    let theme: AppTheme
+    let taskCount: Int
+
+    private struct Sample: Identifiable {
+        let id = UUID()
+        let title: String
+        let priority: String
+    }
+    private let samples: [Sample] = [
+        Sample(title: "Submit tax documents",   priority: "high"),
+        Sample(title: "Reply to Sarah's email", priority: "medium"),
+        Sample(title: "Book flight tickets",    priority: "default"),
+        Sample(title: "Water the plants",       priority: "default"),
+        Sample(title: "Call the dentist",       priority: "default"),
+        Sample(title: "Prepare presentation",   priority: "high"),
+        Sample(title: "Buy groceries",          priority: "default"),
+        Sample(title: "Gym session at 6pm",     priority: "medium"),
+    ]
+
+    var body: some View {
+        let maxRows = 8
+        let visible = Array(samples.prefix(maxRows))
+        let overflow = taskCount - visible.count
+
+        return ZStack {
+            widgetBackground(theme: theme)
+            VStack(alignment: .leading, spacing: 0) {
+                // Header
+                HStack(alignment: .firstTextBaseline) {
+                    Text("ProdNote")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(theme.primaryText)
+                    Spacer()
+                    Text("\(taskCount) tasks")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(theme.secondaryText)
+                }
+
+                // Separator
+                Rectangle()
+                    .fill(theme.separatorColor.opacity(0.5))
+                    .frame(height: 0.5)
+                    .padding(.vertical, 9)
+
+                // Task rows
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(visible) { task in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
+                                .frame(width: 13, height: 13)
+                            Text(task.title)
+                                .font(.system(size: 13))
+                                .foregroundStyle(theme.primaryText)
+                                .lineLimit(1)
+                            Spacer()
+                            if task.priority == "high" {
+                                LargePreviewPennant()
+                                    .fill(theme.priorityHigh)
+                                    .frame(width: 7, height: 11)
+                            } else if task.priority == "medium" {
+                                LargePreviewPennant()
+                                    .fill(theme.priorityMedium)
+                                    .frame(width: 7, height: 11)
+                            }
+                        }
+                    }
+                    if overflow > 0 {
+                        Text("+\(overflow) more")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(theme.secondaryText)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
