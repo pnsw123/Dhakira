@@ -55,9 +55,9 @@ struct ThemeDetailView: View {
 
                 Spacer()
 
-                // Centre: phone mockup
+                // Centre: phone mockup — larger so the theme preview is legible
                 PhoneMockupView(theme: theme, scope: selectedScope)
-                    .frame(width: 180, height: 370)
+                    .frame(width: 240, height: 490)
 
                 // Scope selector pill
                 ScopeSelectorView(selected: $selectedScope)
