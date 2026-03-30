@@ -63,29 +63,6 @@ struct ThemeCardView: View {
     private var miniUIPreview: some View {
         VStack(spacing: 3) {
 
-            // Mini nav bar
-            HStack(spacing: 6) {
-                // Back chevron dot
-                Circle()
-                    .fill(theme.accentColor.opacity(0.80))
-                    .frame(width: 7, height: 7)
-
-                // Title bar
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(theme.primaryText.opacity(0.80))
-                    .frame(width: 36, height: 6)
-
-                Spacer()
-
-                // Ellipsis menu dot
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(theme.secondaryText.opacity(0.60))
-                    .frame(width: 10, height: 4)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(theme.screenBackground.opacity(0.50), in: RoundedRectangle(cornerRadius: 7))
-
             // Task list card with FAB overlay
             ZStack(alignment: .bottomTrailing) {
 
