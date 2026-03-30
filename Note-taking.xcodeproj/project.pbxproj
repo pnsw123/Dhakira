@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		38D4071B2F7A624D00B85136 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38D4071A2F7A624D00B85136 /* WidgetKit.framework */; };
+		38D4071D2F7A624D00B85136 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38D4071C2F7A624D00B85136 /* SwiftUI.framework */; };
+		38D4072C2F7A624F00B85136 /* ProdNoteWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 38D407182F7A624D00B85136 /* ProdNoteWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		38D407412F7A6DC700B85136 /* ProdNoteShared in Frameworks */ = {isa = PBXBuildFile; productRef = 38D407402F7A6DC700B85136 /* ProdNoteShared */; };
+		38D407432F7A6E1300B85136 /* ProdNoteShared in Frameworks */ = {isa = PBXBuildFile; productRef = 38D407422F7A6E1300B85136 /* ProdNoteShared */; };
 		AA000001AAAA000100000001 /* RichTextKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA000002AAAA000200000002 /* RichTextKit */; };
 /* End PBXBuildFile section */
 
@@ -18,6 +23,13 @@
 			remoteGlobalIDString = 38EED4792F75B1CB0069B470;
 			remoteInfo = "Note-taking";
 		};
+		38D4072A2F7A624F00B85136 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 38EED4722F75B1CB0069B470 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 38D407172F7A624D00B85136;
+			remoteInfo = ProdNoteWidgetExtensionExtension;
+		};
 		CC110001000000000000009A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 38EED4722F75B1CB0069B470 /* Project object */;
@@ -27,17 +39,42 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		38D4072D2F7A624F00B85136 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				38D4072C2F7A624F00B85136 /* ProdNoteWidgetExtensionExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		23ECF9A3315D49C3CF79E97D /* tasks */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; path = tasks; sourceTree = SOURCE_ROOT; };
 		2CDB94D54DD26F411EB8D88C /* References */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; path = References; sourceTree = SOURCE_ROOT; };
 		38577DFF2F785C68002E377C /* Note-takingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Note-takingTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		38577E592F787F2A002E377C /* Note-takingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Note-takingUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3862FF132F7888E8006FCB03 /* Note-taking.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Note-taking.xctestplan"; sourceTree = "<group>"; };
+		38D407182F7A624D00B85136 /* ProdNoteWidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ProdNoteWidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		38D4071A2F7A624D00B85136 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		38D4071C2F7A624D00B85136 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		38D4073E2F7A685B00B85136 /* ProdNoteWidgetExtensionExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ProdNoteWidgetExtensionExtension.entitlements; sourceTree = "<group>"; };
 		38EED47A2F75B1CB0069B470 /* Note-taking.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Note-taking.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3DBD6ED202F394D995BBE1E /* PRELAUNCH-REQUIREMENTS.md */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = net.daringfireball.markdown; path = "PRELAUNCH-REQUIREMENTS.md"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		38D407312F7A624F00B85136 /* Exceptions for "ProdNoteWidgetExtension" folder in "ProdNoteWidgetExtensionExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 38D407172F7A624D00B85136 /* ProdNoteWidgetExtensionExtension */;
+		};
 		AA000010BBBB001000000010 /* Exceptions for "Note-taking" folder in "Note-taking" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -51,6 +88,14 @@
 		38577E5A2F787F2A002E377C /* Note-takingUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "Note-takingUITests";
+			sourceTree = "<group>";
+		};
+		38D4071E2F7A624D00B85136 /* ProdNoteWidgetExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				38D407312F7A624F00B85136 /* Exceptions for "ProdNoteWidgetExtension" folder in "ProdNoteWidgetExtensionExtension" target */,
+			);
+			path = ProdNoteWidgetExtension;
 			sourceTree = "<group>";
 		};
 		38EED47C2F75B1CB0069B470 /* Note-taking */ = {
@@ -76,10 +121,21 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		38D407152F7A624D00B85136 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				38D4071D2F7A624D00B85136 /* SwiftUI.framework in Frameworks */,
+				38D4071B2F7A624D00B85136 /* WidgetKit.framework in Frameworks */,
+				38D407432F7A6E1300B85136 /* ProdNoteShared in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		38EED4772F75B1CB0069B470 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				38D407412F7A6DC700B85136 /* ProdNoteShared in Frameworks */,
 				AA000001AAAA000100000001 /* RichTextKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -94,13 +150,25 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		38D407192F7A624D00B85136 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				38D4071A2F7A624D00B85136 /* WidgetKit.framework */,
+				38D4071C2F7A624D00B85136 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		38EED4712F75B1CB0069B470 = {
 			isa = PBXGroup;
 			children = (
+				38D4073E2F7A685B00B85136 /* ProdNoteWidgetExtensionExtension.entitlements */,
 				3862FF132F7888E8006FCB03 /* Note-taking.xctestplan */,
 				38EED47C2F75B1CB0069B470 /* Note-taking */,
 				CC110001000000000000001A /* Note-takingTests */,
 				38577E5A2F787F2A002E377C /* Note-takingUITests */,
+				38D4071E2F7A624D00B85136 /* ProdNoteWidgetExtension */,
+				38D407192F7A624D00B85136 /* Frameworks */,
 				38EED47B2F75B1CB0069B470 /* Products */,
 				2CDB94D54DD26F411EB8D88C /* References */,
 				B3DBD6ED202F394D995BBE1E /* PRELAUNCH-REQUIREMENTS.md */,
@@ -114,6 +182,7 @@
 				38EED47A2F75B1CB0069B470 /* Note-taking.app */,
 				38577DFF2F785C68002E377C /* Note-takingTests.xctest */,
 				38577E592F787F2A002E377C /* Note-takingUITests.xctest */,
+				38D407182F7A624D00B85136 /* ProdNoteWidgetExtensionExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -144,6 +213,29 @@
 			productReference = 38577E592F787F2A002E377C /* Note-takingUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		38D407172F7A624D00B85136 /* ProdNoteWidgetExtensionExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 38D407302F7A624F00B85136 /* Build configuration list for PBXNativeTarget "ProdNoteWidgetExtensionExtension" */;
+			buildPhases = (
+				38D407142F7A624D00B85136 /* Sources */,
+				38D407152F7A624D00B85136 /* Frameworks */,
+				38D407162F7A624D00B85136 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				38D4071E2F7A624D00B85136 /* ProdNoteWidgetExtension */,
+			);
+			name = ProdNoteWidgetExtensionExtension;
+			packageProductDependencies = (
+				38D407422F7A6E1300B85136 /* ProdNoteShared */,
+			);
+			productName = ProdNoteWidgetExtensionExtension;
+			productReference = 38D407182F7A624D00B85136 /* ProdNoteWidgetExtensionExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		38EED4792F75B1CB0069B470 /* Note-taking */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 38EED4852F75B1CC0069B470 /* Build configuration list for PBXNativeTarget "Note-taking" */;
@@ -151,10 +243,12 @@
 				38EED4762F75B1CB0069B470 /* Sources */,
 				38EED4772F75B1CB0069B470 /* Frameworks */,
 				38EED4782F75B1CB0069B470 /* Resources */,
+				38D4072D2F7A624F00B85136 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				38D4072B2F7A624F00B85136 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				38EED47C2F75B1CB0069B470 /* Note-taking */,
@@ -162,6 +256,7 @@
 			name = "Note-taking";
 			packageProductDependencies = (
 				AA000002AAAA000200000002 /* RichTextKit */,
+				38D407402F7A6DC700B85136 /* ProdNoteShared */,
 			);
 			productName = "Note-taking";
 			productReference = 38EED47A2F75B1CB0069B470 /* Note-taking.app */;
@@ -201,6 +296,9 @@
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = 38EED4792F75B1CB0069B470;
 					};
+					38D407172F7A624D00B85136 = {
+						CreatedOnToolsVersion = 26.3;
+					};
 					38EED4792F75B1CB0069B470 = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -221,6 +319,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AA000003AAAA000300000003 /* XCRemoteSwiftPackageReference "RichTextKit" */,
+				38D4073F2F7A6D8400B85136 /* XCLocalSwiftPackageReference "ProdNoteShared" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 38EED47B2F75B1CB0069B470 /* Products */;
@@ -230,12 +329,20 @@
 				38EED4792F75B1CB0069B470 /* Note-taking */,
 				CC110001000000000000005A /* Note-takingTests */,
 				38577E582F787F2A002E377C /* Note-takingUITests */,
+				38D407172F7A624D00B85136 /* ProdNoteWidgetExtensionExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		38577E572F787F2A002E377C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		38D407162F7A624D00B85136 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +360,13 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		38577E552F787F2A002E377C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		38D407142F7A624D00B85136 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -280,6 +394,11 @@
 			isa = PBXTargetDependency;
 			target = 38EED4792F75B1CB0069B470 /* Note-taking */;
 			targetProxy = 38577E5F2F787F2A002E377C /* PBXContainerItemProxy */;
+		};
+		38D4072B2F7A624F00B85136 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 38D407172F7A624D00B85136 /* ProdNoteWidgetExtensionExtension */;
+			targetProxy = 38D4072A2F7A624F00B85136 /* PBXContainerItemProxy */;
 		};
 		CC11000100000000000000AA /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -328,6 +447,73 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = "Note-taking";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		38D4072E2F7A624F00B85136 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = ProdNoteWidgetExtensionExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JUWG4SPT5Q;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ProdNoteWidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ProdNoteWidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "notes.Note-taking.ProdNoteWidgetExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		38D4072F2F7A624F00B85136 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = ProdNoteWidgetExtensionExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JUWG4SPT5Q;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ProdNoteWidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ProdNoteWidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "notes.Note-taking.ProdNoteWidgetExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -451,6 +637,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Note-taking/Note-taking.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -478,9 +665,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "notes.Note-taking";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				SDKROOT = auto;
+				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -497,6 +684,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Note-taking/Note-taking.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -514,9 +702,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "notes.Note-taking";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				SDKROOT = auto;
+				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -584,6 +772,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		38D407302F7A624F00B85136 /* Build configuration list for PBXNativeTarget "ProdNoteWidgetExtensionExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				38D4072E2F7A624F00B85136 /* Debug */,
+				38D4072F2F7A624F00B85136 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		38EED4752F75B1CB0069B470 /* Build configuration list for PBXProject "Note-taking" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -613,6 +810,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		38D4073F2F7A6D8400B85136 /* XCLocalSwiftPackageReference "ProdNoteShared" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ProdNoteShared;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		AA000003AAAA000300000003 /* XCRemoteSwiftPackageReference "RichTextKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -625,6 +829,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		38D407402F7A6DC700B85136 /* ProdNoteShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 38D4073F2F7A6D8400B85136 /* XCLocalSwiftPackageReference "ProdNoteShared" */;
+			productName = ProdNoteShared;
+		};
+		38D407422F7A6E1300B85136 /* ProdNoteShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 38D4073F2F7A6D8400B85136 /* XCLocalSwiftPackageReference "ProdNoteShared" */;
+			productName = ProdNoteShared;
+		};
 		AA000002AAAA000200000002 /* RichTextKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = AA000003AAAA000300000003 /* XCRemoteSwiftPackageReference "RichTextKit" */;

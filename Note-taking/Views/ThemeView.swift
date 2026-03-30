@@ -1,8 +1,7 @@
 import SwiftUI
 
 // MARK: - ThemeView
-// 2-column LazyVGrid gallery of paid themes.
-// Default and Midnight are intentionally excluded — users rely on system dark/light mode.
+// 2-column LazyVGrid gallery of all themes.
 // Issue #71 — https://github.com/pnsw123/prod-note/issues/71
 
 struct ThemeView: View {
@@ -13,11 +12,9 @@ struct ThemeView: View {
     @State private var selectedTheme: AppTheme? = nil
     @Namespace private var namespace
 
-    // Filter out Default and Midnight — users use system appearance for those.
     private var displayedThemes: [AppTheme] {
-        let base = AppTheme.all.filter { $0.id != "default" && $0.id != "midnight" }
-        if searchText.isEmpty { return base }
-        return base.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        if searchText.isEmpty { return AppTheme.all }
+        return AppTheme.all.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
 
     var body: some View {

@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import ProdNoteShared
 
 // MARK: - ProdNoteWidgetBundle
 // Entry point for the Widget Extension target.

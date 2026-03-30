@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import ProdNoteShared
 
 // MARK: - ProdNoteWidgetView
 // Renders all widget sizes. Reads theme tokens directly from AppTheme (shared file).
@@ -31,39 +32,65 @@ struct ProdNoteWidgetView: View {
     private var smallView: some View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: "checklist")
-                .font(.title2)
+                .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(Color(theme.accentColor))
-                .widgetAccentable()   // tinted in iOS 16+ accented rendering mode
+                .widgetAccentable()
 
             Spacer()
 
             Text("\(entry.taskCount)")
-                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .font(.system(size: 42, weight: .bold, design: .rounded))
                 .foregroundStyle(Color(theme.primaryText))
 
             Text("tasks today")
-                .font(.caption)
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color(theme.secondaryText))
         }
-        .padding(14)
+        .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     private var mediumView: some View {
-        HStack(spacing: 16) {
-            smallView
-            Divider()
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 0) {
+            // Left — count stat
+            VStack(alignment: .leading, spacing: 6) {
+                Image(systemName: "checklist")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Color(theme.accentColor))
+                    .widgetAccentable()
+
+                Spacer()
+
+                Text("\(entry.taskCount)")
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(theme.primaryText))
+
+                Text("tasks today")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color(theme.secondaryText))
+            }
+            .padding(16)
+            .frame(maxHeight: .infinity, alignment: .leading)
+
+            // Divider
+            Rectangle()
+                .fill(Color(theme.separatorColor).opacity(0.5))
+                .frame(width: 0.5)
+                .padding(.vertical, 16)
+
+            // Right — app name
+            VStack(alignment: .leading, spacing: 6) {
                 Text("ProdNote")
-                    .font(.headline)
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(Color(theme.primaryText))
                     .widgetAccentable()
                 Text("Tap to open")
-                    .font(.caption)
+                    .font(.system(size: 13))
                     .foregroundStyle(Color(theme.secondaryText))
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .padding(.trailing, 16)
         }
-        .padding(14)
     }
 
     private var largeView: some View {
@@ -71,40 +98,46 @@ struct ProdNoteWidgetView: View {
             // Header row
             HStack(alignment: .firstTextBaseline) {
                 Text("ProdNote")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(Color(theme.primaryText))
                     .widgetAccentable()
                 Spacer()
                 Text("\(entry.taskCount) tasks")
-                    .font(.caption)
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color(theme.secondaryText))
             }
-            .padding(.bottom, 12)
+            .padding(.bottom, 16)
 
             if entry.tasks.isEmpty {
-                Text("No tasks remaining")
-                    .font(.subheadline)
-                    .foregroundStyle(Color(theme.secondaryText))
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Color(theme.accentColor))
+                    Text("All caught up!")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color(theme.secondaryText))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     ForEach(entry.tasks.prefix(5)) { task in
-                        HStack(spacing: 8) {
+                        HStack(spacing: 10) {
                             Circle()
                                 .strokeBorder(Color(theme.checkboxInactive), lineWidth: 1.5)
-                                .frame(width: 14, height: 14)
+                                .frame(width: 16, height: 16)
                             Text(task.title)
-                                .font(.system(size: 14))
+                                .font(.system(size: 15))
                                 .foregroundStyle(Color(theme.primaryText))
                                 .lineLimit(1)
                             Spacer()
                             if task.priority == "high" {
                                 WidgetPennant()
                                     .fill(Color(theme.priorityHigh))
-                                    .frame(width: 9, height: 13)
+                                    .frame(width: 9, height: 14)
                             } else if task.priority == "medium" {
                                 WidgetPennant()
                                     .fill(Color(theme.priorityMedium))
-                                    .frame(width: 9, height: 13)
+                                    .frame(width: 9, height: 14)
                             }
                         }
                     }

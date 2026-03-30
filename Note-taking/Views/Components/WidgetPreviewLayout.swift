@@ -13,49 +13,41 @@ struct WidgetPreviewLayout: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(spacing: 20) {
 
                 // SMALL · 2×2
-                sectionHeader("SMALL · 2×2")
-                    .padding(.bottom, 8)
-                SmallWidgetPreview(theme: theme, taskCount: taskCount)
-                    .frame(width: 100, height: 100)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .padding(.bottom, 16)
+                VStack(alignment: .leading, spacing: 8) {
+                    sectionHeader("SMALL · 2×2")
+                    SmallWidgetPreview(theme: theme, taskCount: taskCount)
+                        .frame(width: 170, height: 170)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 // MEDIUM · 2×4
-                sectionHeader("MEDIUM · 2×4")
-                    .padding(.bottom, 8)
-                MediumWidgetPreview(theme: theme, taskCount: taskCount)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 100)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .padding(.bottom, 16)
+                VStack(alignment: .leading, spacing: 8) {
+                    sectionHeader("MEDIUM · 2×4")
+                    MediumWidgetPreview(theme: theme, taskCount: taskCount)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 170)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+                }
 
                 // LARGE · 4×4
-                sectionHeader("LARGE · 4×4")
-                    .padding(.bottom, 8)
-                LargeWidgetPreview(theme: theme, taskCount: taskCount)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 175)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .padding(.bottom, 20)
-
-                // Add Widget CTA
-                HStack {
-                    Spacer()
-                    Text("Add Widget")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 10)
-                        .background(theme.accentColor, in: Capsule())
-                    Spacer()
+                VStack(alignment: .leading, spacing: 8) {
+                    sectionHeader("LARGE · 4×4")
+                    LargeWidgetPreview(theme: theme, taskCount: taskCount)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 240)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
-            .padding(.bottom, 16)
+            .padding(.bottom, 24)
         }
     }
 
@@ -67,8 +59,22 @@ struct WidgetPreviewLayout: View {
     }
 }
 
+// MARK: - Widget Gradient Background
+// Creates a subtle diagonal gradient using theme mesh colors for a premium feel.
+
+private func widgetGradient(theme: AppTheme) -> some View {
+    LinearGradient(
+        colors: [
+            theme.meshColors.count > 3 ? theme.meshColors[3] : theme.screenBackground,
+            theme.screenBackground,
+            theme.meshColors.count > 5 ? theme.meshColors[5] : theme.screenBackground
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+}
+
 // MARK: - Small Widget (2×2)
-// Mirrors ProdNoteWidgetView.smallView exactly
 
 private struct SmallWidgetPreview: View {
     let theme: AppTheme
@@ -76,23 +82,23 @@ private struct SmallWidgetPreview: View {
 
     var body: some View {
         ZStack {
-            theme.screenBackground
+            widgetGradient(theme: theme)
             VStack(alignment: .leading, spacing: 4) {
                 Image(systemName: "checklist")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(theme.accentColor)
 
                 Spacer()
 
                 Text("\(taskCount)")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
                     .foregroundStyle(theme.primaryText)
 
                 Text("tasks today")
-                    .font(.system(size: 9))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(theme.secondaryText)
             }
-            .padding(12)
+            .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
     }
@@ -107,44 +113,44 @@ private struct MediumWidgetPreview: View {
 
     var body: some View {
         ZStack {
-            theme.screenBackground
-            HStack(spacing: 12) {
+            widgetGradient(theme: theme)
+            HStack(spacing: 0) {
                 // Left — count stat
                 VStack(alignment: .leading, spacing: 4) {
                     Image(systemName: "checklist")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(theme.accentColor)
 
                     Spacer()
 
                     Text("\(taskCount)")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
                         .foregroundStyle(theme.primaryText)
 
                     Text("tasks today")
-                        .font(.system(size: 9))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(theme.secondaryText)
                 }
-                .padding(12)
+                .padding(16)
                 .frame(maxHeight: .infinity, alignment: .leading)
 
                 // Divider
                 Rectangle()
-                    .fill(theme.separatorColor)
+                    .fill(theme.separatorColor.opacity(0.5))
                     .frame(width: 0.5)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 16)
 
                 // Right — app name + open prompt
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("ProdNote")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(theme.primaryText)
                     Text("Tap to open")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                         .foregroundStyle(theme.secondaryText)
                 }
-                .padding(.trailing, 12)
-                .frame(maxHeight: .infinity, alignment: .center)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .padding(.trailing, 16)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -173,47 +179,47 @@ private struct LargeWidgetPreview: View {
 
     var body: some View {
         ZStack {
-            theme.screenBackground
+            widgetGradient(theme: theme)
             VStack(alignment: .leading, spacing: 0) {
                 // Header
                 HStack(alignment: .firstTextBaseline) {
                     Text("ProdNote")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(theme.primaryText)
                     Spacer()
                     Text("\(taskCount) tasks")
-                        .font(.system(size: 9))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(theme.secondaryText)
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, 14)
 
                 // Task rows
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 10) {
                     ForEach(samples) { task in
-                        HStack(spacing: 5) {
+                        HStack(spacing: 8) {
                             Circle()
-                                .strokeBorder(theme.checkboxInactive, lineWidth: 1)
-                                .frame(width: 9, height: 9)
+                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.5)
+                                .frame(width: 14, height: 14)
                             Text(task.title)
-                                .font(.system(size: 10))
+                                .font(.system(size: 14))
                                 .foregroundStyle(theme.primaryText)
                                 .lineLimit(1)
                             Spacer()
                             if task.priority == "high" {
                                 LargePreviewPennant()
                                     .fill(theme.priorityHigh)
-                                    .frame(width: 6, height: 9)
+                                    .frame(width: 8, height: 12)
                             } else if task.priority == "medium" {
                                 LargePreviewPennant()
                                     .fill(theme.priorityMedium)
-                                    .frame(width: 6, height: 9)
+                                    .frame(width: 8, height: 12)
                             }
                         }
                     }
                 }
                 Spacer()
             }
-            .padding(12)
+            .padding(18)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }

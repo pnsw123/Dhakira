@@ -1,7 +1,8 @@
 import SwiftUI
 
 // MARK: - ThemeScope
-// Three options shown in the pill selector inside ThemeDetailView.
+// Two preview modes in ThemeDetailView — just switches what the phone mockup shows.
+// The Apply button always applies the theme to BOTH app and widgets.
 // Issue #74 — https://github.com/pnsw123/prod-note/issues/74
 
 enum ThemeScope: String, CaseIterable, Identifiable {
@@ -12,7 +13,7 @@ enum ThemeScope: String, CaseIterable, Identifiable {
 }
 
 // MARK: - ScopeSelectorView
-// Animated pill selector. The active capsule slides via matchedGeometryEffect.
+// Animated pill selector — preview toggle only (not a scope for applying).
 
 struct ScopeSelectorView: View {
     @Binding var selected: ThemeScope

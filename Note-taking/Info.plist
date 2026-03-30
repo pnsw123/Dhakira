@@ -35,5 +35,7 @@
 	<string>ProdNote uses your calendar to automatically create events for tasks that have dates in their titles.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ProdNote uses the microphone to record voice notes that you can attach to your tasks.</string>
+	<key>UILaunchScreen</key>
+	<dict/>
 </dict>
 </plist>

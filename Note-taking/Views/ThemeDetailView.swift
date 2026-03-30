@@ -53,17 +53,17 @@ struct ThemeDetailView: View {
                         .overlay(alignment: .leading) {
                             if selectedScope == .app {
                                 mockNavArrow(forward: false)
-                                    .offset(x: -44)
+                                    .offset(x: -64)
                             }
                         }
                         .overlay(alignment: .trailing) {
                             if selectedScope == .app {
                                 mockNavArrow(forward: true)
-                                    .offset(x: 44)
+                                    .offset(x: 64)
                             }
                         }
 
-                    // Page indicator dots — below the phone frame, visible for App scope only
+                    // Page indicator dots — only for App scope
                     if selectedScope == .app {
                         HStack(spacing: 6) {
                             ForEach(0..<3, id: \.self) { i in

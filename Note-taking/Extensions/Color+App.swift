@@ -138,17 +138,4 @@ extension Color {
     static var themeAccent: Color       { ThemeManager.shared.current.accentColor }
 }
 
-// MARK: - Light/dark adaptive color helper
-extension Color {
-    init(light: Color, dark: Color) {
-        #if canImport(UIKit)
-        self.init(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(dark)
-                : UIColor(light)
-        })
-        #else
-        self = light
-        #endif
-    }
-}
+// Color(light:dark:) is now provided by ProdNoteShared package.

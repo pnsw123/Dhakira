@@ -1245,109 +1245,15 @@ struct TaskDetailView: View {
         let liveText = richTextView?.attributedText ?? attributedText
         NoteBodyBinding.save(liveText, into: task,
                              onSaveError: { saveError = $0 })
-        // Issue #63: scan the title AND body for dates and sync to Apple Calendar asynchronously.
-        // This is fire-and-forget — the save completes immediately; the sync happens in the
-        // background and never blocks or delays the user experience.
-        let taskId = task.id
-        let title = task.title
+        // Issue #63: scan title + body for a date and sync to Apple Calendar.
+        // Fire-and-forget — never blocks the UI.
         let bodyText = liveText.string
-        let existingEventId = task.calendarEventId
-        Task {
-            await syncCalendarIfNeeded(
-                taskId: taskId,
-                title: title,
-                bodyText: bodyText,
-                existingEventId: existingEventId
-            )
-        }
+        let t = task
+        Task { await CalendarSyncService.shared.syncTaskIfNeeded(t, bodyText: bodyText) }
     }
 
     // MARK: - Calendar Sync (Issue #63)
-
-    private let dateDetector = DateDetectionService()
-
-    /// Scans the task title (and body) for a date. If found, creates or updates a
-    /// calendar event. If the date is removed, deletes the old event.
-    /// Runs entirely in the background — never blocks the UI.
-    private func syncCalendarIfNeeded(taskId: UUID, title: String, bodyText: String, existingEventId: String?) async {
-        let cal = Calendar.current
-        let now = Date()
-
-        // Scan title first — title dates take priority.
-        // We keep the full DetectedDate so we can strip the date text from the event title.
-        let titleDetected = dateDetector.detectDates(in: title)
-        let bodyDetected  = bodyText.isEmpty ? [] : dateDetector.detectDates(in: bodyText)
-
-        // Accept dates that are in the future OR are today (handles "meeting at 5pm"
-        // typed at 5:01pm — the intent is clearly today, not yesterday).
-        // Old behaviour (filter { $0 > now }) was silently dropping same-day past times.
-        func isRelevant(_ date: Date) -> Bool {
-            date > now || cal.isDateInToday(date)
-        }
-
-        let relevantTitle = titleDetected.filter { isRelevant($0.date) }
-        let relevantBody  = bodyDetected.filter  { isRelevant($0.date) }
-        let allRelevant   = relevantTitle + relevantBody
-
-        guard let earliest = allRelevant.min(by: { $0.date < $1.date }) else {
-            // No relevant date found — delete any stale calendar event.
-            if let staleId = existingEventId {
-                await CalendarSyncService.shared.deleteEvent(withId: staleId)
-                await MainActor.run { task.calendarEventId = nil }
-            }
-            return
-        }
-
-        // Build a clean event title by stripping the detected date text from the task title.
-        // Example: "watch one piece at 4pm" → "watch one piece"
-        // If the date came from the body (not title), keep the full title as-is.
-        let eventTitle: String
-        if relevantTitle.contains(where: { $0.date == earliest.date }) {
-            eventTitle = strippingDateText(earliest, from: title)
-        } else {
-            eventTitle = title
-        }
-
-        let deepLinkURL = DeepLinkHandler.taskURL(for: taskId)
-        let newEventId = await CalendarSyncService.shared.syncDateToCalendar(
-            title: eventTitle.isEmpty ? title : eventTitle,
-            date: earliest.date,
-            existingEventId: existingEventId,
-            deepLinkURL: deepLinkURL
-        )
-        await MainActor.run { task.calendarEventId = newEventId }
-    }
-
-    /// Returns `title` with the date match text removed, trimmed of surrounding whitespace.
-    /// "watch one piece at 4pm" → "watch one piece"
-    /// "Dentist on March 10th" → "Dentist on March 10th" stripped → "Dentist on"
-    ///
-    /// Strategy: convert to NSString, remove the matched NSRange, then trim.
-    private func strippingDateText(_ detected: DetectedDate, from title: String) -> String {
-        let ns = title as NSString
-        let matchRange = NSRange(detected.range, in: title)
-        // Expand leftward to swallow a leading preposition separator (" at ", " on ", " ", ", ")
-        var start = matchRange.location
-        var length = matchRange.length
-        let separators = [" at ", " on ", ", ", " "]
-        for sep in separators {
-            let sepLen = sep.utf16.count
-            if start >= sepLen {
-                let candidate = ns.substring(with: NSRange(location: start - sepLen, length: sepLen))
-                if candidate.lowercased() == sep {
-                    start  -= sepLen
-                    length += sepLen
-                    break
-                }
-            }
-        }
-        // Expand rightward past trailing whitespace
-        while start + length < ns.length, ns.character(at: start + length) == 32 /* space */ {
-            length += 1
-        }
-        let cleaned = ns.replacingCharacters(in: NSRange(location: start, length: length), with: "")
-        return cleaned.trimmingCharacters(in: .whitespaces)
-    }
+    // Logic lives in CalendarSyncService.syncTaskIfNeeded(_:bodyText:)
 }
 
 

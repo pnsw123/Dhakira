@@ -1,10 +1,8 @@
 import SwiftUI
 
 // MARK: - ThemeCardView
-// Reusable animated card used in the theme gallery grid.
-// Shows live MeshGradient thumbnail with a bottom gradient for text legibility.
-// No frosted material overlay — material was killing the gradient visibility.
-// Issue #72 — https://github.com/pnsw123/prod-note/issues/72
+// Compact thumbnail card used in the 2-column theme gallery grid.
+// Shows the theme's real MeshGradient so each card is a true colour preview.
 
 struct ThemeCardView: View {
     let theme: AppTheme
@@ -14,79 +12,80 @@ struct ThemeCardView: View {
     @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .bottom) {
 
-            // Layer 1 — live MeshGradient thumbnail
+            // Layer 1 — real theme gradient (shows exactly what you get)
             cardBackground
 
-            // Layer 2 — specular highlight (light streak at top = elevated, premium feel)
+            // Layer 2 — bottom fade so label is always legible
             LinearGradient(
-                colors: [.white.opacity(0.18), .clear],
-                startPoint: .top,
-                endPoint: UnitPoint(x: 0.5, y: 0.42)
-            )
-
-            // Layer 3 — bottom gradient so text is always readable
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.65)],
-                startPoint: UnitPoint(x: 0.5, y: 0.42),
+                colors: [.clear, .black.opacity(0.68)],
+                startPoint: UnitPoint(x: 0.5, y: 0.45),
                 endPoint: .bottom
             )
 
-            // Layer 3 — theme name only
-            VStack {
-                Spacer()
+            // Layer 3 — theme name + mood tag
+            HStack(alignment: .bottom, spacing: 4) {
                 Text(theme.name)
-                    .font(.title3)
-                    .fontWeight(.bold)
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(14)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                tagBadge
             }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 11)
 
-            // Layer 4 — selected checkmark (top-right corner)
-            if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.white)
-                    .padding(8)
-                    .modifier(DrawOnSymbolEffect(trigger: isSelected))
-            }
-
-            // Layer 5 — selected ring
+            // Layer 4 — selection ring in the theme's own accent colour
             if isSelected {
                 RoundedRectangle(cornerRadius: 20)
-                    .strokeBorder(.white, lineWidth: 3)
+                    .strokeBorder(theme.accentColor, lineWidth: 2.5)
             }
         }
-        .clipShape(cardShape)
-        .aspectRatio(0.75, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .aspectRatio(0.82, contentMode: .fit)
         .matchedTransitionSource(id: theme.id, in: namespace)
         .shadow(color: .black.opacity(0.28), radius: 16, x: 0, y: 8)
     }
 
-    // MARK: — Card shape: ConcentricRectangle (iOS 26) else RoundedRectangle
+    // MARK: — Tag badge
 
-    private var cardShape: AnyShape {
-        AnyShape(RoundedRectangle(cornerRadius: 20))
+    @ViewBuilder
+    private var tagBadge: some View {
+        let label = isSelected ? "Active" : theme.tag
+        Text(label)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(
+                isSelected ? theme.accentColor.opacity(0.85) : .white.opacity(0.20),
+                in: Capsule()
+            )
     }
 
-    // MARK: — Card thumbnail background
-    // MeshGradient blurs at small sizes — unusable for thumbnails.
-    // Instead: solid vivid focal colour (meshColors[4]) + radial vignette that darkens
-    // the edges. Creates a clean spotlight effect: vivid centre, dark corners. No blur.
+    // MARK: — Card background
+    // MeshGradient blurs badly at thumbnail size — not used here.
+    // Instead: vivid focal colour (meshColors[4]) as base, with the theme's
+    // corner tones layered on top as a diagonal gradient so the full palette
+    // reads clearly at any size.
 
     @ViewBuilder
     private var cardBackground: some View {
         ZStack {
-            // Solid vivid focal colour — each theme's most saturated tone
+            // Base — most vivid / saturated colour of the theme
             theme.meshColors[4]
-            // Radial vignette — edges darken, centre stays pure and vivid
-            RadialGradient(
-                colors: [.clear, .black.opacity(0.72)],
-                center: .center,
-                startRadius: 30,
-                endRadius: 150
+
+            // Diagonal overlay — top-left corner → centre → bottom-right corner
+            // Adds the dark/light tonal range without MeshGradient blur
+            LinearGradient(
+                colors: [
+                    theme.meshColors[0].opacity(0.78),
+                    theme.meshColors[4].opacity(0.0),
+                    theme.meshColors[8].opacity(0.78)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
         }
     }
@@ -95,25 +94,19 @@ struct ThemeCardView: View {
 // MARK: - Preview
 
 #Preview {
-    HStack(spacing: 12) {
-        ThemeCardView(theme: .academia, isSelected: false, namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .rose,     isSelected: true,  namespace: Namespace().wrappedValue)
+    LazyVGrid(
+        columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
+        spacing: 16
+    ) {
+        ThemeCardView(theme: .academia,   isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .nord,       isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .tokyoNight, isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .forest,     isSelected: true,  namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .rose,       isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .void,       isSelected: false, namespace: Namespace().wrappedValue)
     }
+    .padding(16)
+    .background(Color(red: 0.11, green: 0.11, blue: 0.12))
     .environment(ThemeManager.shared)
     .environment(StoreKitManager.shared)
-    .padding()
-    .background(Color.gray)
-}
-
-// MARK: — iOS 26 symbol effect
-
-private struct DrawOnSymbolEffect: ViewModifier {
-    let trigger: Bool
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content.symbolEffect(.drawOn, isActive: trigger)
-        } else {
-            content
-        }
-    }
 }

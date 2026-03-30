@@ -65,12 +65,12 @@ private struct MockTasksPage: View {
     }
 
     private let rows: [Row] = [
-        Row(title: "Morning standup",      done: false, priority: "high"),
-        Row(title: "Review pull requests", done: false, priority: "medium"),
-        Row(title: "Update documentation", done: true,  priority: "none"),
+        Row(title: "Morning standup",      done: true,  priority: "high"),
+        Row(title: "Review pull requests", done: true,  priority: "medium"),
+        Row(title: "Update documentation", done: false, priority: "none"),
         Row(title: "Team lunch 12pm",      done: false, priority: "none"),
         Row(title: "Write weekly report",  done: false, priority: "none"),
-        Row(title: "Check emails",         done: true,  priority: "none"),
+        Row(title: "Check emails",         done: false, priority: "none"),
         Row(title: "Plan next sprint",     done: false, priority: "none"),
     ]
 
@@ -114,11 +114,14 @@ private struct MockTasksPage: View {
                         HStack(spacing: 8) {
                             ZStack {
                                 if row.done {
-                                    // Mirrors real TaskRowView exactly: checkmark.circle.fill
-                                    // colored by priority — gray (secondaryText) for no priority
+                                    // Mirrors real TaskRowView: checkmark colored by priority
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 16))
-                                        .foregroundStyle(theme.secondaryText)
+                                        .foregroundStyle(
+                                            row.priority == "high"   ? theme.priorityHigh :
+                                            row.priority == "medium" ? theme.priorityMedium :
+                                            theme.secondaryText
+                                        )
                                 } else {
                                     Circle()
                                         .strokeBorder(theme.checkboxInactive, lineWidth: 1)

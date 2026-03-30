@@ -1,6 +1,7 @@
 import EventKit
 import Foundation
 import OSLog
+import SwiftData
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "CalendarSync")
 
@@ -104,6 +105,94 @@ final class CalendarSyncService {
         } catch {
             log.error("deleteEvent: failed to remove '\(eventId)' — \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - High-level task sync
+
+    /// Scans the task title (and optional body text) for a natural-language date/time.
+    /// If found → creates or updates a calendar event and stores the ID back on the task.
+    /// If not found → deletes any stale calendar event.
+    ///
+    /// Uses Apple's NSDataDetector — understands "today", "tomorrow", "next Friday",
+    /// "March 30", "3/30", "5pm", "9 o'clock", and virtually every other format.
+    /// Safe to call at task creation time or after any edit.
+    func syncTaskIfNeeded(_ task: TaskItem, bodyText: String = "") async {
+        let cal = Calendar.current
+        let now = Date()
+        let title = task.title
+        let existingEventId = task.calendarEventId
+
+        let detector = DateDetectionService()
+        let titleDetected = detector.detectDates(in: title)
+        let bodyDetected  = bodyText.isEmpty ? [] : detector.detectDates(in: bodyText)
+
+        // Accept dates that are today (even if the exact time has passed) or in the future.
+        func isRelevant(_ date: Date) -> Bool {
+            date > now || cal.isDateInToday(date)
+        }
+
+        let relevantTitle = titleDetected.filter { isRelevant($0.date) }
+        let relevantBody  = bodyDetected.filter  { isRelevant($0.date) }
+        let allRelevant   = relevantTitle + relevantBody
+
+        guard let earliest = allRelevant.min(by: { $0.date < $1.date }) else {
+            // No date in the text — delete any stale calendar event.
+            if let staleId = existingEventId {
+                await deleteEvent(withId: staleId)
+                await MainActor.run { task.calendarEventId = nil }
+            }
+            return
+        }
+
+        // Build a clean event title by stripping the date text from the task title.
+        // "Dentist at 5pm" → "Dentist"   |   "Meeting tomorrow at 9am" → "Meeting"
+        // If the date came from the body, keep the full title as-is.
+        let eventTitle: String
+        if relevantTitle.contains(where: { $0.date == earliest.date }) {
+            eventTitle = strippingDateText(earliest, from: title)
+        } else {
+            eventTitle = title
+        }
+
+        let deepLinkURL = DeepLinkHandler.taskURL(for: task.id)
+        let newEventId = await syncDateToCalendar(
+            title: eventTitle.isEmpty ? title : eventTitle,
+            date: earliest.date,
+            existingEventId: existingEventId,
+            deepLinkURL: deepLinkURL
+        )
+        await MainActor.run { task.calendarEventId = newEventId }
+    }
+
+    // MARK: - Date text stripping
+
+    /// Returns `title` with the detected date match removed, plus leading preposition.
+    /// "Dentist at 5pm" → "Dentist"
+    /// "Watch movie on Friday" → "Watch movie"
+    func strippingDateText(_ detected: DetectedDate, from title: String) -> String {
+        let ns = title as NSString
+        let matchRange = NSRange(detected.range, in: title)
+        var start  = matchRange.location
+        var length = matchRange.length
+        // Swallow a leading preposition separator (" at ", " on ", ", ", " ")
+        let separators = [" at ", " on ", ", ", " "]
+        for sep in separators {
+            let sepLen = sep.utf16.count
+            if start >= sepLen {
+                let candidate = ns.substring(with: NSRange(location: start - sepLen, length: sepLen))
+                if candidate.lowercased() == sep {
+                    start  -= sepLen
+                    length += sepLen
+                    break
+                }
+            }
+        }
+        // Swallow trailing whitespace
+        while start + length < ns.length, ns.character(at: start + length) == 32 {
+            length += 1
+        }
+        let cleaned = ns.replacingCharacters(in: NSRange(location: start, length: length), with: "")
+        return cleaned.trimmingCharacters(in: .whitespaces)
     }
 
     // MARK: - Private helpers

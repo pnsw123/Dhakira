@@ -38,7 +38,7 @@ struct SlashCommandMenuView: View {
                         // Section header
                         Text(section.uppercased())
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Color.secondary)
+                            .foregroundStyle(Color.secondaryText)
                             .tracking(0.8)
                             .padding(.horizontal, 12)
                             .padding(.top, 10)
@@ -68,9 +68,8 @@ struct SlashCommandMenuView: View {
                 }
             }
         }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .glassEffect(.regular, in: .rect(cornerRadius: 14))
-        .shadow(color: Color.primary.opacity(0.15), radius: 12, y: 4)
+        .background(Color.rowBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
         .frame(maxWidth: 260)
     }
 
@@ -80,7 +79,7 @@ struct SlashCommandMenuView: View {
             // Icon badge: 30×30 rounded square
             ZStack {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color(.systemGray5))
+                    .fill(Color.separatorColor.opacity(0.5))
                     .frame(width: 30, height: 30)
 
                 if cmd.section == "Colors" {
@@ -90,13 +89,13 @@ struct SlashCommandMenuView: View {
                 } else {
                     Text(cmd.iconText)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(Color.primaryText)
                 }
             }
 
             Text(cmd.label)
                 .font(.system(size: 15))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(Color.primaryText)
 
             Spacer()
         }
@@ -104,7 +103,7 @@ struct SlashCommandMenuView: View {
         .padding(.vertical, 6)
         .background(
             isSelected
-                ? Color(uiColor: NamedColor.find(id: "colorBlue")?.uiColor ?? UIColor(hex: "#0A84FF")).opacity(0.13)
+                ? Color.themeAccent.opacity(0.13)
                 : Color.clear
         )
         .contentShape(Rectangle())

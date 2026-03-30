@@ -54,12 +54,32 @@ final class ThemeManager {
         #endif
     }
 
-    // MARK: — Apply theme
+    // MARK: — Stored widget theme (can differ from app theme)
+    @ObservationIgnored
+    @AppStorage("widgetThemeId") private var widgetThemeId: String = "default"
+
+    /// The theme currently applied to widgets (may differ from the app theme).
+    var widgetTheme: AppTheme {
+        AppTheme.all.first { $0.id == widgetThemeId } ?? current
+    }
+
+    // MARK: — Apply theme (legacy — applies to both)
     func apply(_ theme: AppTheme) {
+        applyApp(theme)
+        applyWidget(theme)
+    }
+
+    /// Apply theme to the app only.
+    func applyApp(_ theme: AppTheme) {
         current = theme
         selectedThemeId = theme.id
         backgroundColorOverride = nil
         backgroundGradientColors = nil
+    }
+
+    /// Apply theme to widgets only.
+    func applyWidget(_ theme: AppTheme) {
+        widgetThemeId = theme.id
         syncToAppGroup()
         WidgetCenter.shared.reloadAllTimelines()
     }
@@ -119,7 +139,7 @@ final class ThemeManager {
     // MARK: — App Group sync (widgets read from here)
     private func syncToAppGroup() {
         guard let defaults = UserDefaults(suiteName: "group.com.prodnote.shared") else { return }
-        defaults.set(current.id, forKey: "themeId")
+        defaults.set(widgetThemeId, forKey: "themeId")
         #if canImport(UIKit)
         // Copy background image JPEG to shared container so the widget can read it
         let sharedURL = FileManager.default
@@ -251,9 +271,9 @@ struct WithEditorBackground: ViewModifier {
 extension ThemeManager {
     /// Writes the top tasks to the shared App Group so the widget can display them.
     /// Called from TaskListView whenever the task list changes.
-    func syncActiveTasks(_ tasks: [WidgetTask]) {
+    func syncActiveTasks(_ tasks: [WidgetTask], totalCount: Int) {
         guard let defaults = UserDefaults(suiteName: "group.com.prodnote.shared") else { return }
-        defaults.set(tasks.count, forKey: "activeTaskCount")
+        defaults.set(totalCount, forKey: "activeTaskCount")
         if let encoded = try? JSONEncoder().encode(tasks) {
             defaults.set(encoded, forKey: "activeTasks")
         }

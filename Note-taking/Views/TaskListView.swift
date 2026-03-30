@@ -279,7 +279,7 @@ struct TaskListView: View {
         let widgetTasks = filteredTasks.prefix(5).map {
             WidgetTask(id: $0.id, title: $0.title, priority: $0.priority)
         }
-        ThemeManager.shared.syncActiveTasks(Array(widgetTasks))
+        ThemeManager.shared.syncActiveTasks(Array(widgetTasks), totalCount: filteredTasks.count)
     }
 
     private var doneButton: some View {
@@ -332,6 +332,10 @@ struct TaskListView: View {
         newTask.sortOrder = maxOrder
         modelContext.insert(newTask)
         log.info("commitNewTask: created '\(trimmed)' (sortOrder=\(maxOrder))")
+        // Detect any date/time in the title and create a calendar event immediately.
+        // Fire-and-forget — never blocks the UI.
+        let created = newTask
+        Task { await CalendarSyncService.shared.syncTaskIfNeeded(created) }
     }
 
     /// Called when Return is pressed — saves if non-empty.

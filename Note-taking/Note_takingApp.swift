@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import WidgetKit
 import OSLog
 
 @main
@@ -69,6 +70,7 @@ private actor StartupWorker {
         cleanupEmptyTasks()
         seedDefaultFolderIfNeeded()
         cleanup30DayDeletedTasks()
+        syncWidgetData()
     }
 
     // MARK: Cleanup empty tasks
@@ -124,6 +126,33 @@ private actor StartupWorker {
         log.info("migrateOrphanedTasks: migrating \(orphans.count) tasks to '\(defaultList.name)'")
         orphans.forEach { $0.taskList = defaultList }
         try? modelContext.save()
+    }
+
+    // MARK: Sync widget data on launch
+
+    private func syncWidgetData() {
+        log.debug("syncWidgetData: syncing ALL active tasks to widget")
+        let descriptor = FetchDescriptor<TaskItem>(
+            predicate: #Predicate<TaskItem> { $0.isDeleted == false && $0.isCompleted == false }
+        )
+        guard let tasks = try? modelContext.fetch(descriptor) else {
+            log.debug("syncWidgetData: no tasks found")
+            return
+        }
+        let widgetTasks = tasks.prefix(5).map {
+            WidgetTask(id: $0.id, title: $0.title, priority: $0.priority)
+        }
+        let taskCount = tasks.count
+        let encoded = try? JSONEncoder().encode(Array(widgetTasks))
+        // Jump to main actor to access ThemeManager and WidgetCenter (both UI-bound)
+        Task { @MainActor in
+            let themeId = ThemeManager.shared.current.id
+            let defaults = UserDefaults(suiteName: "group.com.prodnote.shared")
+            defaults?.set(taskCount, forKey: "activeTaskCount")
+            if let encoded { defaults?.set(encoded, forKey: "activeTasks") }
+            defaults?.set(themeId, forKey: "themeId")
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 
     // MARK: Purge 30-day deleted tasks
