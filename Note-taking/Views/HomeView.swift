@@ -20,7 +20,6 @@ struct HomeView: View {
     @Query(sort: \TaskList.createdAt)
     private var allTaskLists: [TaskList]
 
-    @Environment(ThemeManager.self) private var themeManager
     @State private var autoRenameFolderId: UUID? = nil
 
     var body: some View {
@@ -82,7 +81,7 @@ struct HomeView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 32)
             }
-            .background(themeManager.current.screenBackground)
+            .background(Color.screenBackground)
             .onAppear {
                 log.info("HomeView: appeared — topLevelFolders=\(topLevelFolders.count), allTaskLists=\(allTaskLists.count)")
             }
