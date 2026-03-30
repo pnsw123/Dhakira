@@ -18,15 +18,7 @@ struct ThemeCardView: View {
             // Layer 1 — full gradient background
             cardBackground
 
-            // Layer 2 — mini app UI preview (floats over gradient)
-            VStack(spacing: 0) {
-                miniUIPreview
-                    .padding(.horizontal, 10)
-                    .padding(.top, 14)
-                Spacer()
-            }
-
-            // Layer 3 — bottom fade so label is readable over any gradient
+            // Layer 2 — bottom fade so label is readable over any gradient
             LinearGradient(
                 colors: [.clear, .black.opacity(0.75)],
                 startPoint: UnitPoint(x: 0.5, y: 0.30),
