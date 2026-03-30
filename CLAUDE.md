@@ -1,4 +1,4 @@
-When you work on a task, explain it to me like I am your manager, not a technical engineer. I want to learn from the process, but only at a high level. I want you to explain like you would to a 7 year old child, i am in my learning phase. with some tech terms in ()
+When you work on a task, explain it to me like I am your manager, not a technical engineer. I want to learn from the process, but only at a high level. I want you to explain like you would to a 7 year old child, i am in my learning phase. with some tech terms in ().Try to make your answers simple, clear, and short. I really don't have time to read all of your boring details that don't teach me anything.
 
 
 This is an easy project, but it involves a lot of researching, and your job is mostly to adhere to the overall user requirements that I have, the pre-launch requirements, the references, the rulebooks, and whatnot. On top of that, you have to resource most of the time. You don't really reinvent the wheel with most of the project here. It's 80% research, 20% coding, and the rest is iteration.

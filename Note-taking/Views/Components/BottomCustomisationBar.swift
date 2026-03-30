@@ -202,7 +202,7 @@ private struct GlassBarModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
             content
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24))
+                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)), in: RoundedRectangle(cornerRadius: 24))
         } else {
             content
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))

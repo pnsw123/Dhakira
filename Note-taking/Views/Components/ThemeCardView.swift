@@ -19,37 +19,29 @@ struct ThemeCardView: View {
             // Layer 1 — live MeshGradient thumbnail
             cardBackground
 
-            // Layer 2 — bottom gradient so text is always readable over any gradient
+            // Layer 2 — specular highlight (light streak at top = elevated, premium feel)
             LinearGradient(
-                colors: [.clear, .black.opacity(0.6)],
-                startPoint: UnitPoint(x: 0.5, y: 0.38),
+                colors: [.white.opacity(0.18), .clear],
+                startPoint: .top,
+                endPoint: UnitPoint(x: 0.5, y: 0.42)
+            )
+
+            // Layer 3 — bottom gradient so text is always readable
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.65)],
+                startPoint: UnitPoint(x: 0.5, y: 0.42),
                 endPoint: .bottom
             )
 
-            // Layer 3 — theme name + tag
+            // Layer 3 — theme name only
             VStack {
                 Spacer()
-                HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(theme.name)
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.white)
-                        Text("—")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                    Spacer()
-                    Text(theme.tag)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.white.opacity(0.20), in: Capsule())
-                }
-                .frame(maxWidth: .infinity)
-                .padding(12)
+                Text(theme.name)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
             }
 
             // Layer 4 — selected checkmark (top-right corner)
@@ -70,17 +62,13 @@ struct ThemeCardView: View {
         .clipShape(cardShape)
         .aspectRatio(0.75, contentMode: .fit)
         .matchedTransitionSource(id: theme.id, in: namespace)
-        .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 5)
+        .shadow(color: .black.opacity(0.28), radius: 16, x: 0, y: 8)
     }
 
     // MARK: — Card shape: ConcentricRectangle (iOS 26) else RoundedRectangle
 
     private var cardShape: AnyShape {
-        if #available(iOS 26, *) {
-            AnyShape(ConcentricRectangle())
-        } else {
-            AnyShape(RoundedRectangle(cornerRadius: 20))
-        }
+        AnyShape(RoundedRectangle(cornerRadius: 20))
     }
 
     // MARK: — MeshGradient background (iOS 18+)
@@ -96,6 +84,9 @@ struct ThemeCardView: View {
                     colors: theme.meshColors
                 )
             }
+            // Scale up 1.5× so the vivid focal color at index 4 (centre) dominates
+            // the visible thumbnail — looks like a zoomed-in crop of the full wallpaper.
+            .scaleEffect(1.5, anchor: .center)
         } else {
             LinearGradient(
                 colors: [theme.meshColors.first ?? .gray,
@@ -107,8 +98,8 @@ struct ThemeCardView: View {
     }
 
     private func animatedPoints(t: Double) -> [SIMD2<Float>] {
-        let s = Float(sin(t * 0.3) * 0.08)
-        let c = Float(cos(t * 0.2) * 0.08)
+        let s = Float(sin(t * 0.25) * 0.10)
+        let c = Float(cos(t * 0.18) * 0.10)
         func cl(_ v: Float) -> Float { min(max(v, 0), 1) }
         return [
             [0, 0], [cl(0.5 + s), 0], [1, 0],

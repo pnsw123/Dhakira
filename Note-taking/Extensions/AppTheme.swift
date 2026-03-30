@@ -178,15 +178,15 @@ extension AppTheme {
         tag: "Warm",
         isPaid: true,
         meshColors: [
-            Color(red: 0.965, green: 0.945, blue: 0.900),
-            Color(red: 0.870, green: 0.790, blue: 0.680),
-            Color(red: 0.940, green: 0.910, blue: 0.860),
-            Color(red: 0.820, green: 0.720, blue: 0.590),
-            Color(red: 0.900, green: 0.850, blue: 0.780),
-            Color(red: 0.960, green: 0.930, blue: 0.880),
-            Color(red: 0.850, green: 0.760, blue: 0.630),
-            Color(red: 0.920, green: 0.880, blue: 0.820),
-            Color(red: 0.880, green: 0.820, blue: 0.730)
+            Color(red: 0.200, green: 0.130, blue: 0.060),   // deep dark brown corner
+            Color(red: 0.860, green: 0.680, blue: 0.380),   // warm gold mid-top
+            Color(red: 0.180, green: 0.110, blue: 0.048),   // deep dark brown corner
+            Color(red: 0.750, green: 0.520, blue: 0.220),   // amber left
+            Color(red: 0.980, green: 0.860, blue: 0.560),   // bright warm gold focal center
+            Color(red: 0.700, green: 0.480, blue: 0.200),   // amber right
+            Color(red: 0.190, green: 0.125, blue: 0.052),   // deep dark brown corner
+            Color(red: 0.820, green: 0.640, blue: 0.320),   // warm gold mid-bottom
+            Color(red: 0.175, green: 0.112, blue: 0.044)    // deep dark brown corner
         ],
         backgroundStyle: .gradient,
         screenBackground:  Color(light: Color(red: 0.965, green: 0.945, blue: 0.900),
@@ -235,15 +235,15 @@ extension AppTheme {
         tag: "Cool",
         isPaid: true,
         meshColors: [
-            Color(red: 0.180, green: 0.204, blue: 0.251),   // #2E3440
-            Color(red: 0.231, green: 0.259, blue: 0.322),   // #3B4252
-            Color(red: 0.263, green: 0.298, blue: 0.369),   // #434C5E
-            Color(red: 0.298, green: 0.337, blue: 0.416),   // #4C566A
-            Color(red: 0.557, green: 0.737, blue: 0.773),   // #8EBCBB → polar frost
-            Color(red: 0.533, green: 0.702, blue: 0.780),   // #88B2C6
-            Color(red: 0.506, green: 0.631, blue: 0.757),   // #81A1C1
-            Color(red: 0.404, green: 0.573, blue: 0.749),   // #6792BF
-            Color(red: 0.231, green: 0.259, blue: 0.322)
+            Color(red: 0.120, green: 0.140, blue: 0.190),   // near-black navy
+            Color(red: 0.180, green: 0.210, blue: 0.280),   // dark navy
+            Color(red: 0.140, green: 0.160, blue: 0.220),   // dark blue-gray
+            Color(red: 0.160, green: 0.200, blue: 0.280),   // dark slate
+            Color(red: 0.440, green: 0.740, blue: 0.820),   // vibrant frost focal
+            Color(red: 0.320, green: 0.580, blue: 0.740),   // polar blue
+            Color(red: 0.120, green: 0.150, blue: 0.210),   // near-black
+            Color(red: 0.260, green: 0.440, blue: 0.600),   // medium arctic blue
+            Color(red: 0.130, green: 0.155, blue: 0.210)    // dark navy
         ],
         backgroundStyle: .gradient,
         screenBackground:   Color(red: 0.180, green: 0.204, blue: 0.251),
@@ -276,15 +276,15 @@ extension AppTheme {
         tag: "Dark",
         isPaid: true,
         meshColors: [
-            Color(red: 0.063, green: 0.075, blue: 0.141),   // deep navy
-            Color(red: 0.094, green: 0.110, blue: 0.196),
-            Color(red: 0.078, green: 0.090, blue: 0.169),
-            Color(red: 0.431, green: 0.302, blue: 0.773),   // purple glow
-            Color(red: 0.125, green: 0.141, blue: 0.251),
-            Color(red: 0.094, green: 0.110, blue: 0.196),
-            Color(red: 0.196, green: 0.376, blue: 0.780),   // electric blue
-            Color(red: 0.078, green: 0.090, blue: 0.169),
-            Color(red: 0.063, green: 0.075, blue: 0.141)
+            Color(red: 0.030, green: 0.035, blue: 0.080),   // near-black navy
+            Color(red: 0.050, green: 0.060, blue: 0.130),   // very dark navy
+            Color(red: 0.035, green: 0.042, blue: 0.095),   // dark navy
+            Color(red: 0.080, green: 0.090, blue: 0.200),   // dark navy-purple left
+            Color(red: 0.420, green: 0.220, blue: 0.820),   // vivid purple — CENTER focal
+            Color(red: 0.040, green: 0.050, blue: 0.110),   // near-black
+            Color(red: 0.140, green: 0.300, blue: 0.800),   // electric blue accent
+            Color(red: 0.035, green: 0.042, blue: 0.095),   // near-black
+            Color(red: 0.025, green: 0.030, blue: 0.070)    // deepest black-navy
         ],
         backgroundStyle: .gradient,
         screenBackground:   Color(red: 0.063, green: 0.075, blue: 0.141),
@@ -317,15 +317,15 @@ extension AppTheme {
         tag: "Dark",
         isPaid: true,
         meshColors: [
-            Color(red: 0.133, green: 0.180, blue: 0.133),
-            Color(red: 0.200, green: 0.267, blue: 0.176),
-            Color(red: 0.153, green: 0.208, blue: 0.153),
-            Color(red: 0.290, green: 0.380, blue: 0.220),   // sage green
-            Color(red: 0.176, green: 0.235, blue: 0.165),
-            Color(red: 0.400, green: 0.310, blue: 0.220),   // warm brown
-            Color(red: 0.220, green: 0.290, blue: 0.200),
-            Color(red: 0.165, green: 0.220, blue: 0.155),
-            Color(red: 0.350, green: 0.270, blue: 0.190)
+            Color(red: 0.072, green: 0.100, blue: 0.072),   // near-black forest
+            Color(red: 0.140, green: 0.200, blue: 0.110),   // dark green
+            Color(red: 0.085, green: 0.120, blue: 0.085),   // dark forest
+            Color(red: 0.110, green: 0.155, blue: 0.095),   // medium dark green left
+            Color(red: 0.320, green: 0.420, blue: 0.200),   // bright sage — CENTER focal
+            Color(red: 0.440, green: 0.320, blue: 0.180),   // warm brown accent
+            Color(red: 0.055, green: 0.075, blue: 0.055),   // very dark green
+            Color(red: 0.300, green: 0.230, blue: 0.130),   // warm earthy
+            Color(red: 0.070, green: 0.095, blue: 0.065)    // near-black green
         ],
         backgroundStyle: .gradient,
         screenBackground:   Color(red: 0.133, green: 0.180, blue: 0.133),
@@ -359,15 +359,15 @@ extension AppTheme {
         tag: "Active",
         isPaid: true,
         meshColors: [
-            Color(red: 0.980, green: 0.930, blue: 0.930),
-            Color(red: 0.940, green: 0.820, blue: 0.840),
-            Color(red: 0.970, green: 0.900, blue: 0.910),
-            Color(red: 0.880, green: 0.720, blue: 0.740),   // dusty rose
-            Color(red: 0.960, green: 0.870, blue: 0.880),
-            Color(red: 0.990, green: 0.950, blue: 0.940),   // cream
-            Color(red: 0.920, green: 0.780, blue: 0.800),
-            Color(red: 0.975, green: 0.920, blue: 0.925),
-            Color(red: 0.950, green: 0.860, blue: 0.870)
+            Color(red: 0.995, green: 0.955, blue: 0.955),   // near-white pink
+            Color(red: 0.970, green: 0.860, blue: 0.870),   // light pink
+            Color(red: 0.990, green: 0.940, blue: 0.940),   // soft blush
+            Color(red: 0.950, green: 0.820, blue: 0.830),   // medium pink left
+            Color(red: 0.780, green: 0.480, blue: 0.540),   // vibrant dusty rose — CENTER focal
+            Color(red: 0.985, green: 0.950, blue: 0.945),   // warm cream
+            Color(red: 0.480, green: 0.260, blue: 0.320),   // deep burgundy-rose (dark)
+            Color(red: 0.760, green: 0.560, blue: 0.580),   // medium rose
+            Color(red: 0.580, green: 0.360, blue: 0.400)    // dark rose
         ],
         backgroundStyle: .gradient,
         screenBackground:  Color(light: Color(red: 0.980, green: 0.930, blue: 0.930),
@@ -414,15 +414,15 @@ extension AppTheme {
         tag: "Minimal",
         isPaid: true,
         meshColors: [
-            Color(red: 0.000, green: 0.000, blue: 0.000),
-            Color(red: 0.040, green: 0.040, blue: 0.040),
-            Color(red: 0.020, green: 0.020, blue: 0.020),
-            Color(red: 0.000, green: 0.000, blue: 0.000),
-            Color(red: 0.060, green: 0.060, blue: 0.060),
-            Color(red: 0.030, green: 0.030, blue: 0.030),
-            Color(red: 0.000, green: 0.000, blue: 0.000),
-            Color(red: 0.040, green: 0.040, blue: 0.040),
-            Color(red: 0.010, green: 0.010, blue: 0.010)
+            Color(red: 0.000, green: 0.000, blue: 0.000),   // pure black corner
+            Color(red: 0.020, green: 0.040, blue: 0.100),   // very dark blue
+            Color(red: 0.000, green: 0.000, blue: 0.000),   // pure black corner
+            Color(red: 0.010, green: 0.020, blue: 0.060),   // near-black deep blue
+            Color(red: 0.039, green: 0.518, blue: 1.000),   // electric blue focal center
+            Color(red: 0.008, green: 0.018, blue: 0.055),   // near-black deep blue
+            Color(red: 0.000, green: 0.000, blue: 0.000),   // pure black corner
+            Color(red: 0.015, green: 0.035, blue: 0.090),   // very dark blue
+            Color(red: 0.000, green: 0.000, blue: 0.000)    // pure black corner
         ],
         backgroundStyle: .gradient,
         screenBackground:   .black,

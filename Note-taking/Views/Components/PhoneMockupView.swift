@@ -114,16 +114,11 @@ private struct MockTasksPage: View {
                         HStack(spacing: 8) {
                             ZStack {
                                 if row.done {
-                                    // Color matches priority — red if high, orange if medium, gray if none
-                                    let doneColor: Color = row.priority == "high"   ? theme.priorityHigh
-                                                         : row.priority == "medium" ? theme.priorityMedium
-                                                         : theme.checkboxInactive
-                                    Circle()
-                                        .fill(doneColor)
-                                        .frame(width: 16, height: 16)
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 7, weight: .bold))
-                                        .foregroundStyle(.white)
+                                    // Mirrors real TaskRowView exactly: checkmark.circle.fill
+                                    // colored by priority — gray (secondaryText) for no priority
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(theme.secondaryText)
                                 } else {
                                     Circle()
                                         .strokeBorder(theme.checkboxInactive, lineWidth: 1)

@@ -8,6 +8,7 @@ import SwiftUI
 struct ThemeView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(StoreKitManager.self) private var store
+    @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var selectedTheme: AppTheme? = nil
     @Namespace private var namespace
@@ -34,11 +35,6 @@ struct ThemeView: View {
                             isSelected: themeManager.current.id == theme.id,
                             namespace: namespace
                         )
-                        .scrollTransition { content, phase in
-                            content
-                                .opacity(phase.isIdentity ? 1 : 0)
-                                .scaleEffect(phase.isIdentity ? 1 : 0.88)
-                        }
                     }
                     .buttonStyle(.plain)
                 }
@@ -53,13 +49,60 @@ struct ThemeView: View {
                 .navigationTransition(.zoom(sourceID: theme.id, in: namespace))
         }
         .scrollContentBackground(.hidden)
-        .contentMargins(16, for: .scrollContent)
-        .searchable(text: $searchText, placement: .navigationBarDrawer, prompt: "Search themes")
-        .navigationTitle("Themes")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbarBackground(Color.screenBackground, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
         .modifier(SoftScrollEdge())
+        .safeAreaInset(edge: .top) {
+            VStack(spacing: 0) {
+                // Title row — fixed, matches Tasks / Folders header exactly
+                HStack(spacing: 0) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(Color.themeAccent)
+                            .frame(width: 36, height: 36)
+                            .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 8)
+
+                    Text("Themes")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(Color.primaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 16)
+                }
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+
+                // Search field — always visible, never collapses
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(Color.secondaryText)
+                        .font(.system(size: 15))
+                    TextField("Search themes", text: $searchText)
+                        .font(.system(size: 17))
+                        .foregroundStyle(Color.primaryText)
+                    if !searchText.isEmpty {
+                        Button(action: { searchText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(Color.secondaryText)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(Color.secondaryText.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
+            }
+            .background(Color.screenBackground)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color.separatorColor)
+                    .frame(height: 0.5)
+            }
+        }
     }
 }
 
@@ -68,6 +111,7 @@ struct ThemeView: View {
 #Preview {
     NavigationStack {
         ThemeView()
+            .withAppBackground()
     }
     .environment(ThemeManager.shared)
     .environment(StoreKitManager.shared)

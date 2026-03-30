@@ -35,6 +35,7 @@ struct TaskListView: View {
     @Query(sort: \TaskItem.sortOrder, order: .forward)
     private var allTasks: [TaskItem]
 
+    @Environment(ThemeManager.self) private var themeManager
     @AppStorage("taskListSortBy") private var sortBy: SortOption = .manual
     @State private var selectedTask: TaskItem?
     @State private var showTheme = false
@@ -145,7 +146,7 @@ struct TaskListView: View {
                     .foregroundStyle(.secondary)
                 }
             }
-            .background(Color.screenBackground)
+            .background(themeManager.current.screenBackground)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top) {
                 HStack(spacing: 0) {

@@ -33,10 +33,11 @@ struct SettingsMenuView: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(Color.themeAccent)
                 .frame(width: 36, height: 36)
                 .background(.regularMaterial, in: Circle())
-                .glassEffect(.regular.interactive(), in: .circle)
+                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
         }
+        .tint(Color.themeAccent)
     }
 }

@@ -36,7 +36,9 @@ struct ThemeDetailView: View {
                     Spacer()
 
                     Button("Apply") {
-                        themeManager.apply(theme)
+                        withAnimation(.easeInOut(duration: 0.35)) {
+                            themeManager.apply(theme)
+                        }
                         dismiss()
                     }
                     .modifier(GlassButtonStyle(prominent: true))
