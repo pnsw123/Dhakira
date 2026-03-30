@@ -48,6 +48,7 @@ struct ProdNoteWidgetView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .modifier(WidgetGlassModifier())
     }
 
     // Medium widget — same structure as large, compressed to ~4 visible rows.
@@ -118,6 +119,7 @@ struct ProdNoteWidgetView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .modifier(WidgetGlassModifier())
     }
 
     // Large widget — fills the extra height with more rows + a completion stat line.
@@ -195,6 +197,7 @@ struct ProdNoteWidgetView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .modifier(WidgetGlassModifier())
     }
 
     // MARK: — Pennant shape (matches PennantShape in main app)
@@ -237,5 +240,20 @@ struct ProdNoteWidgetView: View {
 
     private var accessoryInlineView: some View {
         Text("ProdNote: \(entry.taskCount) tasks")
+    }
+}
+
+// MARK: - Glass modifier
+// iOS 26+: native liquid glass. iOS 17–25: frosted material fallback.
+
+private struct WidgetGlassModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+                .glassEffect(.regular.interactive(false), in: RoundedRectangle(cornerRadius: 0))
+        } else {
+            content
+                .background(.ultraThinMaterial)
+        }
     }
 }

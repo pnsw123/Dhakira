@@ -85,15 +85,24 @@ struct ProdNoteWidget: Widget {
                 .resizable()
                 .scaledToFill()
         } else {
-            LinearGradient(
-                colors: [
-                    theme.meshColors[0],
-                    theme.meshColors[4],
-                    theme.meshColors[8]
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            if #available(iOS 18, *) {
+                MeshGradient(
+                    width: 3, height: 3,
+                    points: [
+                        [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
+                        [0.0, 0.5], [0.5, 0.5], [1.0, 0.5],
+                        [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
+                    ],
+                    colors: theme.meshColors
+                )
+            } else {
+                RadialGradient(
+                    colors: [theme.meshColors[4], theme.meshColors[0]],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 300
+                )
+            }
         }
     }
 }

@@ -63,16 +63,26 @@ struct WidgetPreviewLayout: View {
 // Diagonal gradient using the theme's mesh corner → focal → corner colors,
 // matching the thumbnail cards and ThemeDetailView animated background.
 
+@ViewBuilder
 private func widgetBackground(theme: AppTheme) -> some View {
-    LinearGradient(
-        colors: [
-            theme.meshColors[0],
-            theme.meshColors[4],
-            theme.meshColors[8]
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    if #available(iOS 18, *) {
+        MeshGradient(
+            width: 3, height: 3,
+            points: [
+                [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
+                [0.0, 0.5], [0.5, 0.5], [1.0, 0.5],
+                [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
+            ],
+            colors: theme.meshColors
+        )
+    } else {
+        RadialGradient(
+            colors: [theme.meshColors[4], theme.meshColors[0]],
+            center: .center,
+            startRadius: 0,
+            endRadius: 300
+        )
+    }
 }
 
 // MARK: - Small Widget (2×2)
@@ -101,6 +111,7 @@ private struct SmallWidgetPreview: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .modifier(PreviewGlassModifier())
         }
     }
 }
@@ -179,6 +190,7 @@ private struct MediumWidgetPreview: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .modifier(PreviewGlassModifier())
         }
     }
 }
@@ -265,6 +277,22 @@ private struct LargeWidgetPreview: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .modifier(PreviewGlassModifier())
+        }
+    }
+}
+
+// MARK: - Glass modifier for previews
+// iOS 26: native liquid glass. iOS 17–25: frosted material fallback.
+
+private struct PreviewGlassModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+                .glassEffect(.regular.interactive(false), in: RoundedRectangle(cornerRadius: 0))
+        } else {
+            content
+                .background(.ultraThinMaterial)
         }
     }
 }
