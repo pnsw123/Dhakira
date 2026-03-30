@@ -115,7 +115,7 @@ struct TaskDetailView: View {
                 .accessibilityIdentifier("task-title-field")
 
             Rectangle()
-                .fill(Color.separatorColor)
+                .fill(Color.primaryText.opacity(0.15))
                 .frame(height: 1)
                 .padding(.horizontal, 20)
 
@@ -129,61 +129,79 @@ struct TaskDetailView: View {
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
         #endif
         .tint(Color.themeAccent)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
+        .safeAreaInset(edge: .top, spacing: 0) {
+            HStack(spacing: 0) {
+                // Back button — same glass circle as TaskListView
                 Button {
                     saveBody()
                     dismiss()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(Color.themeAccent)
                         .frame(width: 36, height: 36)
                         .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                 }
-            }
+                .buttonStyle(.plain)
+                .padding(.leading, 8)
 
-            ToolbarItemGroup(placement: .confirmationAction) {
+                Spacer()
+
+                // Right actions
                 if isDrawingMode {
                     Button {
                         withAnimation(.spring(response: 0.3)) { isDrawingMode = false }
-                        // Re-focus the text editor so the keyboard area is tappable again.
-                        // Delay must be longer than the animation to avoid stealing first
-                        // responder from PKCanvasView if user re-enters drawing quickly.
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                            if !isDrawingMode {
-                                richTextView?.becomeFirstResponder()
-                            }
+                            if !isDrawingMode { richTextView?.becomeFirstResponder() }
                         }
                     } label: {
-                        Text("Done").fontWeight(.semibold)
+                        Text("Done")
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themeAccent)
+                            .padding(.horizontal, 14)
+                            .frame(height: 36)
+                            .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .capsule)
                     }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 8)
                 } else {
-                    // Export menu (Issue #45 — native PDF + RTF)
-                    Menu {
-                        Button { shareTask() } label: {
-                            Label("Share", systemImage: "square.and.arrow.up")
+                    HStack(spacing: 8) {
+                        Menu {
+                            Button { shareTask() } label: {
+                                Label("Share", systemImage: "square.and.arrow.up")
+                            }
+                            Button { exportAsPDF() } label: {
+                                Label("Export as PDF", systemImage: "doc.richtext")
+                            }
+                            Button { exportAsWord() } label: {
+                                Label("Export as Word", systemImage: "doc.text")
+                            }
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                                .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
-                        Button { exportAsPDF() } label: {
-                            Label("Export as PDF", systemImage: "doc.richtext")
-                        }
-                        Button { exportAsWord() } label: {
-                            Label("Export as Word", systemImage: "doc.text")
-                        }
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .foregroundStyle(Color.themeAccent)
-                    }
+                        .buttonStyle(.plain)
 
-                    Button { showToolbar.toggle() } label: {
-                        Image(systemName: showToolbar ? "keyboard.chevron.compact.down" : "keyboard")
-                            .foregroundStyle(Color.themeAccent)
+                        Button { showToolbar.toggle() } label: {
+                            Image(systemName: showToolbar ? "keyboard.chevron.compact.down" : "keyboard")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                                .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                        }
+                        .buttonStyle(.plain)
                     }
+                    .padding(.trailing, 8)
                 }
             }
+            .padding(.top, 4)
+            .padding(.bottom, 8)
         }
         // AttachmentService drives all picker sheets via a single enum (Issue #49)
         .background(attachmentService.presentationHooks(attributedText: $attributedText))
