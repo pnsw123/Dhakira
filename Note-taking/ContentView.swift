@@ -14,7 +14,7 @@ private enum HomeNav: String, Identifiable {
 }
 
 struct ContentView: View {
-    @State private var showHome = false
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
 
     /// Task UUID to navigate to via deep link (prodnote://task/{uuid}).
     /// Set by Note_takingApp when the OS delivers an incoming URL.
@@ -51,12 +51,12 @@ struct ContentView: View {
         // NavigationSplitView collapses to a single column on compact width (iPhone + iPad
         // Slide Over). On full-width iPad it shows sidebar + detail columns automatically.
         // Issue #79 — https://github.com/pnsw123/prod-note/issues/79
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             HomeView(
-                onClose: { showHome = false },
+                onClose: { columnVisibility = .detailOnly },
                 onSelectTaskList: { list in
                     activeTaskListIdString = list.id.uuidString
-                    showHome = false
+                    columnVisibility = .detailOnly
                 },
                 onShowRecentlyCompleted: { homeNav = .recentlyCompleted },
                 onShowRecentlyDeleted: { homeNav = .recentlyDeleted }
@@ -76,7 +76,7 @@ struct ContentView: View {
         } detail: {
             TaskListView(
                 taskList: activeTaskList,
-                onShowHome: { showHome = true },
+                onShowHome: { columnVisibility = .all },
                 pendingDeepLinkTaskId: $pendingDeepLinkTaskId
             )
             .withAppBackground()
