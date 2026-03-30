@@ -129,6 +129,7 @@ struct TaskDetailView: View {
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
+        .toolbarBackground(.hidden, for: .navigationBar)
         #endif
         .tint(Color.themeAccent)
         .toolbar {
@@ -138,7 +139,10 @@ struct TaskDetailView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .frame(minWidth: 44, minHeight: 44)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.themeAccent)
+                        .frame(width: 36, height: 36)
+                        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                 }
             }
 
@@ -171,10 +175,12 @@ struct TaskDetailView: View {
                         }
                     } label: {
                         Image(systemName: "square.and.arrow.up")
+                            .foregroundStyle(Color.themeAccent)
                     }
 
                     Button { showToolbar.toggle() } label: {
                         Image(systemName: showToolbar ? "keyboard.chevron.compact.down" : "keyboard")
+                            .foregroundStyle(Color.themeAccent)
                     }
                 }
             }
