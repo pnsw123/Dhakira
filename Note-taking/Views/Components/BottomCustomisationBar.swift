@@ -3,7 +3,9 @@ import PhotosUI
 
 // MARK: - BottomCustomisationBar
 // Four tabs — Color / Gradient / Photo / Blur — letting the user override the theme's
-// default background. Uses GlassEffectContainer on iOS 26, ultraThinMaterial on earlier OS.
+// default background. All tabs share an identical fixed-height content area so the bar
+// never resizes when switching tabs (user request: consistent size).
+// Uses .glassEffect directly — GlassEffectContainer was causing size overrides on iOS 26.
 // Issue #75 — https://github.com/pnsw123/prod-note/issues/75
 
 struct BottomCustomisationBar: View {
@@ -14,6 +16,10 @@ struct BottomCustomisationBar: View {
     @State private var pickerItem: PhotosPickerItem? = nil
     @State private var customColor: Color = .blue
     @State private var selectedGradientIndex: Int = 0
+
+    // Fixed content area height — ALL tabs must fit within this.
+    // Changing this one constant keeps every tab consistent.
+    private let contentHeight: CGFloat = 56
 
     enum CustomTab: String, CaseIterable, Identifiable {
         case color    = "Color"
@@ -32,35 +38,35 @@ struct BottomCustomisationBar: View {
     }
 
     var body: some View {
-        let _ = print("🎨 [THEME-DIAG] BottomCustomisationBar.body START — reading themeManager.current.id: \(themeManager.current.id)")
-        VStack(spacing: 16) {
-            // Tab content
+        VStack(spacing: 8) {
+            // ── Content area — locked to contentHeight for all tabs ──
             tabContent
-                .frame(height: 120)
+                .frame(maxWidth: .infinity, minHeight: contentHeight, maxHeight: contentHeight)
+                .clipped()
                 .padding(.horizontal, 16)
 
-            // Tab selector buttons
+            // ── Tab selector ────────────────────────────────────────
             tabSelector
         }
-        .padding(.vertical, 16)
-        .modifier(GlassContainerModifier())
+        .padding(.vertical, 10)
+        .modifier(GlassBarModifier())
     }
 
-    // MARK: — Tab content
+    // MARK: — Tab content (all cases must stay within contentHeight)
 
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
         case .color:
             ColorPicker("Background color", selection: $customColor, supportsOpacity: false)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .onChange(of: customColor) { _, newColor in
-                    // Bug 2 fix: wire color selection to ThemeManager
                     themeManager.applyColorOverride(newColor)
                 }
 
         case .gradient:
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     ForEach(gradientPresets.indices, id: \.self) { i in
                         gradientSwatch(at: i)
                     }
@@ -75,8 +81,9 @@ struct BottomCustomisationBar: View {
                 photoLibrary: .shared()
             ) {
                 Label("Choose Photo", systemImage: "photo.badge.plus")
-                    .font(.headline)
+                    .font(.subheadline.weight(.medium))
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .onChange(of: pickerItem) { _, item in
                 Task { await loadPhoto(from: item) }
             }
@@ -87,16 +94,20 @@ struct BottomCustomisationBar: View {
                 Image(uiImage: img)
                     .resizable()
                     .scaledToFill()
-                    .blur(radius: 12)
+                    .blur(radius: 10)
                     .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
             } else {
                 Text("No background photo selected")
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
             #else
             Text("No background photo selected")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             #endif
         }
     }
@@ -104,27 +115,28 @@ struct BottomCustomisationBar: View {
     // MARK: — Tab buttons
 
     private var tabSelector: some View {
-        HStack(spacing: 24) {
+        HStack(spacing: 0) {
             ForEach(CustomTab.allCases) { tab in
                 Button {
                     withAnimation(.spring(duration: 0.25, bounce: 0.2)) {
                         selectedTab = tab
                     }
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 3) {
                         Image(systemName: tab.icon)
-                            .font(.title3)
+                            .font(.system(size: 18))
                         Text(tab.rawValue)
                             .font(.caption2)
                     }
                     .foregroundStyle(selectedTab == tab ? .primary : .secondary)
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
             }
         }
     }
 
-    // MARK: — Gradient presets (MeshGradient iOS 18 / LinearGradient fallback)
+    // MARK: — Gradient presets
 
     private var gradientPresets: [[Color]] {
         [
@@ -141,7 +153,6 @@ struct BottomCustomisationBar: View {
         let colors = gradientPresets[index]
         Button {
             selectedGradientIndex = index
-            // Bug 2 fix: wire gradient selection to ThemeManager
             themeManager.applyGradientOverride(colors)
         } label: {
             if #available(iOS 18, *) {
@@ -150,25 +161,24 @@ struct BottomCustomisationBar: View {
                     points: [[0, 0], [1, 0], [0, 1], [1, 1]],
                     colors: colors
                 )
-                .frame(width: 60, height: 60)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(
                     selectedGradientIndex == index
-                        ? RoundedRectangle(cornerRadius: 12).strokeBorder(.white, lineWidth: 2)
+                        ? RoundedRectangle(cornerRadius: 10).strokeBorder(.white, lineWidth: 2)
                         : nil
                 )
             } else {
                 LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
         .buttonStyle(.plain)
     }
 
     // MARK: — Photo loading
-    // WWDC18 #416 — downsampling happens inside ThemeManager.applyBackground(data:)
-    // via CGImageSourceCreateThumbnailAtIndex (85% memory savings vs UIImage(data:))
+
     private func loadPhoto(from item: PhotosPickerItem?) async {
         guard let data = try? await item?.loadTransferable(type: Data.self) else { return }
         #if canImport(UIKit)
@@ -185,15 +195,14 @@ struct BottomCustomisationBar: View {
         .padding()
 }
 
-// MARK: — iOS 26 glass container availability gate
+// MARK: — Glass bar modifier
+// Uses .glassEffect() directly — avoids GlassEffectContainer which overrides the fixed frame.
 
-private struct GlassContainerModifier: ViewModifier {
+private struct GlassBarModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
-            GlassEffectContainer(spacing: 0) {
-                content
-            }
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24))
+            content
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24))
         } else {
             content
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))

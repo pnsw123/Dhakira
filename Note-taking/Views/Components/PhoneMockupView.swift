@@ -25,7 +25,7 @@ struct PhoneMockupView: View {
             Group {
                 if scope == .widgets {
                     WidgetPreviewLayout(theme: theme)
-                        .scaleEffect(0.35)
+                        .scaleEffect(0.65)   // was 0.35 — widgets now fill the frame properly
                         .padding(.top, 20)
                 } else {
                     AppPreviewContent(theme: theme, themeManager: themeManager)

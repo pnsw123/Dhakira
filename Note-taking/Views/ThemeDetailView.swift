@@ -29,8 +29,8 @@ struct ThemeDetailView: View {
             // Full-screen MeshGradient background
             themeBackground
 
-            // Main content
-            VStack(spacing: 20) {
+            // Main content — no Spacer above mockup so it fills as much screen as possible
+            VStack(spacing: 14) {
 
                 // Top bar: Cancel + Apply
                 HStack {
@@ -39,25 +39,19 @@ struct ThemeDetailView: View {
 
                     Spacer()
 
+                    // Paywall disabled for testing — apply any theme directly
                     Button("Apply") {
-                        if isOwned {
-                            themeManager.apply(theme)
-                            dismiss()
-                        } else {
-                            showPaywall = true
-                        }
+                        themeManager.apply(theme)
+                        dismiss()
                     }
                     .modifier(GlassButtonStyle(prominent: true))
-                    .disabled(!isOwned && store.isPurchasing)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
 
-                Spacer()
-
-                // Centre: phone mockup — larger so the theme preview is legible
+                // Centre: phone mockup
                 PhoneMockupView(theme: theme, scope: selectedScope)
-                    .frame(width: 240, height: 490)
+                    .frame(width: 270, height: 585)
 
                 // Scope selector pill
                 ScopeSelectorView(selected: $selectedScope)
