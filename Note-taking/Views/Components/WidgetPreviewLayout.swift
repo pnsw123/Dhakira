@@ -60,10 +60,19 @@ struct WidgetPreviewLayout: View {
 }
 
 // MARK: - Widget Background
-// Matches the actual widget background — solid screenBackground, same as the app.
+// Diagonal gradient using the theme's mesh corner → focal → corner colors,
+// matching the thumbnail cards and ThemeDetailView animated background.
 
 private func widgetBackground(theme: AppTheme) -> some View {
-    theme.screenBackground
+    LinearGradient(
+        colors: [
+            theme.meshColors[0],
+            theme.meshColors[4],
+            theme.meshColors[8]
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
 }
 
 // MARK: - Small Widget (2×2)

@@ -85,7 +85,15 @@ struct ProdNoteWidget: Widget {
                 .resizable()
                 .scaledToFill()
         } else {
-            Color(theme.screenBackground)
+            LinearGradient(
+                colors: [
+                    theme.meshColors[0],
+                    theme.meshColors[4],
+                    theme.meshColors[8]
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
 }
