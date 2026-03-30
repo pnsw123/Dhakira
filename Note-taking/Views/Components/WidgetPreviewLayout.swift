@@ -25,7 +25,7 @@ struct WidgetPreviewLayout: View {
                     .clipShape(RoundedRectangle(cornerRadius: 22))
             }
         }
-        // NOTE: PhoneMockupView already scales by 0.35 — no additional scaleEffect here
+        // NOTE: PhoneMockupView applies scaleEffect(0.65) — no additional scaling here
     }
 }
 

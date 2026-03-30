@@ -1,15 +1,14 @@
 import SwiftUI
 
 // MARK: - PhoneMockupView
-// Renders a phone-frame outline with live theme-coloured content inside.
-// Reads ThemeManager from environment so gradient/colour/photo overrides update in real time.
+// Renders a phone-frame with 3 swipeable pages for App scope, widget layout for Widget scope.
+// Uses theme tokens exclusively — never system adaptive colors — so previews look correct
+// regardless of device dark/light mode.
 // Issue #74 — https://github.com/pnsw123/prod-note/issues/74
 
 struct PhoneMockupView: View {
     let theme: AppTheme
     let scope: ThemeScope
-
-    @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -25,10 +24,10 @@ struct PhoneMockupView: View {
             Group {
                 if scope == .widgets {
                     WidgetPreviewLayout(theme: theme)
-                        .scaleEffect(0.65)   // was 0.35 — widgets now fill the frame properly
+                        .scaleEffect(0.65)
                         .padding(.top, 20)
                 } else {
-                    AppPreviewContent(theme: theme, themeManager: themeManager)
+                    AppScopePreview(theme: theme)
                 }
             }
             .allowsHitTesting(false)
@@ -38,17 +37,134 @@ struct PhoneMockupView: View {
     }
 }
 
-// MARK: - App preview content
+// MARK: - App scope: 3 swipeable pages
 
-private struct AppPreviewContent: View {
+private struct AppScopePreview: View {
     let theme: AppTheme
-    let themeManager: ThemeManager
+    @State private var currentPage = 0
+
+    var body: some View {
+        TabView(selection: $currentPage) {
+            MockFolderPage(theme: theme).tag(0)
+            MockTasksPage(theme: theme).tag(1)
+            MockDetailPage(theme: theme).tag(2)
+        }
+        .tabViewStyle(.page(indexDisplayMode: .automatic))
+        .indexViewStyle(.page(backgroundDisplayMode: .interactive))
+    }
+}
+
+// MARK: - Page 1: Folders/Home
+
+private struct MockFolderPage: View {
+    let theme: AppTheme
+
+    private struct FolderRow: Identifiable {
+        let id = UUID()
+        let icon: String
+        let iconColor: Color
+        let name: String
+        let count: Int?
+    }
+
+    private let mainFolders: [FolderRow] = [
+        FolderRow(icon: "folder.fill",      iconColor: Color(red: 0.0, green: 0.48, blue: 1.0), name: "Default",   count: 5),
+        FolderRow(icon: "folder.fill",      iconColor: Color(red: 0.2, green: 0.78, blue: 0.35), name: "Work",     count: 3),
+        FolderRow(icon: "folder.fill",      iconColor: Color(red: 0.69, green: 0.32, blue: 0.87), name: "Personal", count: 8),
+    ]
+
+    private let systemFolders: [FolderRow] = [
+        FolderRow(icon: "checkmark.circle", iconColor: Color(red: 0.56, green: 0.56, blue: 0.58), name: "Recently Completed", count: nil),
+        FolderRow(icon: "trash",            iconColor: Color(red: 0.56, green: 0.56, blue: 0.58), name: "Recently Deleted",   count: nil),
+    ]
+
+    var body: some View {
+        ZStack {
+            theme.screenBackground
+
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 18) // status bar spacer
+
+                // Header
+                HStack {
+                    Text("Folders")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(theme.primaryText)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(theme.secondaryText)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+
+                // Main folders
+                rowGroup(mainFolders)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
+
+                // System folders
+                rowGroup(systemFolders)
+                    .padding(.horizontal, 12)
+
+                Spacer()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func rowGroup(_ rows: [FolderRow]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
+                HStack(spacing: 10) {
+                    Image(systemName: row.icon)
+                        .font(.system(size: 12))
+                        .foregroundStyle(row.iconColor)
+                        .frame(width: 22, height: 22)
+
+                    Text(row.name)
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.primaryText)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    if let count = row.count {
+                        Text("\(count)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(theme.secondaryText)
+                    }
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(theme.secondaryText.opacity(0.6))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 9)
+                .background(theme.surfaceBackground)
+
+                if i < rows.count - 1 {
+                    Rectangle()
+                        .fill(theme.separatorColor)
+                        .frame(height: 0.5)
+                        .padding(.leading, 42)
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// MARK: - Page 2: Tasks
+
+private struct MockTasksPage: View {
+    let theme: AppTheme
 
     private struct Row: Identifiable {
         let id = UUID()
         let title: String
         let done: Bool
-        let priority: String   // "high" | "medium" | "none"
+        let priority: String
     }
 
     private let rows: [Row] = [
@@ -63,19 +179,12 @@ private struct AppPreviewContent: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
+            theme.screenBackground
 
-            // ── Full-screen background layer ────────────────────
-            // Mirrors WithAppBackground: gradient / colour / theme default
-            backgroundLayer
-                .ignoresSafeArea()
-
-            // ── App content stack ───────────────────────────────
             VStack(spacing: 0) {
+                Color.clear.frame(height: 18) // status bar spacer
 
-                // Status-bar spacer
-                Color.clear.frame(height: 18)
-
-                // Nav bar — mirrors safeAreaInset(.top) in TaskListView
+                // Nav bar
                 HStack(spacing: 0) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 11, weight: .semibold))
@@ -106,7 +215,6 @@ private struct AppPreviewContent: View {
                 VStack(spacing: 0) {
                     ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
                         HStack(spacing: 8) {
-                            // Checkbox
                             ZStack {
                                 Circle()
                                     .strokeBorder(
@@ -121,7 +229,6 @@ private struct AppPreviewContent: View {
                                 }
                             }
 
-                            // Title
                             Text(row.title)
                                 .font(.system(size: 11))
                                 .foregroundStyle(row.done ? theme.secondaryText : theme.primaryText)
@@ -130,7 +237,6 @@ private struct AppPreviewContent: View {
 
                             Spacer()
 
-                            // Priority dot
                             if row.priority == "high" {
                                 Circle().fill(theme.priorityHigh).frame(width: 5, height: 5)
                             } else if row.priority == "medium" {
@@ -156,7 +262,7 @@ private struct AppPreviewContent: View {
                 Spacer()
             }
 
-            // ── FAB — bottom-right, matches safeAreaInset(.bottom) in TaskListView ──
+            // FAB — bottom-right, mirrors real app layout
             Circle()
                 .fill(theme.fabBackground)
                 .frame(width: 28, height: 28)
@@ -170,21 +276,111 @@ private struct AppPreviewContent: View {
                 .padding(.bottom, 14)
         }
     }
+}
 
-    // Mirrors WithAppBackground priority order:
-    // gradient override → colour override → theme default background
-    @ViewBuilder
-    private var backgroundLayer: some View {
-        if let gradColors = themeManager.backgroundGradientColors {
-            LinearGradient(
-                colors: gradColors,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        } else if let color = themeManager.backgroundColorOverride {
-            color
-        } else {
-            theme.screenBackground
+// MARK: - Page 3: Task Detail
+
+private struct MockDetailPage: View {
+    let theme: AppTheme
+
+    var body: some View {
+        ZStack {
+            theme.editorBackground
+
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 18) // status bar spacer
+
+                // Nav bar
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(theme.surfaceBackground)
+                            .frame(width: 28, height: 28)
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(theme.accentColor)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 13))
+                            .foregroundStyle(theme.accentColor)
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 13))
+                            .foregroundStyle(theme.accentColor)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+
+                // Date stamp
+                Text("29 Mar 2026 · 11:30PM")
+                    .font(.system(size: 9))
+                    .foregroundStyle(theme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 2)
+
+                // Task title
+                Text("Reply to Sarah's email")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(theme.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 6)
+
+                // Separator
+                Rectangle()
+                    .fill(theme.separatorColor)
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 8)
+
+                // Blinking cursor
+                HStack(spacing: 0) {
+                    Rectangle()
+                        .fill(theme.accentColor)
+                        .frame(width: 2, height: 14)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+
+                // Simulated note body lines
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach([1.0, 0.88, 0.95, 0.60], id: \.self) { widthFraction in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(theme.placeholderText.opacity(0.35))
+                            .frame(height: 6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .scaleEffect(x: widthFraction, y: 1, anchor: .leading)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+
+                Spacer()
+
+                // Formatting toolbar
+                HStack(spacing: 0) {
+                    ForEach(["bold", "italic", "underline", "strikethrough", "textformat.size.smaller", "textformat.size.larger"], id: \.self) { icon in
+                        Image(systemName: icon)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(theme.accentColor)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.vertical, 9)
+                .background(theme.surfaceBackground)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(theme.separatorColor)
+                        .frame(height: 0.5)
+                }
+                .padding(.bottom, 10)
+            }
         }
     }
 }
@@ -193,13 +389,11 @@ private struct AppPreviewContent: View {
 
 #Preview {
     HStack(spacing: 12) {
-        PhoneMockupView(theme: .defaultLight, scope: .app)
-        PhoneMockupView(theme: .midnight,     scope: .app)
-        PhoneMockupView(theme: .nord,         scope: .widgets)
+        PhoneMockupView(theme: .rose,      scope: .app)
+        PhoneMockupView(theme: .academia,  scope: .app)
+        PhoneMockupView(theme: .nord,      scope: .widgets)
     }
     .frame(height: 490)
     .padding()
     .background(Color.gray)
-    .environment(ThemeManager.shared)
-    .environment(StoreKitManager.shared)
 }

@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - ThemeDetailView
 // Full-screen detail that opens when the user taps a theme card.
-// Modelled on Apple's wallpaper picker: MeshGradient fills the screen,
+// Modelled on Apple's wallpaper picker: animated MeshGradient fills the screen,
 // a live phone mockup sits in the centre, a scope selector below it,
 // and Apply / Cancel buttons float at the top.
 // Issue #73 — https://github.com/pnsw123/prod-note/issues/73
@@ -15,22 +15,14 @@ struct ThemeDetailView: View {
     @Environment(StoreKitManager.self) private var store
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedScope: ThemeScope = .all
-    @State private var showPaywall = false
-
-    private var isOwned: Bool { !theme.isPaid || store.isOwned(theme) }
+    @State private var selectedScope: ThemeScope = .app
 
     var body: some View {
-        let _ = print("🎨 [THEME-DIAG] ThemeDetailView.body START — theme: \(theme.id)")
-        let _ = print("🎨 [THEME-DIAG] ThemeDetailView — reading themeManager.current.id: \(themeManager.current.id)")
-        let _ = print("🎨 [THEME-DIAG] ThemeDetailView — reading store.isPurchasing: \(store.isPurchasing)")
-        let _ = print("🎨 [THEME-DIAG] ThemeDetailView — isOwned: \(isOwned)")
         ZStack {
-            // Full-screen MeshGradient background
+            // Full-screen animated MeshGradient background
             themeBackground
 
-            // Main content — no Spacer above mockup so it fills as much screen as possible
-            VStack(spacing: 14) {
+            VStack(spacing: 16) {
 
                 // Top bar: Cancel + Apply
                 HStack {
@@ -39,7 +31,6 @@ struct ThemeDetailView: View {
 
                     Spacer()
 
-                    // Paywall disabled for testing — apply any theme directly
                     Button("Apply") {
                         themeManager.apply(theme)
                         dismiss()
@@ -49,30 +40,22 @@ struct ThemeDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
 
-                // Centre: phone mockup
+                // Phone mockup — larger now that the bottom bar is gone
                 PhoneMockupView(theme: theme, scope: selectedScope)
-                    .frame(width: 270, height: 585)
+                    .frame(width: 288, height: 624)
 
-                // Scope selector pill
+                // Scope selector: App / Widgets
                 ScopeSelectorView(selected: $selectedScope)
 
-                // Bottom customisation bar
-                BottomCustomisationBar(theme: theme)
-                    .padding(.horizontal, 20)
-
-                Spacer().frame(height: 8)
+                Spacer()
             }
         }
         .ignoresSafeArea()
         .navigationBarHidden(true)
         .modifier(BackgroundExtension())
-        .sheet(isPresented: $showPaywall) {
-            ThemePaywallView(theme: theme)
-                .environment(store)
-        }
     }
 
-    // MARK: — Background
+    // MARK: — Animated background
 
     @ViewBuilder
     private var themeBackground: some View {
@@ -96,7 +79,6 @@ struct ThemeDetailView: View {
         }
     }
 
-    // Bug 4 fix: clamp all points to [0, 1] to prevent MeshGradient bleeding outside the screen
     private func animatedPoints(t: Double) -> [SIMD2<Float>] {
         let s = Float(sin(t * 0.25) * 0.10)
         let c = Float(cos(t * 0.18) * 0.10)
@@ -113,13 +95,13 @@ struct ThemeDetailView: View {
 
 #Preview {
     NavigationStack {
-        ThemeDetailView(theme: .midnight, namespace: Namespace().wrappedValue)
+        ThemeDetailView(theme: .rose, namespace: Namespace().wrappedValue)
     }
     .environment(ThemeManager.shared)
     .environment(StoreKitManager.shared)
 }
 
-// MARK: — iOS 26 availability gates
+// MARK: — iOS 26 glass button styles
 
 private struct GlassButtonStyle: ViewModifier {
     let prominent: Bool

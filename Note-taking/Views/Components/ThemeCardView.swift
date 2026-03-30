@@ -3,8 +3,8 @@ import StoreKit
 
 // MARK: - ThemeCardView
 // Reusable animated card used in the theme gallery grid.
-// Shows MeshGradient background (iOS 18+), frosted material overlay,
-// theme name, lock icon for unowned paid themes, and selected-state ring.
+// Shows live MeshGradient thumbnail with a bottom gradient for text legibility.
+// No frosted material overlay — material was killing the gradient visibility.
 // Issue #72 — https://github.com/pnsw123/prod-note/issues/72
 
 struct ThemeCardView: View {
@@ -20,65 +20,56 @@ struct ThemeCardView: View {
     }
 
     var body: some View {
-        let _ = print("🎨 [THEME-DIAG] ThemeCardView.body — theme: \(theme.id), themeManager.current.id: \(themeManager.current.id), isOwned: \(isOwned)")
         ZStack(alignment: .topTrailing) {
 
-            // Layer 1 — animated MeshGradient background
+            // Layer 1 — live MeshGradient thumbnail
             cardBackground
 
-            // Layer 2 — frosted material overlay
-            // NOTE: ultraThinMaterial on cards, NOT glassEffect (Apple HIG: glass only on floating elements)
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
+            // Layer 2 — bottom gradient so text is always readable over any gradient
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.6)],
+                startPoint: UnitPoint(x: 0.5, y: 0.38),
+                endPoint: .bottom
+            )
 
-            // Layer 3 — theme name + subtitle
+            // Layer 3 — theme name + price
             VStack(alignment: .leading, spacing: 4) {
                 Spacer()
                 Text(theme.name)
                     .font(.headline)
-                    .foregroundStyle(.primary)
-                // Bug 8 fix: read live price from StoreKit so non-USD storefronts show correctly
+                    .foregroundStyle(.white)
                 Text(theme.isPaid ? (isOwned ? "Owned" : (store.product(for: theme)?.displayPrice ?? "—")) : "Free")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.75))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
 
-            // Layer 4 — lock or checkmark
-            Group {
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(.blue)
-                        .padding(8)
-                        .modifier(DrawOnSymbolEffect(trigger: isSelected))
-                } else if !isOwned {
-                    Image(systemName: "lock.fill")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .padding(8)
-                }
+            // Layer 4 — selected checkmark (top-right corner)
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.white)
+                    .padding(8)
+                    .modifier(DrawOnSymbolEffect(trigger: isSelected))
             }
 
             // Layer 5 — selected ring
             if isSelected {
                 RoundedRectangle(cornerRadius: 20)
-                    .strokeBorder(.blue, lineWidth: 3)
+                    .strokeBorder(.white, lineWidth: 3)
             }
         }
         .clipShape(cardShape)
         .aspectRatio(0.75, contentMode: .fit)
-        // Transition source for zoom navigation (iOS 18)
         .matchedTransitionSource(id: theme.id, in: namespace)
-        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+        .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 5)
     }
 
     // MARK: — Card shape: ConcentricRectangle (iOS 26) else RoundedRectangle
 
     private var cardShape: AnyShape {
         if #available(iOS 26, *) {
-            // ConcentricRectangle gives fluid "squircle" corners matching iOS 26 design
             AnyShape(ConcentricRectangle())
         } else {
             AnyShape(RoundedRectangle(cornerRadius: 20))
@@ -99,7 +90,6 @@ struct ThemeCardView: View {
                 )
             }
         } else {
-            // iOS 17 fallback: static linear gradient from first + last mesh colour
             LinearGradient(
                 colors: [theme.meshColors.first ?? .gray,
                          theme.meshColors.last  ?? .black],
@@ -109,8 +99,6 @@ struct ThemeCardView: View {
         }
     }
 
-    // Slowly animate interior control points so the gradient feels alive
-    // Bug 4 fix: clamp all points to [0, 1] to prevent MeshGradient bleeding outside the frame
     private func animatedPoints(t: Double) -> [SIMD2<Float>] {
         let s = Float(sin(t * 0.3) * 0.08)
         let c = Float(cos(t * 0.2) * 0.08)
@@ -126,16 +114,17 @@ struct ThemeCardView: View {
 // MARK: - Preview
 
 #Preview {
-    ThemeCardView(theme: .midnight, isSelected: false, namespace: Namespace().wrappedValue)
-        .environment(ThemeManager.shared)
-        .environment(StoreKitManager.shared)
-        .padding()
+    HStack(spacing: 12) {
+        ThemeCardView(theme: .academia, isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .rose,     isSelected: true,  namespace: Namespace().wrappedValue)
+    }
+    .environment(ThemeManager.shared)
+    .environment(StoreKitManager.shared)
+    .padding()
+    .background(Color.gray)
 }
 
-// MARK: — iOS 26 symbol effect availability gate
-// .drawOn requires iOS 26 (per PRELAUNCH-REQUIREMENTS.md) — NOT iOS 18.
-// Guarding with iOS 18 caused a crash on iOS 18–25 because .drawOn
-// is unavailable there (SourceKit correctly flags it as macOS/iOS 26+).
+// MARK: — iOS 26 symbol effect
 
 private struct DrawOnSymbolEffect: ViewModifier {
     let trigger: Bool

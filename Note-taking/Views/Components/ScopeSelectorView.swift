@@ -5,8 +5,7 @@ import SwiftUI
 // Issue #74 — https://github.com/pnsw123/prod-note/issues/74
 
 enum ThemeScope: String, CaseIterable, Identifiable {
-    case all = "All"
-    case app = "App"
+    case app     = "App"
     case widgets = "Widgets"
     var label: String { rawValue }
     var id: String { rawValue }
