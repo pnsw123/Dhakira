@@ -113,8 +113,9 @@ struct HomeView: View {
                     }) {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color.primaryText)
+                            .foregroundStyle(Color.themeAccent)
                             .frame(width: 36, height: 36)
+                            .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                     }
                     .buttonStyle(.plain)
                     .padding(.trailing, 8)

@@ -157,8 +157,9 @@ struct TaskListView: View {
                         }) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(Color.primaryText)
+                                .foregroundStyle(Color.themeAccent)
                                 .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
                         .buttonStyle(.plain)
                         .padding(.leading, 8)
@@ -171,8 +172,9 @@ struct TaskListView: View {
                         }) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(Color.primaryText)
+                                .foregroundStyle(Color.themeAccent)
                                 .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
                         .buttonStyle(.plain)
                     }
