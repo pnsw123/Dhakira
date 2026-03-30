@@ -1,5 +1,4 @@
 import SwiftUI
-import StoreKit
 
 // MARK: - ThemeCardView
 // Reusable animated card used in the theme gallery grid.
@@ -13,11 +12,6 @@ struct ThemeCardView: View {
     var namespace: Namespace.ID
 
     @Environment(ThemeManager.self) private var themeManager
-    @Environment(StoreKitManager.self) private var store
-
-    private var isOwned: Bool {
-        !theme.isPaid || store.isOwned(theme)
-    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -32,18 +26,31 @@ struct ThemeCardView: View {
                 endPoint: .bottom
             )
 
-            // Layer 3 — theme name + price
-            VStack(alignment: .leading, spacing: 4) {
+            // Layer 3 — theme name + tag
+            VStack {
                 Spacer()
-                Text(theme.name)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                Text(theme.isPaid ? (isOwned ? "Owned" : (store.product(for: theme)?.displayPrice ?? "—")) : "Free")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.75))
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(theme.name)
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                        Text("—")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    Spacer()
+                    Text(theme.tag)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.white.opacity(0.20), in: Capsule())
+                }
+                .frame(maxWidth: .infinity)
+                .padding(12)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
 
             // Layer 4 — selected checkmark (top-right corner)
             if isSelected {

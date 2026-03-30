@@ -130,6 +130,7 @@ struct TaskDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         #endif
+        .tint(Color.themeAccent)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button {
@@ -371,7 +372,7 @@ struct TaskDetailView: View {
         }
         .frame(height: 52)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .glassEffect(.regular, in: .rect(cornerRadius: 18))
+        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)), in: .rect(cornerRadius: 18))
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
         .accessibilityIdentifier("editor-toolbar")
@@ -1695,7 +1696,7 @@ struct AudioRecorderView: View {
                 } label: {
                     Text("Save")
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.themeAccent)
                 }
                 .accessibilityIdentifier("btn-save-recording")
             } else {
@@ -1752,7 +1753,7 @@ struct AudioRecorderView: View {
             // Play/pause playback
             Button { togglePlayback() } label: {
                 Circle()
-                    .fill(Color.accentColor)
+                    .fill(Color.themeAccent)
                     .frame(width: 64, height: 64)
                     .overlay {
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")

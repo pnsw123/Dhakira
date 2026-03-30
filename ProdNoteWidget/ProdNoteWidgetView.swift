@@ -67,17 +67,69 @@ struct ProdNoteWidgetView: View {
     }
 
     private var largeView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("ProdNote")
-                .font(.title2.bold())
-                .foregroundStyle(Color(theme.primaryText))
-                .widgetAccentable()
-            Text("\(entry.taskCount) tasks remaining")
-                .font(.body)
-                .foregroundStyle(Color(theme.secondaryText))
+        VStack(alignment: .leading, spacing: 0) {
+            // Header row
+            HStack(alignment: .firstTextBaseline) {
+                Text("ProdNote")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Color(theme.primaryText))
+                    .widgetAccentable()
+                Spacer()
+                Text("\(entry.taskCount) tasks")
+                    .font(.caption)
+                    .foregroundStyle(Color(theme.secondaryText))
+            }
+            .padding(.bottom, 12)
+
+            if entry.tasks.isEmpty {
+                Text("No tasks remaining")
+                    .font(.subheadline)
+                    .foregroundStyle(Color(theme.secondaryText))
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(entry.tasks.prefix(5)) { task in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .strokeBorder(Color(theme.checkboxInactive), lineWidth: 1.5)
+                                .frame(width: 14, height: 14)
+                            Text(task.title)
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color(theme.primaryText))
+                                .lineLimit(1)
+                            Spacer()
+                            if task.priority == "high" {
+                                WidgetPennant()
+                                    .fill(Color(theme.priorityHigh))
+                                    .frame(width: 9, height: 13)
+                            } else if task.priority == "medium" {
+                                WidgetPennant()
+                                    .fill(Color(theme.priorityMedium))
+                                    .frame(width: 9, height: 13)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer()
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    // MARK: — Pennant shape (matches PennantShape in main app)
+
+    private struct WidgetPennant: Shape {
+        func path(in rect: CGRect) -> Path {
+            var p = Path()
+            p.move(to:    CGPoint(x: 0,            y: 0))
+            p.addLine(to: CGPoint(x: rect.width,   y: 0))
+            p.addLine(to: CGPoint(x: rect.width,   y: rect.height))
+            p.addLine(to: CGPoint(x: rect.width/2, y: rect.height * 0.8))
+            p.addLine(to: CGPoint(x: 0,            y: rect.height))
+            p.closeSubpath()
+            return p
+        }
     }
 
     // MARK: — Lock screen / complication sizes (accessory)

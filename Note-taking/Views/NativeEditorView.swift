@@ -35,11 +35,13 @@ struct NativeEditorView: View {
                 tv.typingAttributes[.foregroundColor] = UIColor.label
                 // Match the editor area background to the active theme so bright / dark
                 // themes don't leave a system-white or system-black rectangle behind.
-                tv.backgroundColor = UIColor(ThemeManager.shared.current.editorBackground)
+                // Clear background lets withEditorBackground() fill the screen
+                // uniformly — no visible seam between the header and editor area.
+                tv.backgroundColor = .clear
                 DispatchQueue.main.async { onEditorReady?(tv) }
             }
         }
-        .background(Color.editorBackground)
+        .background(Color.clear)
     }
 }
 

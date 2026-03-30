@@ -8,13 +8,18 @@ struct ProdNoteEntry: TimelineEntry {
     let themeId: String
     let backgroundImageData: Data?
     let taskCount: Int
+    let tasks: [WidgetTask]
 }
 
 // MARK: - ProdNoteProvider
 
 struct ProdNoteProvider: TimelineProvider {
     func placeholder(in context: Context) -> ProdNoteEntry {
-        ProdNoteEntry(date: .now, themeId: "defaultLight", backgroundImageData: nil, taskCount: 3)
+        ProdNoteEntry(date: .now, themeId: "default", backgroundImageData: nil, taskCount: 3, tasks: [
+            WidgetTask(id: UUID(), title: "Submit tax documents",   priority: "high"),
+            WidgetTask(id: UUID(), title: "Reply to Sarah's email", priority: "medium"),
+            WidgetTask(id: UUID(), title: "Book flight tickets",    priority: "default"),
+        ])
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ProdNoteEntry) -> Void) {
@@ -39,10 +44,16 @@ struct ProdNoteProvider: TimelineProvider {
             return try? Data(contentsOf: url)
         }()
 
-        // Task count cached by the main app into shared UserDefaults
+        // Task count + task list written by the main app into shared UserDefaults
         let taskCount = defaults?.integer(forKey: "activeTaskCount") ?? 0
+        let tasks: [WidgetTask] = {
+            guard let data = defaults?.data(forKey: "activeTasks"),
+                  let decoded = try? JSONDecoder().decode([WidgetTask].self, from: data)
+            else { return [] }
+            return decoded
+        }()
 
-        return ProdNoteEntry(date: .now, themeId: themeId, backgroundImageData: imageData, taskCount: taskCount)
+        return ProdNoteEntry(date: .now, themeId: themeId, backgroundImageData: imageData, taskCount: taskCount, tasks: tasks)
     }
 }
 

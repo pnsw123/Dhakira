@@ -220,7 +220,7 @@ struct TaskListView: View {
                         .foregroundStyle(Color.fabIcon)
                         .frame(width: 48, height: 48)
                         .background(Color.fabColor, in: Circle())
-                        .glassEffect(.regular.interactive(), in: .circle)
+                        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, 6)
@@ -228,7 +228,7 @@ struct TaskListView: View {
             }
             .navigationDestination(item: $selectedTask) { task in
                 TaskDetailView(task: task)
-                    .withAppBackground()
+                    .withEditorBackground()
             }
             .navigationDestination(isPresented: $showTheme) {
                 ThemeView()
@@ -273,6 +273,16 @@ struct TaskListView: View {
                 // Always clear so the link isn't replayed on re-render.
                 pendingDeepLinkTaskId = nil
             }
+            // Keep widget snapshot up-to-date whenever the task list changes.
+            .onAppear { syncWidget() }
+            .onChange(of: filteredTasks.count) { _, _ in syncWidget() }
+    }
+
+    private func syncWidget() {
+        let widgetTasks = filteredTasks.prefix(5).map {
+            WidgetTask(id: $0.id, title: $0.title, priority: $0.priority)
+        }
+        ThemeManager.shared.syncActiveTasks(Array(widgetTasks))
     }
 
     private var doneButton: some View {
@@ -281,8 +291,8 @@ struct TaskListView: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 36, height: 36)
-                .background(Color.accentColor, in: Circle())
-                .glassEffect(.regular.interactive(), in: .circle)
+                .background(Color.themeAccent, in: Circle())
+                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
         }
         .buttonStyle(.plain)
     }

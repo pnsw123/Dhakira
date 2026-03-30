@@ -444,7 +444,7 @@ extension AppTheme {
         preferredScheme:    .dark
     )
 
-    // MARK: — All themes ordered for display (randomised groups, free first)
+    // MARK: — All themes ordered for display (free first)
     static let all: [AppTheme] = [
         .defaultLight, .midnight,          // free
         .academia, .nord, .tokyoNight,     // paid — batch 1
@@ -453,4 +453,14 @@ extension AppTheme {
 
     static let free: [AppTheme] = all.filter { !$0.isPaid }
     static let paid: [AppTheme] = all.filter { $0.isPaid }
+}
+
+// MARK: - WidgetTask
+// Lightweight Codable snapshot shared between the main app and the widget extension.
+// The main app encodes and writes this to the shared App Group; the widget decodes it.
+
+struct WidgetTask: Codable, Identifiable {
+    let id: UUID
+    let title: String
+    let priority: String   // "high" | "medium" | "default"
 }

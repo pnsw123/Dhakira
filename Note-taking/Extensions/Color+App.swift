@@ -134,6 +134,8 @@ extension Color {
     static var fabColor: Color          { ThemeManager.shared.current.fabBackground }
     /// FAB icon color — comes from the active theme
     static var fabIcon: Color           { ThemeManager.shared.current.fabIcon }
+    /// Accent / tint color — comes from the active theme
+    static var themeAccent: Color       { ThemeManager.shared.current.accentColor }
 }
 
 // MARK: - Light/dark adaptive color helper

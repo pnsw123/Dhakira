@@ -205,4 +205,58 @@ extension View {
     func withAppBackground() -> some View {
         modifier(WithAppBackground())
     }
+    /// Like withAppBackground() but fills the screen with editorBackground instead of
+    /// screenBackground — used by TaskDetailView so the whole page is one uniform colour.
+    func withEditorBackground() -> some View {
+        modifier(WithEditorBackground())
+    }
+}
+
+// MARK: - WithEditorBackground ViewModifier
+
+struct WithEditorBackground: ViewModifier {
+    @Environment(\.colorScheme) var colorScheme
+
+    func body(content: Content) -> some View {
+        let tm = ThemeManager.shared
+        return ZStack {
+            #if canImport(UIKit)
+            if let img = tm.backgroundImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .ignoresSafeArea(.all)
+                Color.black.opacity(colorScheme == .dark ? 0.55 : 0.25)
+                    .ignoresSafeArea(.all)
+            } else if let color = tm.backgroundColorOverride {
+                color.ignoresSafeArea(.all)
+            } else if let gradColors = tm.backgroundGradientColors {
+                LinearGradient(colors: gradColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .ignoresSafeArea(.all)
+            } else {
+                tm.current.editorBackground
+                    .ignoresSafeArea(.all)
+            }
+            #else
+            tm.current.editorBackground
+                .ignoresSafeArea(.all)
+            #endif
+            content
+        }
+    }
+}
+
+// MARK: - Widget task sync
+
+extension ThemeManager {
+    /// Writes the top tasks to the shared App Group so the widget can display them.
+    /// Called from TaskListView whenever the task list changes.
+    func syncActiveTasks(_ tasks: [WidgetTask]) {
+        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.shared") else { return }
+        defaults.set(tasks.count, forKey: "activeTaskCount")
+        if let encoded = try? JSONEncoder().encode(tasks) {
+            defaults.set(encoded, forKey: "activeTasks")
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+    }
 }

@@ -16,15 +16,19 @@ struct ThemeDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedScope: ThemeScope = .app
+    @State private var mockPage = 0
+
+    private let pageCount = 3
 
     var body: some View {
         ZStack {
-            // Full-screen animated MeshGradient background
+            // Full-screen animated MeshGradient background — only this ignores safe area
             themeBackground
+                .ignoresSafeArea()
 
             VStack(spacing: 16) {
 
-                // Top bar: Cancel + Apply
+                // Top bar: Cancel + Apply — sits below status bar in safe area
                 HStack {
                     Button("Cancel") { dismiss() }
                         .modifier(GlassButtonStyle(prominent: false))
@@ -38,11 +42,39 @@ struct ThemeDetailView: View {
                     .modifier(GlassButtonStyle(prominent: true))
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 16)
+                .padding(.top, 8)
 
-                // Phone mockup — larger now that the bottom bar is gone
-                PhoneMockupView(theme: theme, scope: selectedScope)
-                    .frame(width: 288, height: 624)
+                // Phone mockup + page dots below the bezel
+                VStack(spacing: 10) {
+                    PhoneMockupView(theme: theme, scope: selectedScope, currentPage: $mockPage)
+                        .frame(width: 288, height: 624)
+                        .overlay(alignment: .leading) {
+                            if selectedScope == .app {
+                                mockNavArrow(forward: false)
+                                    .offset(x: -44)
+                            }
+                        }
+                        .overlay(alignment: .trailing) {
+                            if selectedScope == .app {
+                                mockNavArrow(forward: true)
+                                    .offset(x: 44)
+                            }
+                        }
+
+                    // Page indicator dots — below the phone frame, visible for App scope only
+                    if selectedScope == .app {
+                        HStack(spacing: 6) {
+                            ForEach(0..<3, id: \.self) { i in
+                                Circle()
+                                    .fill(i == mockPage
+                                          ? theme.accentColor
+                                          : Color.white.opacity(0.5))
+                                    .frame(width: 6, height: 6)
+                                    .animation(.easeInOut(duration: 0.2), value: mockPage)
+                            }
+                        }
+                    }
+                }
 
                 // Scope selector: App / Widgets
                 ScopeSelectorView(selected: $selectedScope)
@@ -50,9 +82,25 @@ struct ThemeDetailView: View {
                 Spacer()
             }
         }
-        .ignoresSafeArea()
         .navigationBarHidden(true)
-        .modifier(BackgroundExtension())
+    }
+
+    @ViewBuilder
+    private func mockNavArrow(forward: Bool) -> some View {
+        let atEdge = forward ? (mockPage >= pageCount - 1) : (mockPage <= 0)
+        Button {
+            withAnimation(.spring(duration: 0.25)) {
+                mockPage = forward ? min(pageCount - 1, mockPage + 1) : max(0, mockPage - 1)
+            }
+        } label: {
+            Image(systemName: forward ? "chevron.right" : "chevron.left")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+        }
+        .modifier(GlassCircleArrow())
+        .disabled(atEdge)
+        .opacity(atEdge ? 0.25 : 1)
     }
 
     // MARK: — Animated background
@@ -102,6 +150,16 @@ struct ThemeDetailView: View {
 }
 
 // MARK: — iOS 26 glass button styles
+
+private struct GlassCircleArrow: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content.buttonStyle(.glass)
+        } else {
+            content.background(.ultraThinMaterial, in: Circle())
+        }
+    }
+}
 
 private struct GlassButtonStyle: ViewModifier {
     let prominent: Bool

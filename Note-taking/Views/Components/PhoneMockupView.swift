@@ -9,6 +9,7 @@ import SwiftUI
 struct PhoneMockupView: View {
     let theme: AppTheme
     let scope: ThemeScope
+    @Binding var currentPage: Int   // owned by ThemeDetailView; arrows live outside this frame
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -24,10 +25,8 @@ struct PhoneMockupView: View {
             Group {
                 if scope == .widgets {
                     WidgetPreviewLayout(theme: theme)
-                        .scaleEffect(0.65)
-                        .padding(.top, 20)
                 } else {
-                    AppScopePreview(theme: theme)
+                    AppScopePreview(theme: theme, currentPage: $currentPage)
                 }
             }
             .allowsHitTesting(false)
@@ -37,24 +36,263 @@ struct PhoneMockupView: View {
     }
 }
 
-// MARK: - App scope: 3 swipeable pages
+// MARK: - App scope: 3 swipeable pages with themed dots
 
 private struct AppScopePreview: View {
     let theme: AppTheme
-    @State private var currentPage = 0
+    @Binding var currentPage: Int
 
     var body: some View {
         TabView(selection: $currentPage) {
-            MockFolderPage(theme: theme).tag(0)
-            MockTasksPage(theme: theme).tag(1)
-            MockDetailPage(theme: theme).tag(2)
+            MockTasksPage(theme: theme).tag(0)   // page 1 — task list
+            MockDetailPage(theme: theme).tag(1)  // page 2 — task detail
+            MockFolderPage(theme: theme).tag(2)  // page 3 — folders
         }
-        .tabViewStyle(.page(indexDisplayMode: .automatic))
-        .indexViewStyle(.page(backgroundDisplayMode: .interactive))
+        .tabViewStyle(.page(indexDisplayMode: .never))
     }
 }
 
-// MARK: - Page 1: Folders/Home
+// MARK: - Page 1: Tasks
+
+private struct MockTasksPage: View {
+    let theme: AppTheme
+
+    private struct Row: Identifiable {
+        let id = UUID()
+        let title: String
+        let done: Bool
+        let priority: String
+    }
+
+    private let rows: [Row] = [
+        Row(title: "Morning standup",      done: false, priority: "high"),
+        Row(title: "Review pull requests", done: false, priority: "medium"),
+        Row(title: "Update documentation", done: true,  priority: "none"),
+        Row(title: "Team lunch 12pm",      done: false, priority: "none"),
+        Row(title: "Write weekly report",  done: false, priority: "none"),
+        Row(title: "Check emails",         done: true,  priority: "none"),
+        Row(title: "Plan next sprint",     done: false, priority: "none"),
+    ]
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            theme.screenBackground
+
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 18) // status bar spacer
+
+                // Nav bar
+                HStack(spacing: 0) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(theme.accentColor)
+                        .padding(.leading, 10)
+
+                    Text("Tasks")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(theme.primaryText)
+                        .padding(.leading, 6)
+
+                    Spacer()
+
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.accentColor)
+                        .padding(.trailing, 12)
+                }
+                .padding(.vertical, 9)
+                .background(theme.screenBackground)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(theme.separatorColor)
+                        .frame(height: 0.5)
+                }
+
+                // Task rows
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
+                        HStack(spacing: 8) {
+                            ZStack {
+                                if row.done {
+                                    // Color matches priority — red if high, orange if medium, gray if none
+                                    let doneColor: Color = row.priority == "high"   ? theme.priorityHigh
+                                                         : row.priority == "medium" ? theme.priorityMedium
+                                                         : theme.checkboxInactive
+                                    Circle()
+                                        .fill(doneColor)
+                                        .frame(width: 16, height: 16)
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 7, weight: .bold))
+                                        .foregroundStyle(.white)
+                                } else {
+                                    Circle()
+                                        .strokeBorder(theme.checkboxInactive, lineWidth: 1)
+                                        .frame(width: 16, height: 16)
+                                }
+                            }
+
+                            Text(row.title)
+                                .font(.system(size: 11))
+                                .foregroundStyle(row.done ? theme.secondaryText : theme.primaryText)
+                                .strikethrough(row.done, color: theme.secondaryText)
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            // Pennant flag — matches real TaskRowView shape
+                            if row.priority == "high" {
+                                MockPennant()
+                                    .fill(theme.priorityHigh)
+                                    .frame(width: 8, height: 12)
+                            } else if row.priority == "medium" {
+                                MockPennant()
+                                    .fill(theme.priorityMedium)
+                                    .frame(width: 8, height: 12)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(theme.surfaceBackground)
+
+                        if i < rows.count - 1 {
+                            Rectangle()
+                                .fill(theme.separatorColor)
+                                .frame(height: 0.5)
+                                .padding(.leading, 38)
+                        }
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+
+                Spacer()
+            }
+
+            // FAB — themed plus button, bottom-right
+            Circle()
+                .fill(theme.fabBackground)
+                .frame(width: 28, height: 28)
+                .overlay(
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(theme.fabIcon)
+                )
+                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                .padding(.trailing, 12)
+                .padding(.bottom, 12)
+        }
+    }
+}
+
+// MARK: - Page 2: Task Detail
+
+private struct MockDetailPage: View {
+    let theme: AppTheme
+
+    var body: some View {
+        ZStack {
+            theme.editorBackground
+
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 18) // status bar spacer
+
+                // Nav bar — back button + share + keyboard (all themed)
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(theme.surfaceBackground)
+                            .frame(width: 28, height: 28)
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(theme.accentColor)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 13))
+                            .foregroundStyle(theme.accentColor)
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 13))
+                            .foregroundStyle(theme.accentColor)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+
+                // Date stamp
+                Text("29 Mar 2026 · 11:30PM")
+                    .font(.system(size: 9))
+                    .foregroundStyle(theme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 2)
+
+                // Task title
+                Text("Reply to Sarah's email")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(theme.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 6)
+
+                // Separator
+                Rectangle()
+                    .fill(theme.separatorColor)
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 8)
+
+                // Cursor
+                HStack(spacing: 0) {
+                    Rectangle()
+                        .fill(theme.accentColor)
+                        .frame(width: 2, height: 14)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+
+                // Simulated note body lines
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach([1.0, 0.88, 0.95, 0.60], id: \.self) { widthFraction in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(theme.placeholderText.opacity(0.35))
+                            .frame(height: 6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .scaleEffect(x: widthFraction, y: 1, anchor: .leading)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+
+                Spacer()
+
+                // Formatting toolbar — all icons themed with accentColor
+                HStack(spacing: 0) {
+                    ForEach(["bold", "italic", "underline", "strikethrough", "textformat.size.smaller", "textformat.size.larger"], id: \.self) { icon in
+                        Image(systemName: icon)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(theme.accentColor)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.vertical, 9)
+                .background(theme.surfaceBackground)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(theme.separatorColor)
+                        .frame(height: 0.5)
+                }
+                .padding(.bottom, 10)
+            }
+        }
+    }
+}
+
+// MARK: - Page 3: Folders — matches real FolderListView exactly
 
 private struct MockFolderPage: View {
     let theme: AppTheme
@@ -67,10 +305,10 @@ private struct MockFolderPage: View {
         let count: Int?
     }
 
+    // Matches the reference screenshot exactly: Default + Add Folder
     private let mainFolders: [FolderRow] = [
-        FolderRow(icon: "folder.fill",      iconColor: Color(red: 0.0, green: 0.48, blue: 1.0), name: "Default",   count: 5),
-        FolderRow(icon: "folder.fill",      iconColor: Color(red: 0.2, green: 0.78, blue: 0.35), name: "Work",     count: 3),
-        FolderRow(icon: "folder.fill",      iconColor: Color(red: 0.69, green: 0.32, blue: 0.87), name: "Personal", count: 8),
+        FolderRow(icon: "folder.fill",       iconColor: Color(red: 0.0, green: 0.48, blue: 1.0),  name: "Default",    count: 5),
+        FolderRow(icon: "folder.badge.plus",  iconColor: Color(red: 0.56, green: 0.56, blue: 0.58), name: "Add Folder", count: nil),
     ]
 
     private let systemFolders: [FolderRow] = [
@@ -98,12 +336,10 @@ private struct MockFolderPage: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
 
-                // Main folders
                 rowGroup(mainFolders)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 10)
 
-                // System folders
                 rowGroup(systemFolders)
                     .padding(.horizontal, 12)
 
@@ -155,233 +391,18 @@ private struct MockFolderPage: View {
     }
 }
 
-// MARK: - Page 2: Tasks
+// MARK: - Pennant flag shape — matches real TaskRowView priority indicator
 
-private struct MockTasksPage: View {
-    let theme: AppTheme
-
-    private struct Row: Identifiable {
-        let id = UUID()
-        let title: String
-        let done: Bool
-        let priority: String
-    }
-
-    private let rows: [Row] = [
-        Row(title: "Morning standup",      done: false, priority: "high"),
-        Row(title: "Review pull requests", done: false, priority: "medium"),
-        Row(title: "Update documentation", done: true,  priority: "none"),
-        Row(title: "Team lunch 12pm",      done: false, priority: "none"),
-        Row(title: "Write weekly report",  done: false, priority: "high"),
-        Row(title: "Check emails",         done: true,  priority: "none"),
-        Row(title: "Plan next sprint",     done: false, priority: "medium"),
-    ]
-
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            theme.screenBackground
-
-            VStack(spacing: 0) {
-                Color.clear.frame(height: 18) // status bar spacer
-
-                // Nav bar
-                HStack(spacing: 0) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.accentColor)
-                        .padding(.leading, 10)
-
-                    Text("Tasks")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(theme.primaryText)
-                        .padding(.leading, 6)
-
-                    Spacer()
-
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 12))
-                        .foregroundStyle(theme.accentColor)
-                        .padding(.trailing, 12)
-                }
-                .padding(.vertical, 9)
-                .background(theme.screenBackground)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(theme.separatorColor)
-                        .frame(height: 0.5)
-                }
-
-                // Task rows
-                VStack(spacing: 0) {
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
-                        HStack(spacing: 8) {
-                            ZStack {
-                                Circle()
-                                    .strokeBorder(
-                                        row.done ? theme.checkboxActive : theme.checkboxInactive,
-                                        lineWidth: 1
-                                    )
-                                    .frame(width: 16, height: 16)
-                                if row.done {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 7, weight: .bold))
-                                        .foregroundStyle(theme.checkboxActive)
-                                }
-                            }
-
-                            Text(row.title)
-                                .font(.system(size: 11))
-                                .foregroundStyle(row.done ? theme.secondaryText : theme.primaryText)
-                                .strikethrough(row.done, color: theme.secondaryText)
-                                .lineLimit(1)
-
-                            Spacer()
-
-                            if row.priority == "high" {
-                                Circle().fill(theme.priorityHigh).frame(width: 5, height: 5)
-                            } else if row.priority == "medium" {
-                                Circle().fill(theme.priorityMedium).frame(width: 5, height: 5)
-                            }
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background(theme.surfaceBackground)
-
-                        if i < rows.count - 1 {
-                            Rectangle()
-                                .fill(theme.separatorColor)
-                                .frame(height: 0.5)
-                                .padding(.leading, 38)
-                        }
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-
-                Spacer()
-            }
-
-            // FAB — bottom-right, mirrors real app layout
-            Circle()
-                .fill(theme.fabBackground)
-                .frame(width: 28, height: 28)
-                .overlay(
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(theme.fabIcon)
-                )
-                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
-                .padding(.trailing, 12)
-                .padding(.bottom, 14)
-        }
-    }
-}
-
-// MARK: - Page 3: Task Detail
-
-private struct MockDetailPage: View {
-    let theme: AppTheme
-
-    var body: some View {
-        ZStack {
-            theme.editorBackground
-
-            VStack(spacing: 0) {
-                Color.clear.frame(height: 18) // status bar spacer
-
-                // Nav bar
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(theme.surfaceBackground)
-                            .frame(width: 28, height: 28)
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(theme.accentColor)
-                    }
-
-                    Spacer()
-
-                    HStack(spacing: 10) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13))
-                            .foregroundStyle(theme.accentColor)
-                        Image(systemName: "keyboard")
-                            .font(.system(size: 13))
-                            .foregroundStyle(theme.accentColor)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-
-                // Date stamp
-                Text("29 Mar 2026 · 11:30PM")
-                    .font(.system(size: 9))
-                    .foregroundStyle(theme.secondaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 2)
-
-                // Task title
-                Text("Reply to Sarah's email")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(theme.primaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 6)
-
-                // Separator
-                Rectangle()
-                    .fill(theme.separatorColor)
-                    .frame(height: 0.5)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 8)
-
-                // Blinking cursor
-                HStack(spacing: 0) {
-                    Rectangle()
-                        .fill(theme.accentColor)
-                        .frame(width: 2, height: 14)
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
-
-                // Simulated note body lines
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach([1.0, 0.88, 0.95, 0.60], id: \.self) { widthFraction in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(theme.placeholderText.opacity(0.35))
-                            .frame(height: 6)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .scaleEffect(x: widthFraction, y: 1, anchor: .leading)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 12)
-
-                Spacer()
-
-                // Formatting toolbar
-                HStack(spacing: 0) {
-                    ForEach(["bold", "italic", "underline", "strikethrough", "textformat.size.smaller", "textformat.size.larger"], id: \.self) { icon in
-                        Image(systemName: icon)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(theme.accentColor)
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .padding(.vertical, 9)
-                .background(theme.surfaceBackground)
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(theme.separatorColor)
-                        .frame(height: 0.5)
-                }
-                .padding(.bottom, 10)
-            }
-        }
+private struct MockPennant: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY * 0.68))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.closeSubpath()
+        return p
     }
 }
 
@@ -389,9 +410,9 @@ private struct MockDetailPage: View {
 
 #Preview {
     HStack(spacing: 12) {
-        PhoneMockupView(theme: .rose,      scope: .app)
-        PhoneMockupView(theme: .academia,  scope: .app)
-        PhoneMockupView(theme: .nord,      scope: .widgets)
+        PhoneMockupView(theme: .rose,      scope: .app,     currentPage: .constant(0))
+        PhoneMockupView(theme: .academia,  scope: .app,     currentPage: .constant(1))
+        PhoneMockupView(theme: .nord,      scope: .widgets, currentPage: .constant(0))
     }
     .frame(height: 490)
     .padding()
