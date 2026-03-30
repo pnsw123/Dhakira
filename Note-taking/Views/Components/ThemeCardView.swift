@@ -1,8 +1,9 @@
 import SwiftUI
 
 // MARK: - ThemeCardView
-// Compact thumbnail card used in the 2-column theme gallery grid.
-// Shows the theme's real MeshGradient so each card is a true colour preview.
+// Thumbnail card used in the 2-column theme gallery grid.
+// Shows a mini live preview of the app UI so users see exactly
+// what tasks look like in that theme before tapping through.
 
 struct ThemeCardView: View {
     let theme: AppTheme
@@ -14,17 +15,25 @@ struct ThemeCardView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
 
-            // Layer 1 — real theme gradient (shows exactly what you get)
+            // Layer 1 — full gradient background
             cardBackground
 
-            // Layer 2 — bottom fade so label is always legible
+            // Layer 2 — mini app UI preview (floats over gradient)
+            VStack(spacing: 0) {
+                miniUIPreview
+                    .padding(.horizontal, 10)
+                    .padding(.top, 14)
+                Spacer()
+            }
+
+            // Layer 3 — bottom fade so label is readable over any gradient
             LinearGradient(
-                colors: [.clear, .black.opacity(0.68)],
-                startPoint: UnitPoint(x: 0.5, y: 0.45),
+                colors: [.clear, .black.opacity(0.75)],
+                startPoint: UnitPoint(x: 0.5, y: 0.30),
                 endPoint: .bottom
             )
 
-            // Layer 3 — theme name + mood tag
+            // Layer 4 — theme name + mood tag
             HStack(alignment: .bottom, spacing: 4) {
                 Text(theme.name)
                     .font(.system(size: 14, weight: .bold))
@@ -36,7 +45,7 @@ struct ThemeCardView: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 11)
 
-            // Layer 4 — selection ring in the theme's own accent colour
+            // Layer 5 — selection ring in the theme's own accent colour
             if isSelected {
                 RoundedRectangle(cornerRadius: 20)
                     .strokeBorder(theme.accentColor, lineWidth: 2.5)
@@ -46,6 +55,122 @@ struct ThemeCardView: View {
         .aspectRatio(0.82, contentMode: .fit)
         .matchedTransitionSource(id: theme.id, in: namespace)
         .shadow(color: .black.opacity(0.28), radius: 16, x: 0, y: 8)
+    }
+
+    // MARK: — Mini UI Preview
+
+    @ViewBuilder
+    private var miniUIPreview: some View {
+        VStack(spacing: 3) {
+
+            // Mini nav bar
+            HStack(spacing: 6) {
+                // Back chevron dot
+                Circle()
+                    .fill(theme.accentColor.opacity(0.80))
+                    .frame(width: 7, height: 7)
+
+                // Title bar
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(theme.primaryText.opacity(0.80))
+                    .frame(width: 36, height: 6)
+
+                Spacer()
+
+                // Ellipsis menu dot
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(theme.secondaryText.opacity(0.60))
+                    .frame(width: 10, height: 4)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(theme.screenBackground.opacity(0.50), in: RoundedRectangle(cornerRadius: 7))
+
+            // Task list card with FAB overlay
+            ZStack(alignment: .bottomTrailing) {
+
+                // Task rows
+                VStack(spacing: 0) {
+                    ForEach(Array(previewRows.enumerated()), id: \.offset) { i, row in
+                        miniRow(row)
+                        if i < previewRows.count - 1 {
+                            Rectangle()
+                                .fill(theme.separatorColor.opacity(0.45))
+                                .frame(height: 0.5)
+                                .padding(.leading, 22)
+                        }
+                    }
+                }
+                .background(theme.surfaceBackground.opacity(0.60), in: RoundedRectangle(cornerRadius: 8))
+
+                // Mini FAB
+                Circle()
+                    .fill(theme.fabBackground)
+                    .frame(width: 17, height: 17)
+                    .overlay(
+                        Image(systemName: "plus")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(theme.fabIcon)
+                    )
+                    .shadow(color: .black.opacity(0.22), radius: 3, x: 0, y: 1.5)
+                    .offset(x: 2, y: 8)
+            }
+        }
+    }
+
+    // MARK: — Row data
+
+    private struct PreviewRow {
+        let done: Bool
+        let textWidth: CGFloat
+        let hasFlag: Bool
+    }
+
+    private let previewRows: [PreviewRow] = [
+        PreviewRow(done: true,  textWidth: 0.80, hasFlag: true),
+        PreviewRow(done: true,  textWidth: 0.58, hasFlag: false),
+        PreviewRow(done: false, textWidth: 0.92, hasFlag: false),
+        PreviewRow(done: false, textWidth: 0.70, hasFlag: false),
+        PreviewRow(done: false, textWidth: 0.50, hasFlag: false),
+    ]
+
+    @ViewBuilder
+    private func miniRow(_ row: PreviewRow) -> some View {
+        HStack(spacing: 5) {
+
+            // Checkbox
+            Group {
+                if row.done {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(theme.priorityHigh)
+                } else {
+                    Circle()
+                        .strokeBorder(theme.checkboxInactive, lineWidth: 1)
+                        .frame(width: 9, height: 9)
+                }
+            }
+            .frame(width: 11)
+
+            // Abstracted text line (represents the task title)
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill((row.done ? theme.secondaryText : theme.primaryText)
+                    .opacity(row.done ? 0.40 : 0.82))
+                .frame(height: 5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .scaleEffect(x: row.textWidth, y: 1, anchor: .leading)
+
+            // Priority flag
+            if row.hasFlag {
+                CardPennant()
+                    .fill(theme.priorityHigh)
+                    .frame(width: 5, height: 8)
+            } else {
+                Color.clear.frame(width: 5, height: 8)
+            }
+        }
+        .frame(height: 20)
+        .padding(.horizontal, 6)
     }
 
     // MARK: — Tag badge
@@ -65,19 +190,11 @@ struct ThemeCardView: View {
     }
 
     // MARK: — Card background
-    // MeshGradient blurs badly at thumbnail size — not used here.
-    // Instead: vivid focal colour (meshColors[4]) as base, with the theme's
-    // corner tones layered on top as a diagonal gradient so the full palette
-    // reads clearly at any size.
 
     @ViewBuilder
     private var cardBackground: some View {
         ZStack {
-            // Base — most vivid / saturated colour of the theme
             theme.meshColors[4]
-
-            // Diagonal overlay — top-left corner → centre → bottom-right corner
-            // Adds the dark/light tonal range without MeshGradient blur
             LinearGradient(
                 colors: [
                     theme.meshColors[0].opacity(0.78),
@@ -88,6 +205,21 @@ struct ThemeCardView: View {
                 endPoint: .bottomTrailing
             )
         }
+    }
+}
+
+// MARK: - Pennant flag shape (mini version for card thumbnail)
+
+private struct CardPennant: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY * 0.68))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.closeSubpath()
+        return p
     }
 }
 
