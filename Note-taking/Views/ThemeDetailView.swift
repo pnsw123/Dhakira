@@ -17,7 +17,6 @@ struct ThemeDetailView: View {
 
     @State private var selectedScope: ThemeScope = .app
     @State private var mockPage = 0
-    @State private var showPaywall = false
 
     private let pageCount = 3
 
@@ -37,10 +36,6 @@ struct ThemeDetailView: View {
                     Spacer()
 
                     Button("Apply") {
-                        guard store.isOwned(theme) else {
-                            showPaywall = true
-                            return
-                        }
                         withAnimation(.easeInOut(duration: 0.35)) {
                             themeManager.apply(theme)
                         }
@@ -90,9 +85,6 @@ struct ThemeDetailView: View {
             }
         }
         .navigationBarHidden(true)
-        .sheet(isPresented: $showPaywall) {
-            ThemePaywallView(theme: theme)
-        }
     }
 
     @ViewBuilder
