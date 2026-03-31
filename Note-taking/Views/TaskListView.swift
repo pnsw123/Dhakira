@@ -81,24 +81,12 @@ struct TaskListView: View {
                     .listRowBackground(Color.clear)
                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
                         Button { setPriority(task, to: "high") } label: {
-                            Label {
-                                Text("High")
-                            } icon: {
-                                PennantShape()
-                                    .fill(Color.white)
-                                    .frame(width: 14, height: 20)
-                            }
+                            Label("High", systemImage: "flag.fill")
                         }
                         .tint(Color.priorityHighColor)
 
                         Button { setPriority(task, to: "medium") } label: {
-                            Label {
-                                Text("Medium")
-                            } icon: {
-                                PennantShape()
-                                    .fill(Color.white)
-                                    .frame(width: 14, height: 20)
-                            }
+                            Label("Medium", systemImage: "flag.fill")
                         }
                         .tint(Color.priorityMediumColor)
 
