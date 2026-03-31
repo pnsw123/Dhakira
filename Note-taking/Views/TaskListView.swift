@@ -428,3 +428,57 @@ struct TaskListView: View {
         return level * 20
     }
 }
+
+// MARK: - Previews
+
+/// Preview-only gradient layer — renders theme mesh as a ZStack sibling
+/// instead of .background{} so it paints over NavigationStack's opaque system background.
+@ViewBuilder
+private func previewGradient(_ tm: ThemeManager) -> some View {
+    if #available(iOS 18, *) {
+        let grid: [SIMD2<Float>] = [
+            [0,0],[0.5,0],[1,0],
+            [0,0.5],[0.5,0.5],[1,0.5],
+            [0,1],[0.5,1],[1,1]
+        ]
+        MeshGradient(
+            width: 3, height: 3,
+            points: tm.current.meshPoints ?? grid,
+            colors: tm.current.meshColors
+        ).ignoresSafeArea()
+    } else {
+        tm.current.screenBackground.ignoresSafeArea()
+    }
+}
+
+private func previewTaskList(theme: AppTheme? = nil) -> some View {
+    let tm = ThemeManager.shared
+    if let theme { tm.applyApp(theme) }
+    let container = try! AppSchemaBuilder.makeInMemoryContainer()
+    let ctx = container.mainContext
+    let folder = Folder(name: "Default")
+    ctx.insert(folder)
+    let list = TaskList(name: "Tasks", folder: folder)
+    ctx.insert(list)
+    for (i, (title, priority)) in [
+        ("Buy groceries", "high"), ("Finish project", "medium"),
+        ("Call dentist", "default"), ("Water plants", "default")
+    ].enumerated() {
+        let t = TaskItem(title: title, priority: priority, taskList: list)
+        t.sortOrder = i
+        ctx.insert(t)
+    }
+    return ZStack {
+        previewGradient(tm)
+        NavigationStack {
+            TaskListView(taskList: list, onShowHome: {})
+        }
+    }
+    .modelContainer(container)
+    .environment(tm)
+    .preferredColorScheme(tm.current.preferredScheme)
+}
+
+#Preview("Task List — Default") { previewTaskList() }
+#Preview("Task List — Nord") { previewTaskList(theme: .nord) }
+#Preview("Task List — Tokyo Night") { previewTaskList(theme: .tokyoNight) }

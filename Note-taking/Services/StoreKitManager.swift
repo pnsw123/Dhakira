@@ -16,7 +16,6 @@ final class StoreKitManager {
         "com.prodnote.theme.nord",
         "com.prodnote.theme.tokyonight",
         "com.prodnote.theme.forest",
-        "com.prodnote.theme.rose",
         "com.prodnote.theme.void",
         "com.prodnote.theme.ocean",
         "com.prodnote.theme.lavender",
@@ -26,7 +25,6 @@ final class StoreKitManager {
         "com.prodnote.theme.amethyst",
         "com.prodnote.theme.matrix",
         "com.prodnote.theme.midnightblue",
-        "com.prodnote.theme.bratgreen",
         "com.prodnote.theme.pro"
     ]
 

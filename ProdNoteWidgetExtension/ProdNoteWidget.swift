@@ -24,7 +24,11 @@ struct ProdNoteProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ProdNoteEntry) -> Void) {
-        completion(entry())
+        if context.isPreview {
+            completion(placeholder(in: context))
+        } else {
+            completion(entry())
+        }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ProdNoteEntry>) -> Void) {
@@ -35,7 +39,7 @@ struct ProdNoteProvider: TimelineProvider {
 
     private func entry() -> ProdNoteEntry {
         let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking")
-        let themeId = defaults?.string(forKey: "themeId") ?? "defaultLight"
+        let themeId = defaults?.string(forKey: "themeId") ?? "default"
 
         // Read shared background image from App Group container
         let imageData: Data? = {
@@ -86,13 +90,14 @@ struct ProdNoteWidget: Widget {
                 .scaledToFill()
         } else {
             if #available(iOS 18, *) {
+                let defaultGrid: [SIMD2<Float>] = [
+                    [0,0],[0.5,0],[1,0],
+                    [0,0.5],[0.5,0.5],[1,0.5],
+                    [0,1],[0.5,1],[1,1]
+                ]
                 MeshGradient(
                     width: 3, height: 3,
-                    points: [
-                        [0.0, 0.0], [0.5, 0.0], [1.0, 0.0],
-                        [0.0, 0.5], [0.5, 0.5], [1.0, 0.5],
-                        [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
-                    ],
+                    points: theme.meshPoints ?? defaultGrid,
                     colors: theme.meshColors
                 )
             } else {

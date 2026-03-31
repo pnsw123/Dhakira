@@ -223,16 +223,21 @@ struct AttachmentServicePresenters: View {
                 service.activeSheet = nil
             }
         case .camera:
+            #if os(iOS)
             CameraPickerView { data in
                 service.appendImage(data, to: &attributedText)
                 service.activeSheet = nil
             }
+            #else
+            EmptyView()
+            #endif
         case .documentPicker:
             DocumentFilePickerView { url in
                 service.appendFile(url: url, to: &attributedText)
                 service.activeSheet = nil
             }
         case .documentScanner:
+            #if os(iOS)
             DocumentScannerView { images in
                 for img in images {
                     if let d = img.pngData() {
@@ -241,16 +246,23 @@ struct AttachmentServicePresenters: View {
                 }
                 service.activeSheet = nil
             }
+            #else
+            EmptyView()
+            #endif
         case .audioRecorder:
             AudioRecorderView { url, duration in
                 service.appendAudio(url: url, duration: duration, to: &attributedText)
                 service.activeSheet = nil
             }
         case .dataScanner:
+            #if os(iOS)
             DataScannerWrapperView { text in
                 service.appendScannedText(text, to: &attributedText)
                 service.activeSheet = nil
             }
+            #else
+            EmptyView()
+            #endif
         }
     }
 }

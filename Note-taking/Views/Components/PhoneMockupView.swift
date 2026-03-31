@@ -478,7 +478,7 @@ private struct MockPennant: Shape {
 
 #Preview {
     HStack(spacing: 12) {
-        PhoneMockupView(theme: .rose,      scope: .app,     currentPage: .constant(0))
+        PhoneMockupView(theme: .sakura,    scope: .app,     currentPage: .constant(0))
         PhoneMockupView(theme: .tokyoNight, scope: .app,     currentPage: .constant(1))
         PhoneMockupView(theme: .nord,      scope: .widgets, currentPage: .constant(0))
     }

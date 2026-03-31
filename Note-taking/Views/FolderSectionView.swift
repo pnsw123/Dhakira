@@ -128,24 +128,26 @@ struct FolderRowView: View {
 
                 Image(systemName: "folder.fill")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.themeAccent)
                     .frame(width: 22)
 
                 if isRenaming {
                     TextField("Folder name", text: $renameText, onCommit: commitRename)
                         .font(.system(size: 16))
+                        .foregroundStyle(Color.primaryText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .focused($isRenameFocused)
                 } else {
                     Text(folder.name)
                         .font(.system(size: 16))
+                        .foregroundStyle(Color.primaryText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 // Expand chevron — always shown so any folder can be opened
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(Color.secondaryText)
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     .animation(.easeInOut(duration: 0.2), value: isExpanded)
             }
@@ -187,7 +189,9 @@ struct FolderRowView: View {
             } message: {
                 Text("All task lists and tasks inside this folder will be permanently removed.")
             }
+            #if os(iOS)
             .swipeToDelete { showDeleteConfirm = true }
+            #endif
 
             // Expanded content: subfolders + task lists
             if isExpanded {
@@ -221,11 +225,11 @@ struct FolderRowView: View {
                         Spacer().frame(width: CGFloat((indentLevel + 1) * 20))
                         Image(systemName: "plus.circle")
                             .font(.system(size: 14))
-                            .foregroundStyle(Color.primary)
+                            .foregroundStyle(Color.primaryText)
                             .frame(width: 22)
                         Text("Add List")
                             .font(.system(size: 14))
-                            .foregroundStyle(Color.primary)
+                            .foregroundStyle(Color.primaryText)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
@@ -307,23 +311,25 @@ struct TaskListRowView: View {
 
             Image(systemName: "list.bullet")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Color.secondary)
+                .foregroundStyle(Color.secondaryText)
                 .frame(width: 22)
 
             if isRenaming {
                 TextField("List name", text: $renameText, onCommit: commitRename)
                     .font(.system(size: 15))
+                    .foregroundStyle(Color.primaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .focused($isRenameFocused)
             } else {
                 Text(taskList.name)
                     .font(.system(size: 15))
+                    .foregroundStyle(Color.primaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.secondary.opacity(0.5))
+                .foregroundStyle(Color.secondaryText.opacity(0.5))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
@@ -350,7 +356,9 @@ struct TaskListRowView: View {
                 Label("Delete", systemImage: "trash")
             }
         }
+        #if os(iOS)
         .swipeToDelete(perform: deleteTaskList)
+        #endif
     }
 
     private func startRename() {

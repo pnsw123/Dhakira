@@ -145,7 +145,7 @@ struct ThemeDetailView: View {
 
 #Preview {
     NavigationStack {
-        ThemeDetailView(theme: .rose, namespace: Namespace().wrappedValue)
+        ThemeDetailView(theme: .sakura, namespace: Namespace().wrappedValue)
     }
     .environment(ThemeManager.shared)
     .environment(StoreKitManager.shared)

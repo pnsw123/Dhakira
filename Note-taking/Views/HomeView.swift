@@ -183,3 +183,52 @@ struct HomeView: View {
         autoRenameFolderId = folder.id
     }
 }
+
+// MARK: - Previews
+
+@ViewBuilder
+private func previewGradient(_ tm: ThemeManager) -> some View {
+    if #available(iOS 18, *) {
+        let grid: [SIMD2<Float>] = [
+            [0,0],[0.5,0],[1,0],
+            [0,0.5],[0.5,0.5],[1,0.5],
+            [0,1],[0.5,1],[1,1]
+        ]
+        MeshGradient(
+            width: 3, height: 3,
+            points: tm.current.meshPoints ?? grid,
+            colors: tm.current.meshColors
+        ).ignoresSafeArea()
+    } else {
+        tm.current.screenBackground.ignoresSafeArea()
+    }
+}
+
+private func previewHomeView(theme: AppTheme? = nil) -> some View {
+    let tm = ThemeManager.shared
+    if let theme { tm.applyApp(theme) }
+    let container = try! AppSchemaBuilder.makeInMemoryContainer()
+    let ctx = container.mainContext
+    let folder = Folder(name: "Default")
+    ctx.insert(folder)
+    let list = TaskList(name: "Tasks", folder: folder)
+    ctx.insert(list)
+    let work = Folder(name: "Work")
+    ctx.insert(work)
+    let workList = TaskList(name: "Projects", folder: work)
+    ctx.insert(workList)
+    return ZStack {
+        previewGradient(tm)
+        NavigationStack {
+            HomeView()
+                .scrollContentBackground(.hidden)
+        }
+    }
+    .modelContainer(container)
+    .environment(tm)
+    .preferredColorScheme(tm.current.preferredScheme)
+}
+
+#Preview("Folders — Default") { previewHomeView() }
+#Preview("Folders — Nord") { previewHomeView(theme: .nord) }
+#Preview("Folders — Tokyo Night") { previewHomeView(theme: .tokyoNight) }

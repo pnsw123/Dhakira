@@ -63,7 +63,7 @@ struct ContentView: View {
                         onShowRecentlyDeleted:   { homeNav = .recentlyDeleted }
                     )
                     .scrollContentBackground(.hidden)
-                    .withAppBackground()          // inside NavigationStack — bypasses UINavigationController opaque background
+                    .withAppBackground()
                     .navigationDestination(item: $homeNav) { nav in
                         switch nav {
                         case .recentlyCompleted: RecentlyCompletedView().withAppBackground()
@@ -79,7 +79,7 @@ struct ContentView: View {
                         onShowHome: { slideToHome() },
                         pendingDeepLinkTaskId: $pendingDeepLinkTaskId
                     )
-                    .withAppBackground()          // inside NavigationStack — bypasses UINavigationController opaque background
+                    .withAppBackground()
                 }
                 .transition(.move(edge: .trailing))
             }
@@ -110,12 +110,14 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            TaskListView(
-                taskList: activeTaskList,
-                onShowHome: { columnVisibility = .all },
-                pendingDeepLinkTaskId: $pendingDeepLinkTaskId
-            )
-            .withAppBackground()
+            NavigationStack {
+                TaskListView(
+                    taskList: activeTaskList,
+                    onShowHome: { columnVisibility = .all },
+                    pendingDeepLinkTaskId: $pendingDeepLinkTaskId
+                )
+                .withAppBackground()
+            }
         }
     }
 
@@ -125,7 +127,26 @@ struct ContentView: View {
     private func slideToTasks() { showHome = false }
 }
 
+@ViewBuilder
+private func previewGradient(_ tm: ThemeManager) -> some View {
+    if #available(iOS 18, *) {
+        let grid: [SIMD2<Float>] = [
+            [0,0],[0.5,0],[1,0],
+            [0,0.5],[0.5,0.5],[1,0.5],
+            [0,1],[0.5,1],[1,1]
+        ]
+        MeshGradient(
+            width: 3, height: 3,
+            points: tm.current.meshPoints ?? grid,
+            colors: tm.current.meshColors
+        ).ignoresSafeArea()
+    } else {
+        tm.current.screenBackground.ignoresSafeArea()
+    }
+}
+
 #Preview {
+    let tm = ThemeManager.shared
     let container = try! AppSchemaBuilder.makeInMemoryContainer()
     let ctx = container.mainContext
 
@@ -149,8 +170,12 @@ struct ContentView: View {
         ctx.insert(t)
     }
 
-    return ContentView(pendingDeepLinkTaskId: .constant(nil))
-        .modelContainer(container)
-        .environment(ThemeManager.shared)
-        .environment(StoreKitManager.shared)
+    return ZStack {
+        previewGradient(tm)
+        ContentView(pendingDeepLinkTaskId: .constant(nil))
+    }
+    .modelContainer(container)
+    .environment(tm)
+    .environment(StoreKitManager.shared)
+    .preferredColorScheme(tm.current.preferredScheme)
 }

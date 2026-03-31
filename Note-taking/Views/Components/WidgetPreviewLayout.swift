@@ -1,4 +1,5 @@
 import SwiftUI
+import ProdNoteShared
 
 // MARK: - WidgetPreviewLayout
 // Widget picker shown when "Widgets" scope is selected in ThemeDetailView.
@@ -146,11 +147,11 @@ private struct MediumWidgetPreview: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Today")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.primaryText)
                     Spacer()
                     Text("\(taskCount) tasks")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.70))
+                        .foregroundStyle(theme.secondaryText)
                 }
                 .padding(.bottom, 8)
 
@@ -159,11 +160,11 @@ private struct MediumWidgetPreview: View {
                     ForEach(visible) { task in
                         HStack(spacing: 7) {
                             Circle()
-                                .strokeBorder(.white.opacity(0.50), lineWidth: 1.2)
+                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
                                 .frame(width: 12, height: 12)
                             Text(task.title)
                                 .font(.system(size: 12))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.primaryText)
                                 .lineLimit(1)
                             Spacer()
                             if task.priority == "high" {
@@ -180,7 +181,7 @@ private struct MediumWidgetPreview: View {
                     if overflow > 0 {
                         Text("+\(overflow) more")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.60))
+                            .foregroundStyle(theme.secondaryText)
                     }
                 }
 
@@ -228,11 +229,11 @@ private struct LargeWidgetPreview: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Today")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.primaryText)
                     Spacer()
                     Text("\(taskCount) tasks")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.70))
+                        .foregroundStyle(theme.secondaryText)
                 }
 
                 // Separator
@@ -246,11 +247,11 @@ private struct LargeWidgetPreview: View {
                     ForEach(visible) { task in
                         HStack(spacing: 8) {
                             Circle()
-                                .strokeBorder(.white.opacity(0.50), lineWidth: 1.2)
+                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
                                 .frame(width: 11, height: 11)
                             Text(task.title)
                                 .font(.system(size: 11))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.primaryText)
                                 .lineLimit(1)
                             Spacer()
                             if task.priority == "high" {
@@ -267,7 +268,7 @@ private struct LargeWidgetPreview: View {
                     if overflow > 0 {
                         Text("+\(overflow) more")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.60))
+                            .foregroundStyle(theme.secondaryText)
                             .padding(.top, 2)
                     }
                 }
@@ -286,13 +287,7 @@ private struct LargeWidgetPreview: View {
 
 private struct PreviewGlassModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content
-                .glassEffect(.regular.interactive(false), in: RoundedRectangle(cornerRadius: 0))
-        } else {
-            content
-                .background(.ultraThinMaterial)
-        }
+        content
     }
 }
 

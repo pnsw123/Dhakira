@@ -21,7 +21,7 @@ struct ThemeView: View {
         ScrollView {
             LazyVGrid(
                 columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
-                spacing: 20
+                spacing: 12
             ) {
                 ForEach(displayedThemes) { theme in
                     Button {
@@ -94,11 +94,6 @@ struct ThemeView: View {
                 .padding(.bottom, 10)
             }
             .contentShape(Rectangle())
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(Color.separatorColor)
-                    .frame(height: 0.5)
-            }
         }
     }
 }

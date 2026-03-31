@@ -1315,14 +1315,20 @@ struct TaskDetailView: View {
     }
 
     private var attachmentMenuItems: [AttachmentMenuItem] {
-        [
+        var items: [AttachmentMenuItem] = []
+        #if os(iOS)
+        items += [
             .init(id: "scanText",      icon: "text.viewfinder", label: "Scan Text"),
             .init(id: "scanDocuments", icon: "doc.viewfinder",  label: "Scan Documents"),
             .init(id: "takePhoto",     icon: "camera",           label: "Take Photo or Video"),
+        ]
+        #endif
+        items += [
             .init(id: "choosePhoto",   icon: "photo",            label: "Choose Photo or Video"),
             .init(id: "recordAudio",   icon: "mic",              label: "Record Audio"),
             .init(id: "attachFile",    icon: "paperclip",        label: "Attach File"),
         ]
+        return items
     }
 
     private func triggerAttachment(_ id: String) {
@@ -1432,7 +1438,9 @@ struct TaskDetailView: View {
 // AttachmentCoordinator and AttachmentPresenters removed — replaced by AttachmentService (Issue #49)
 
 // MARK: - DataScannerWrapperView (VisionKit live text capture)
+// Camera/scanner hardware — iOS only, hidden on Mac Catalyst
 
+#if os(iOS)
 struct DataScannerWrapperView: UIViewControllerRepresentable {
     let onScan: (String) -> Void
 
@@ -1486,6 +1494,7 @@ struct DataScannerWrapperView: UIViewControllerRepresentable {
         }
     }
 }
+#endif // os(iOS) — DataScannerWrapperView
 
 // MARK: - PhotoPickerView (Photos + Videos, multi-select — matches Apple Notes)
 
@@ -1550,7 +1559,9 @@ struct PhotoPickerView: UIViewControllerRepresentable {
 }
 
 // MARK: - CameraPickerView (Photo + Video — matches Apple Notes)
+// Camera hardware — iOS only
 
+#if os(iOS)
 struct CameraPickerView: UIViewControllerRepresentable {
     let onCapture: (Data) -> Void
 
@@ -1608,6 +1619,7 @@ struct CameraPickerView: UIViewControllerRepresentable {
         }
     }
 }
+#endif // os(iOS) — CameraPickerView
 
 // MARK: - DocumentFilePickerView
 
@@ -1635,7 +1647,9 @@ struct DocumentFilePickerView: UIViewControllerRepresentable {
 }
 
 // MARK: - DocumentScannerView
+// Document scanner camera — iOS only
 
+#if os(iOS)
 struct DocumentScannerView: UIViewControllerRepresentable {
     let onScan: ([UIImage]) -> Void
 
@@ -1668,6 +1682,7 @@ struct DocumentScannerView: UIViewControllerRepresentable {
         }
     }
 }
+#endif // os(iOS) — DocumentScannerView
 
 // MARK: - AudioRecorderView (Apple Notes-style with waveform + timer + playback)
 

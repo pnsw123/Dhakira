@@ -44,7 +44,7 @@ struct ThemeCardView: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 20))
-        .aspectRatio(0.82, contentMode: .fit)
+        .aspectRatio(1.0, contentMode: .fit)
         .matchedTransitionSource(id: theme.id, in: namespace)
         .shadow(color: .black.opacity(0.28), radius: 16, x: 0, y: 8)
     }
@@ -209,8 +209,8 @@ private struct CardPennant: Shape {
         ThemeCardView(theme: .nord,       isSelected: false, namespace: Namespace().wrappedValue)
         ThemeCardView(theme: .tokyoNight, isSelected: false, namespace: Namespace().wrappedValue)
         ThemeCardView(theme: .forest,     isSelected: true,  namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .rose,       isSelected: false, namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .void,        isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .sakura,     isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .coral,       isSelected: false, namespace: Namespace().wrappedValue)
     }
     .padding(16)
     .background(Color(red: 0.11, green: 0.11, blue: 0.12))

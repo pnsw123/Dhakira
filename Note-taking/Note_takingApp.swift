@@ -30,6 +30,7 @@ struct Note_takingApp: App {
             log.critical("ModelContainer FAILED to init: \(error.localizedDescription)")
             fatalError("Failed to create ModelContainer: \(error)")
         }
+
     }
 
     var body: some Scene {
@@ -151,6 +152,7 @@ private actor StartupWorker {
             defaults?.set(taskCount, forKey: "activeTaskCount")
             if let encoded { defaults?.set(encoded, forKey: "activeTasks") }
             defaults?.set(themeId, forKey: "themeId")
+            defaults?.synchronize()
             WidgetCenter.shared.reloadAllTimelines()
         }
     }

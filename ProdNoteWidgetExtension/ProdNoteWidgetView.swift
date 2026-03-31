@@ -41,11 +41,11 @@ struct ProdNoteWidgetView: View {
 
             Text("\(entry.taskCount)")
                 .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.primaryText)
 
             Text("tasks today")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.70))
+                .foregroundStyle(theme.secondaryText)
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -62,11 +62,11 @@ struct ProdNoteWidgetView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Today")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.primaryText)
                 Spacer()
                 Text("\(entry.taskCount) tasks")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.70))
+                    .foregroundStyle(theme.secondaryText)
             }
             .padding(.bottom, 8)
 
@@ -77,7 +77,7 @@ struct ProdNoteWidgetView: View {
                         .foregroundStyle(Color(theme.accentColor))
                     Text("All caught up!")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.70))
+                        .foregroundStyle(theme.secondaryText)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             } else {
@@ -85,11 +85,11 @@ struct ProdNoteWidgetView: View {
                     ForEach(visible) { task in
                         HStack(spacing: 7) {
                             Circle()
-                                .strokeBorder(.white.opacity(0.50), lineWidth: 1.2)
+                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
                                 .frame(width: 12, height: 12)
                             Text(task.title)
                                 .font(.system(size: 12))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.primaryText)
                                 .lineLimit(1)
                             Spacer()
                             if task.priority == "high" {
@@ -107,7 +107,7 @@ struct ProdNoteWidgetView: View {
                     if overflow > 0 {
                         Text("+\(overflow) more")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.60))
+                            .foregroundStyle(theme.secondaryText)
                     }
                 }
             }
@@ -129,11 +129,11 @@ struct ProdNoteWidgetView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Today")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.primaryText)
                 Spacer()
                 Text("\(entry.taskCount) tasks")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.70))
+                    .foregroundStyle(theme.secondaryText)
             }
 
             // Thin separator
@@ -149,7 +149,7 @@ struct ProdNoteWidgetView: View {
                         .foregroundStyle(Color(theme.accentColor))
                     Text("All caught up!")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.70))
+                        .foregroundStyle(theme.secondaryText)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -157,11 +157,11 @@ struct ProdNoteWidgetView: View {
                     ForEach(visible) { task in
                         HStack(spacing: 8) {
                             Circle()
-                                .strokeBorder(.white.opacity(0.50), lineWidth: 1.2)
+                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
                                 .frame(width: 11, height: 11)
                             Text(task.title)
                                 .font(.system(size: 11))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.primaryText)
                                 .lineLimit(1)
                             Spacer()
                             if task.priority == "high" {
@@ -179,7 +179,7 @@ struct ProdNoteWidgetView: View {
                     if overflow > 0 {
                         Text("+\(overflow) more")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.60))
+                            .foregroundStyle(theme.secondaryText)
                             .padding(.top, 2)
                     }
                 }
