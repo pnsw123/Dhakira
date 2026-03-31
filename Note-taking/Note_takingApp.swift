@@ -147,7 +147,7 @@ private actor StartupWorker {
         // Jump to main actor to access ThemeManager and WidgetCenter (both UI-bound)
         Task { @MainActor in
             let themeId = ThemeManager.shared.current.id
-            let defaults = UserDefaults(suiteName: "group.com.prodnote.shared")
+            let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking")
             defaults?.set(taskCount, forKey: "activeTaskCount")
             if let encoded { defaults?.set(encoded, forKey: "activeTasks") }
             defaults?.set(themeId, forKey: "themeId")

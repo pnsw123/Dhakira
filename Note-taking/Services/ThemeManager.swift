@@ -138,12 +138,12 @@ final class ThemeManager {
 
     // MARK: — App Group sync (widgets read from here)
     private func syncToAppGroup() {
-        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.shared") else { return }
+        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking") else { return }
         defaults.set(widgetThemeId, forKey: "themeId")
         #if canImport(UIKit)
         // Copy background image JPEG to shared container so the widget can read it
         let sharedURL = FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: "group.com.prodnote.shared")?
+            .containerURL(forSecurityApplicationGroupIdentifier: "group.com.prodnote.notetaking")?
             .appendingPathComponent("theme_background.jpg")
         if let sharedURL, let img = backgroundImage,
            let jpeg = img.jpegData(compressionQuality: 0.85) {
@@ -330,7 +330,7 @@ extension ThemeManager {
     /// Writes the top tasks to the shared App Group so the widget can display them.
     /// Called from TaskListView whenever the task list changes.
     func syncActiveTasks(_ tasks: [WidgetTask], totalCount: Int) {
-        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.shared") else { return }
+        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking") else { return }
         defaults.set(totalCount, forKey: "activeTaskCount")
         if let encoded = try? JSONEncoder().encode(tasks) {
             defaults.set(encoded, forKey: "activeTasks")

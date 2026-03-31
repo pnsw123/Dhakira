@@ -34,13 +34,13 @@ struct ProdNoteProvider: TimelineProvider {
     }
 
     private func entry() -> ProdNoteEntry {
-        let defaults = UserDefaults(suiteName: "group.com.prodnote.shared")
+        let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking")
         let themeId = defaults?.string(forKey: "themeId") ?? "defaultLight"
 
         // Read shared background image from App Group container
         let imageData: Data? = {
             guard let url = FileManager.default
-                .containerURL(forSecurityApplicationGroupIdentifier: "group.com.prodnote.shared")?
+                .containerURL(forSecurityApplicationGroupIdentifier: "group.com.prodnote.notetaking")?
                 .appendingPathComponent("theme_background.jpg") else { return nil }
             return try? Data(contentsOf: url)
         }()
