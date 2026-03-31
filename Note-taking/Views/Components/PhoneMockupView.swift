@@ -317,7 +317,7 @@ private struct MockDetailPage: View {
 
                 Spacer()
 
-                // Formatting toolbar — compact, glass on gradient themes
+                // Formatting toolbar — floating pill matching real BottomCustomisationBar
                 HStack(spacing: 0) {
                     ForEach(["bold", "italic", "checklist", "list.bullet", "underline", "strikethrough", "textformat.size.smaller", "textformat.size.larger"], id: \.self) { icon in
                         Image(systemName: icon)
@@ -326,14 +326,10 @@ private struct MockDetailPage: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .padding(.vertical, 6)
-                .background(theme.backgroundStyle == .gradient ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(theme.surfaceBackground))
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(theme.separatorColor)
-                        .frame(height: 0.5)
-                }
-                .padding(.bottom, 4)
+                .padding(.vertical, 7)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 13))
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
             }
         }
         .background { background }
