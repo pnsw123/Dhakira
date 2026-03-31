@@ -189,6 +189,7 @@ struct TaskListView: View {
                     } else {
                         Text(displayName)
                             .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(Color.primaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.leading, onShowHome != nil ? 16 : 4)
                             .onTapGesture {

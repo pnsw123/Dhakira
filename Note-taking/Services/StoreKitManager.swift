@@ -18,6 +18,15 @@ final class StoreKitManager {
         "com.prodnote.theme.forest",
         "com.prodnote.theme.rose",
         "com.prodnote.theme.void",
+        "com.prodnote.theme.ocean",
+        "com.prodnote.theme.lavender",
+        "com.prodnote.theme.aurora",
+        "com.prodnote.theme.neon",
+        "com.prodnote.theme.terracotta",
+        "com.prodnote.theme.amethyst",
+        "com.prodnote.theme.matrix",
+        "com.prodnote.theme.midnightblue",
+        "com.prodnote.theme.bratgreen",
         "com.prodnote.theme.pro"
     ]
 

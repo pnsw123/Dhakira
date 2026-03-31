@@ -210,7 +210,7 @@ private struct CardPennant: Shape {
         ThemeCardView(theme: .tokyoNight, isSelected: false, namespace: Namespace().wrappedValue)
         ThemeCardView(theme: .forest,     isSelected: true,  namespace: Namespace().wrappedValue)
         ThemeCardView(theme: .rose,       isSelected: false, namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .void,       isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .void,        isSelected: false, namespace: Namespace().wrappedValue)
     }
     .padding(16)
     .background(Color(red: 0.11, green: 0.11, blue: 0.12))

@@ -111,6 +111,7 @@ struct TaskDetailView: View {
 
             TextField("Untitled", text: $task.title, axis: .vertical)
                 .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(Color.primaryText)
                 .lineLimit(1...4)
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
