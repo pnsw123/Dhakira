@@ -37,6 +37,8 @@ struct TaskDetailView: View {
     // Checkbox tap coordinator — wires a UITapGestureRecognizer to the UITextView
     // so users can tap checkbox attachments to toggle them checked/unchecked.
     @StateObject private var checkboxCoordinator = CheckboxTapCoordinator()
+    // Long press coordinator — shows color palette when user holds without selecting text.
+    @StateObject private var colorLongPressCoordinator = ColorLongPressCoordinator()
     // Audio tap coordinator — detects taps on prodnote-audio:// chips and triggers playback sheet.
     @StateObject private var audioTapCoordinator = AudioTapCoordinator()
     /// Non-nil when the user tapped an audio chip — drives the playback sheet.
@@ -55,6 +57,10 @@ struct TaskDetailView: View {
     /// Selected range saved the moment the palette appears — preserved because
     /// tapping a swatch dismisses the keyboard and clears UITextView.selectedRange.
     @State private var savedColorSelection: NSRange = NSRange(location: 0, length: 0)
+    /// Sticky font color — set when user picks a color, persists across cursor moves
+    /// until explicitly removed via the palette. Re-applied in onSelectionChanged
+    /// because UIKit resets typingAttributes on every cursor movement.
+    @State private var activeFontColor: UIColor? = nil
 
     /// Cursor rect in global (window) coordinates when "/" was typed — used to
     /// anchor the slash menu right below the cursor instead of at the bottom.
@@ -245,6 +251,13 @@ struct TaskDetailView: View {
                 audioTapCoordinator.clear()
             }
         }
+        // Show color palette on long press (no text selection needed)
+        .onChange(of: colorLongPressCoordinator.pressGlobalRect) { _, rect in
+            guard let rect else { return }
+            selectionGlobalRect = rect
+            showColorPalette = true
+            colorLongPressCoordinator.clear()
+        }
         .sheet(item: $playingAudioLink) { link in
             AudioPlayerView(audioLink: link)
         }
@@ -285,6 +298,12 @@ struct TaskDetailView: View {
                     )
                     audioTap.delegate = audioTapCoordinator
                     tv.addGestureRecognizer(audioTap)
+                    let longPress = UILongPressGestureRecognizer(
+                        target: colorLongPressCoordinator,
+                        action: #selector(ColorLongPressCoordinator.handleLongPress(_:))
+                    )
+                    longPress.delegate = colorLongPressCoordinator
+                    tv.addGestureRecognizer(longPress)
                     DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
                 }
             )
@@ -613,11 +632,14 @@ struct TaskDetailView: View {
         // the chosen color after a selection is colored and the user keeps typing.
         if let v = value {
             tv.typingAttributes[key] = v
+            // Track sticky font color so it survives cursor movement
+            if key == .foregroundColor { activeFontColor = v as? UIColor }
         } else {
             tv.typingAttributes.removeValue(forKey: key)
             // Removing font color: restore adaptive label so text stays visible
             if key == .foregroundColor {
                 tv.typingAttributes[.foregroundColor] = UIColor.label
+                activeFontColor = nil   // user explicitly cleared — stop sticking
             }
         }
     }
@@ -1381,6 +1403,12 @@ struct TaskDetailView: View {
         }
         if hasSelection { savedColorSelection = range }
         withAnimation(.easeInOut(duration: 0.2)) { showColorPalette = hasSelection }
+
+        // UIKit resets typingAttributes to match text at new cursor position on every move.
+        // Re-apply the sticky font color so the user's chosen color survives cursor movement.
+        if let color = activeFontColor, let tv = richTextView {
+            tv.typingAttributes[.foregroundColor] = color
+        }
     }
 
     private func saveBody() {

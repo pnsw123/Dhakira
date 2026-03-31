@@ -90,17 +90,18 @@ public struct AppTheme: Equatable, Hashable, Identifiable {
         case "nord":         return "com.prodnote.theme.nord"
         case "tokyo-night":  return "com.prodnote.theme.tokyonight"
         case "forest":       return "com.prodnote.theme.forest"
-        case "rose":         return "com.prodnote.theme.rose"
-        case "void":         return "com.prodnote.theme.void"
         case "ocean":        return "com.prodnote.theme.ocean"
-        case "lavender":     return "com.prodnote.theme.lavender"
         case "aurora":       return "com.prodnote.theme.aurora"
         case "neon":         return "com.prodnote.theme.neon"
-        case "terracotta":   return "com.prodnote.theme.terracotta"
         case "amethyst":     return "com.prodnote.theme.amethyst"
-        case "matrix":       return "com.prodnote.theme.matrix"
         case "midnight-blue": return "com.prodnote.theme.midnightblue"
-        case "brat-green":   return "com.prodnote.theme.bratgreen"
+        case "sakura":       return "com.prodnote.theme.sakura"
+        case "arctic":       return "com.prodnote.theme.arctic"
+        case "slate":        return "com.prodnote.theme.slate"
+        case "mint":         return "com.prodnote.theme.mint"
+        case "dusk":         return "com.prodnote.theme.dusk"
+        case "crimson":      return "com.prodnote.theme.crimson"
+        case "coral":        return "com.prodnote.theme.coral"
         default:             return nil
         }
     }
@@ -163,15 +164,15 @@ extension AppTheme {
         checkboxActive:     Color(red: 0.000, green: 0.478, blue: 1.000),
         checkboxInactive:   Color(light: Color(red: 0.780, green: 0.780, blue: 0.800),
                                   dark:  Color(red: 0.350, green: 0.350, blue: 0.380)),
-        preferredScheme:    .light   // light mesh — must force light mode or text is invisible
+        preferredScheme:    nil   // follow system dark/light mode natively
     )
 
     // ─────────────────────────────────────────────
-    // FREE — Dark Mode (deep charcoal dark)
+    // PAID — Midnight (deep charcoal dark)
     // ─────────────────────────────────────────────
     public static let midnight = AppTheme(
         id: "midnight",
-        name: "Dark Mode",
+        name: "Midnight",
         subtitle: "Deep & focused",
         tag: "Free",
         isPaid: false,
@@ -269,13 +270,13 @@ extension AppTheme {
         isPaid: true,
         meshColors: [
             Color(red: 0.010, green: 0.010, blue: 0.040),   // void black
-            Color(red: 0.060, green: 0.025, blue: 0.160),   // faint neon bleed
+            Color(red: 0.050, green: 0.028, blue: 0.120),   // faint neon bleed (softened)
             Color(red: 0.010, green: 0.010, blue: 0.030),   // void black
-            Color(red: 0.040, green: 0.060, blue: 0.220),   // dark navy-blue left
-            Color(red: 0.580, green: 0.120, blue: 0.960),   // vivid electric violet — CENTER
-            Color(red: 0.025, green: 0.030, blue: 0.090),   // near-black
-            Color(red: 0.020, green: 0.480, blue: 0.900),   // electric cyan-blue bottom
-            Color(red: 0.025, green: 0.020, blue: 0.055),   // near-black
+            Color(red: 0.045, green: 0.060, blue: 0.180),   // dark navy-blue left (muted)
+            Color(red: 0.420, green: 0.140, blue: 0.750),   // soft electric violet — CENTER (desaturated)
+            Color(red: 0.025, green: 0.030, blue: 0.080),   // near-black
+            Color(red: 0.040, green: 0.340, blue: 0.650),   // muted cyan-blue bottom (softened)
+            Color(red: 0.025, green: 0.022, blue: 0.055),   // near-black
             Color(red: 0.005, green: 0.005, blue: 0.020)    // deepest void
         ],
         backgroundStyle: .gradient,
@@ -340,115 +341,6 @@ extension AppTheme {
     )
 
     // ─────────────────────────────────────────────
-    // PAID — Sakura (Japanese night sakura — dramatic two-tone)
-    // Concept: Ink-black night sky split by vivid cerise blossom + warm gold petal glow
-    // Two signature colors: cerise magenta (accent) + rose-gold (secondary)
-    // ─────────────────────────────────────────────
-    public static let rose = AppTheme(
-        id: "rose",
-        name: "Sakura",
-        subtitle: "Night beneath the blossoms",
-        tag: "Pastel",
-        isPaid: true,
-        meshColors: [
-            Color(red: 0.160, green: 0.065, blue: 0.110),   // deep rose shadow TL
-            Color(red: 0.280, green: 0.092, blue: 0.165),   // dark fuchsia TC (not bright white)
-            Color(red: 0.140, green: 0.055, blue: 0.095),   // deep rose shadow TR
-            Color(red: 0.320, green: 0.095, blue: 0.172),   // deep fuchsia ML
-            Color(red: 0.920, green: 0.400, blue: 0.580),   // warm sakura focal MC
-            Color(red: 0.240, green: 0.076, blue: 0.138),   // deep fuchsia MR
-            Color(red: 0.118, green: 0.046, blue: 0.080),   // deep rose shadow BL
-            Color(red: 0.720, green: 0.440, blue: 0.320),   // rose-gold glow BC
-            Color(red: 0.108, green: 0.042, blue: 0.073)    // deep shadow BR
-        ],
-        backgroundStyle: .gradient,
-        screenBackground:  Color(light: Color(red: 0.992, green: 0.955, blue: 0.970),
-                                 dark:  Color(red: 0.045, green: 0.025, blue: 0.090)),  // deep indigo-plum
-        surfaceBackground: Color(light: Color(red: 0.998, green: 0.972, blue: 0.982),
-                                 dark:  Color(red: 0.075, green: 0.045, blue: 0.140)),  // dark plum
-        editorBackground:  Color(light: Color(red: 0.998, green: 0.972, blue: 0.982),
-                                 dark:  Color(red: 0.075, green: 0.045, blue: 0.140)),
-        primaryText:       Color(light: Color(red: 0.180, green: 0.080, blue: 0.160),
-                                 dark:  Color(red: 0.982, green: 0.950, blue: 0.992)),  // moonlight white
-        secondaryText:     Color(light: Color(red: 0.520, green: 0.300, blue: 0.360),
-                                 dark:  Color(red: 0.820, green: 0.580, blue: 0.480)),  // rose-gold — 2nd color
-        placeholderText:   Color(light: Color(red: 0.680, green: 0.500, blue: 0.580),
-                                 dark:  Color(red: 0.440, green: 0.280, blue: 0.380)),
-        accentColor:       Color(light: Color(red: 0.860, green: 0.180, blue: 0.420),
-                                 dark:  Color(red: 0.960, green: 0.200, blue: 0.520)),  // vivid cerise
-        linkColor:         Color(light: Color(red: 0.860, green: 0.180, blue: 0.420),
-                                 dark:  Color(red: 0.960, green: 0.200, blue: 0.520)),
-        quoteBarColor:     Color(light: Color(red: 0.840, green: 0.200, blue: 0.440),
-                                 dark:  Color(red: 0.940, green: 0.220, blue: 0.500)),
-        priorityHigh:      Color(light: Color(red: 0.880, green: 0.140, blue: 0.320),
-                                 dark:  Color(red: 0.980, green: 0.260, blue: 0.480)),
-        priorityMedium:    Color(light: Color(red: 0.780, green: 0.400, blue: 0.180),
-                                 dark:  Color(red: 0.960, green: 0.580, blue: 0.300)),  // warm gold-orange
-        fabBackground:     Color(light: Color(red: 0.860, green: 0.180, blue: 0.420),
-                                 dark:  Color(red: 0.960, green: 0.200, blue: 0.520)),
-        fabIcon:           .white,
-        separatorColor:    Color(light: Color(red: 0.920, green: 0.820, blue: 0.880),
-                                 dark:  Color(red: 0.155, green: 0.068, blue: 0.220)),  // deep plum separator
-        checkboxActive:    Color(light: Color(red: 0.860, green: 0.180, blue: 0.420),
-                                 dark:  Color(red: 0.960, green: 0.200, blue: 0.520)),  // cerise
-        checkboxInactive:  Color(light: Color(red: 0.820, green: 0.680, blue: 0.760),
-                                 dark:  Color(red: 0.280, green: 0.175, blue: 0.385)),   // visible plum ring
-        preferredScheme:   .dark,    // dark mesh — force dark mode for text visibility
-        meshPoints: [
-            [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
-            [0.00, 0.38], [0.40, 0.26], [1.00, 0.42],   // sakura focal in upper-left area
-            [0.00, 1.00], [0.62, 1.00], [1.00, 1.00]
-        ]
-    )
-
-    // ─────────────────────────────────────────────
-    // PAID — Void (pure OLED black, cosmic gold accent)
-    // Target: Power users, OLED screens
-    // Distinct from Dark Mode: gold star overhead vs blue
-    // ─────────────────────────────────────────────
-    public static let void = AppTheme(
-        id: "void",
-        name: "Void",
-        subtitle: "Pure black, OLED",
-        tag: "Minimal",
-        isPaid: true,
-        meshColors: [
-            Color(red: 0.000, green: 0.000, blue: 0.000),   // absolute black corner
-            Color(red: 0.032, green: 0.024, blue: 0.005),   // faint gold warmth top
-            Color(red: 0.000, green: 0.000, blue: 0.000),   // absolute black corner
-            Color(red: 0.042, green: 0.030, blue: 0.006),   // warm coal glow left
-            Color(red: 0.920, green: 0.680, blue: 0.120),   // bright cosmic gold — CENTER
-            Color(red: 0.038, green: 0.027, blue: 0.005),   // warm coal glow right
-            Color(red: 0.000, green: 0.000, blue: 0.000),   // absolute black corner
-            Color(red: 0.018, green: 0.012, blue: 0.002),   // barely warm bottom
-            Color(red: 0.000, green: 0.000, blue: 0.000)    // absolute black corner
-        ],
-        backgroundStyle: .gradient,
-        screenBackground:   .black,
-        surfaceBackground:  Color(red: 0.060, green: 0.058, blue: 0.052),
-        editorBackground:   Color(red: 0.060, green: 0.058, blue: 0.052),
-        primaryText:        .white,
-        secondaryText:      Color(red: 0.580, green: 0.560, blue: 0.480),
-        placeholderText:    Color(red: 0.360, green: 0.350, blue: 0.300),
-        accentColor:        Color(red: 0.880, green: 0.640, blue: 0.120),
-        linkColor:          Color(red: 0.880, green: 0.640, blue: 0.120),
-        quoteBarColor:      Color(red: 0.820, green: 0.580, blue: 0.100),
-        priorityHigh:       Color(red: 1.000, green: 0.300, blue: 0.300),
-        priorityMedium:     Color(red: 0.960, green: 0.700, blue: 0.180),
-        fabBackground:      Color(red: 0.880, green: 0.640, blue: 0.120),
-        fabIcon:            .black,
-        separatorColor:     Color(red: 0.140, green: 0.130, blue: 0.100),
-        checkboxActive:     Color(red: 0.880, green: 0.640, blue: 0.120),
-        checkboxInactive:   Color(red: 0.285, green: 0.272, blue: 0.235),   // warm-tinted visible ring
-        preferredScheme:    .dark,
-        meshPoints: [
-            [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
-            [0.00, 0.42], [0.50, 0.20], [1.00, 0.42],   // gold star at upper-center
-            [0.00, 1.00], [0.50, 1.00], [1.00, 1.00]
-        ]
-    )
-
-    // ─────────────────────────────────────────────
     // PAID — Ocean (deep sea blues, teal accents)
     // Target: Everyone — universally calming
     // ─────────────────────────────────────────────
@@ -493,48 +385,6 @@ extension AppTheme {
     // PAID — Lavender (twilight violet — dark dreamy)
     // Concept: Deep violet-black with soft lavender focal bloom — lavender fields at dusk
     // ─────────────────────────────────────────────
-    public static let lavender = AppTheme(
-        id: "lavender",
-        name: "Lavender",
-        subtitle: "Twilight & dreamy",
-        tag: "Dark",
-        isPaid: true,
-        meshColors: [
-            Color(red: 0.040, green: 0.020, blue: 0.078),   // deep violet black TL
-            Color(red: 0.068, green: 0.035, blue: 0.120),   // dark violet TC
-            Color(red: 0.035, green: 0.018, blue: 0.065),   // deep violet black TR
-            Color(red: 0.055, green: 0.028, blue: 0.098),   // dark indigo ML
-            Color(red: 0.580, green: 0.420, blue: 0.860),   // soft lavender focal MC
-            Color(red: 0.048, green: 0.024, blue: 0.086),   // dark violet MR
-            Color(red: 0.028, green: 0.014, blue: 0.052),   // deep black-purple BL
-            Color(red: 0.280, green: 0.165, blue: 0.540),   // deep purple glow BC
-            Color(red: 0.024, green: 0.012, blue: 0.048)    // deepest corner BR
-        ],
-        backgroundStyle: .gradient,
-        screenBackground:   Color(red: 0.048, green: 0.025, blue: 0.092),
-        surfaceBackground:  Color(red: 0.075, green: 0.042, blue: 0.140),
-        editorBackground:   Color(red: 0.075, green: 0.042, blue: 0.140),
-        primaryText:        Color(red: 0.940, green: 0.910, blue: 0.978),
-        secondaryText:      Color(red: 0.660, green: 0.500, blue: 0.860),
-        placeholderText:    Color(red: 0.380, green: 0.275, blue: 0.520),
-        accentColor:        Color(red: 0.680, green: 0.500, blue: 0.930),
-        linkColor:          Color(red: 0.680, green: 0.500, blue: 0.930),
-        quoteBarColor:      Color(red: 0.660, green: 0.480, blue: 0.900),
-        priorityHigh:       Color(red: 0.960, green: 0.380, blue: 0.460),
-        priorityMedium:     Color(red: 0.980, green: 0.640, blue: 0.300),
-        fabBackground:      Color(red: 0.640, green: 0.460, blue: 0.900),
-        fabIcon:            .white,
-        separatorColor:     Color(red: 0.120, green: 0.068, blue: 0.220),
-        checkboxActive:     Color(red: 0.680, green: 0.500, blue: 0.930),
-        checkboxInactive:   Color(red: 0.290, green: 0.195, blue: 0.450),   // visible lavender-purple ring
-        preferredScheme:    .dark,
-        meshPoints: [
-            [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
-            [0.00, 0.42], [0.44, 0.24], [1.00, 0.46],   // lavender focal in upper area
-            [0.00, 1.00], [0.55, 1.00], [1.00, 1.00]
-        ]
-    )
-
     // ─────────────────────────────────────────────
     // PAID — Aurora (northern lights — horizontal curtain across upper sky)
     // Concept: Void black night sky, vivid green curtain left, deep violet-magenta right.
@@ -550,30 +400,30 @@ extension AppTheme {
             Color(red: 0.002, green: 0.004, blue: 0.018),   // void black sky TL
             Color(red: 0.004, green: 0.009, blue: 0.026),   // deep void night sky TC
             Color(red: 0.002, green: 0.004, blue: 0.018),   // void black sky TR
-            Color(red: 0.005, green: 0.340, blue: 0.198),   // aurora green-teal left curtain ML
-            Color(red: 0.000, green: 0.820, blue: 0.460),   // vivid aurora green peak MC
+            Color(red: 0.010, green: 0.200, blue: 0.320),   // deep blue-teal curtain ML
+            Color(red: 0.030, green: 0.620, blue: 0.680),   // vivid cyan-teal peak MC
             Color(red: 0.320, green: 0.055, blue: 0.560),   // deep violet-magenta right curtain MR
             Color(red: 0.002, green: 0.004, blue: 0.016),   // void black ground BL
             Color(red: 0.006, green: 0.018, blue: 0.070),   // very dark indigo horizon BC
             Color(red: 0.002, green: 0.003, blue: 0.014)    // void black ground corner BR
         ],
         backgroundStyle: .gradient,
-        screenBackground:   Color(red: 0.004, green: 0.008, blue: 0.020),
-        surfaceBackground:  Color(red: 0.010, green: 0.050, blue: 0.058),
-        editorBackground:   Color(red: 0.006, green: 0.026, blue: 0.032),
-        primaryText:        Color(red: 0.880, green: 0.980, blue: 0.940),   // crisp aurora-white
-        secondaryText:      Color(red: 0.380, green: 0.860, blue: 0.640),   // soft aurora teal — readable
-        placeholderText:    Color(red: 0.160, green: 0.280, blue: 0.240),
-        accentColor:        Color(red: 0.040, green: 0.920, blue: 0.460),   // iconic aurora green
-        linkColor:          Color(red: 0.040, green: 0.920, blue: 0.460),
-        quoteBarColor:      Color(red: 0.040, green: 0.880, blue: 0.440),
+        screenBackground:   Color(red: 0.004, green: 0.010, blue: 0.025),
+        surfaceBackground:  Color(red: 0.008, green: 0.040, blue: 0.068),
+        editorBackground:   Color(red: 0.006, green: 0.026, blue: 0.042),
+        primaryText:        Color(red: 0.880, green: 0.968, blue: 0.980),   // crisp aurora-white with blue tint
+        secondaryText:      Color(red: 0.300, green: 0.780, blue: 0.880),   // soft cyan — readable
+        placeholderText:    Color(red: 0.140, green: 0.250, blue: 0.300),
+        accentColor:        Color(red: 0.040, green: 0.720, blue: 0.860),   // cyan-teal accent
+        linkColor:          Color(red: 0.040, green: 0.720, blue: 0.860),
+        quoteBarColor:      Color(red: 0.040, green: 0.680, blue: 0.820),
         priorityHigh:       Color(red: 1.000, green: 0.300, blue: 0.400),
         priorityMedium:     Color(red: 1.000, green: 0.640, blue: 0.260),
-        fabBackground:      Color(red: 0.040, green: 0.900, blue: 0.460),
-        fabIcon:            Color(red: 0.003, green: 0.008, blue: 0.018),
-        separatorColor:     Color(red: 0.015, green: 0.100, blue: 0.080),
-        checkboxActive:     Color(red: 0.040, green: 0.920, blue: 0.460),
-        checkboxInactive:   Color(red: 0.050, green: 0.260, blue: 0.175),   // visible dark-teal ring
+        fabBackground:      Color(red: 0.040, green: 0.700, blue: 0.840),
+        fabIcon:            Color(red: 0.003, green: 0.008, blue: 0.020),
+        separatorColor:     Color(red: 0.020, green: 0.100, blue: 0.140),   // muted dark-cyan separator
+        checkboxActive:     Color(red: 0.040, green: 0.720, blue: 0.860),
+        checkboxInactive:   Color(red: 0.040, green: 0.200, blue: 0.280),   // visible dark-teal ring
         preferredScheme:    .dark,
         meshPoints: [
             [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
@@ -593,80 +443,39 @@ extension AppTheme {
         tag: "Dark",
         isPaid: true,
         meshColors: [
-            Color(red: 0.008, green: 0.005, blue: 0.022),   // void black TL
-            Color(red: 0.055, green: 0.018, blue: 0.120),   // dark purple TC
-            Color(red: 0.008, green: 0.005, blue: 0.018),   // void black TR
-            Color(red: 0.095, green: 0.028, blue: 0.195),   // deep indigo ML
-            Color(red: 0.980, green: 0.080, blue: 0.580),   // hot neon pink — CENTER
-            Color(red: 0.065, green: 0.020, blue: 0.150),   // deep indigo MR
-            Color(red: 0.005, green: 0.004, blue: 0.016),   // void black BL
-            Color(red: 0.000, green: 0.820, blue: 0.960),   // electric cyan BC
-            Color(red: 0.005, green: 0.004, blue: 0.016)    // void black BR
+            Color(red: 0.015, green: 0.010, blue: 0.055),   // deep navy-purple TL
+            Color(red: 0.048, green: 0.028, blue: 0.120),   // dark violet TC
+            Color(red: 0.012, green: 0.010, blue: 0.045),   // deep navy TR
+            Color(red: 0.260, green: 0.060, blue: 0.620),   // soft electric violet ML
+            Color(red: 0.580, green: 0.080, blue: 0.760),   // violet-magenta bloom MC — softer than hot pink
+            Color(red: 0.060, green: 0.030, blue: 0.160),   // deep purple MR
+            Color(red: 0.010, green: 0.015, blue: 0.065),   // deep navy BL
+            Color(red: 0.050, green: 0.130, blue: 0.600),   // electric deep-blue BC — replaced harsh cyan
+            Color(red: 0.010, green: 0.010, blue: 0.042)    // deep navy BR
         ],
         backgroundStyle: .gradient,
-        screenBackground:   Color(red: 0.022, green: 0.015, blue: 0.065),
-        surfaceBackground:  Color(red: 0.042, green: 0.030, blue: 0.115),
-        editorBackground:   Color(red: 0.042, green: 0.030, blue: 0.115),
-        primaryText:        Color(red: 0.960, green: 0.940, blue: 0.980),
-        secondaryText:      Color(red: 0.320, green: 0.880, blue: 0.960),
-        placeholderText:    Color(red: 0.360, green: 0.320, blue: 0.480),
-        accentColor:        Color(red: 0.980, green: 0.200, blue: 0.600),
-        linkColor:          Color(red: 0.200, green: 0.860, blue: 0.960),
-        quoteBarColor:      Color(red: 0.980, green: 0.200, blue: 0.600),
-        priorityHigh:       Color(red: 1.000, green: 0.280, blue: 0.350),
+        screenBackground:   Color(red: 0.022, green: 0.015, blue: 0.075),
+        surfaceBackground:  Color(red: 0.038, green: 0.028, blue: 0.120),
+        editorBackground:   Color(red: 0.038, green: 0.028, blue: 0.120),
+        primaryText:        Color(red: 0.960, green: 0.940, blue: 0.985),
+        secondaryText:      Color(red: 0.680, green: 0.480, blue: 0.960),   // soft violet — more readable than cyan
+        placeholderText:    Color(red: 0.340, green: 0.290, blue: 0.480),
+        accentColor:        Color(red: 0.780, green: 0.200, blue: 0.960),   // electric violet accent
+        linkColor:          Color(red: 0.440, green: 0.360, blue: 0.980),   // electric blue-violet link
+        quoteBarColor:      Color(red: 0.680, green: 0.160, blue: 0.880),
+        priorityHigh:       Color(red: 1.000, green: 0.280, blue: 0.420),
         priorityMedium:     Color(red: 1.000, green: 0.600, blue: 0.200),
-        fabBackground:      Color(red: 0.980, green: 0.200, blue: 0.600),
+        fabBackground:      Color(red: 0.680, green: 0.140, blue: 0.920),
         fabIcon:            .white,
-        separatorColor:     Color(red: 0.055, green: 0.042, blue: 0.170),
-        checkboxActive:     Color(red: 0.200, green: 0.880, blue: 0.960),
-        checkboxInactive:   Color(red: 0.235, green: 0.200, blue: 0.385),   // visible dark-purple ring
+        separatorColor:     Color(red: 0.060, green: 0.042, blue: 0.180),
+        checkboxActive:     Color(red: 0.680, green: 0.380, blue: 0.980),
+        checkboxInactive:   Color(red: 0.220, green: 0.180, blue: 0.420),   // visible soft-purple ring
         preferredScheme:    .dark,
         meshPoints: [
             [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
-            [0.00, 0.45], [0.62, 0.30], [1.00, 0.48],   // pink focal upper-right
-            [0.00, 1.00], [0.26, 1.00], [1.00, 1.00]
+            [0.00, 0.40], [0.55, 0.28], [1.00, 0.45],   // violet bloom upper-center
+            [0.00, 1.00], [0.35, 1.00], [1.00, 1.00]
         ]
-    )
-
-    // ─────────────────────────────────────────────
-    // PAID — Terracotta (warm earthy clay)
-    // Target: Interior design lovers, earth tones
-    // ─────────────────────────────────────────────
-    public static let terracotta = AppTheme(
-        id: "terracotta",
-        name: "Terracotta",
-        subtitle: "Earthy & warm",
-        tag: "Warm",
-        isPaid: true,
-        meshColors: [
-            Color(red: 0.088, green: 0.048, blue: 0.028),   // dark clay shadow TL
-            Color(red: 0.740, green: 0.355, blue: 0.150),   // warm terracotta TC
-            Color(red: 0.078, green: 0.042, blue: 0.025),   // shadow TR
-            Color(red: 0.500, green: 0.245, blue: 0.118),   // medium clay ML
-            Color(red: 0.875, green: 0.470, blue: 0.210),   // bright terracotta focal MC
-            Color(red: 0.420, green: 0.205, blue: 0.098),   // burnt sienna MR
-            Color(red: 0.065, green: 0.036, blue: 0.022),   // dark clay shadow BL
-            Color(red: 0.560, green: 0.310, blue: 0.120),   // warm amber BC
-            Color(red: 0.062, green: 0.034, blue: 0.020)    // dark shadow BR
-        ],
-        backgroundStyle: .gradient,
-        screenBackground:   Color(red: 0.155, green: 0.095, blue: 0.070),
-        surfaceBackground:  Color(red: 0.200, green: 0.130, blue: 0.098),
-        editorBackground:   Color(red: 0.200, green: 0.130, blue: 0.098),
-        primaryText:        Color(red: 0.955, green: 0.910, blue: 0.870),   // warm off-white — must be light on dark clay
-        secondaryText:      Color(red: 0.640, green: 0.520, blue: 0.440),
-        placeholderText:    Color(red: 0.440, green: 0.360, blue: 0.300),
-        accentColor:        Color(red: 0.850, green: 0.480, blue: 0.280),
-        linkColor:          Color(red: 0.850, green: 0.480, blue: 0.280),
-        quoteBarColor:      Color(red: 0.800, green: 0.440, blue: 0.260),
-        priorityHigh:       Color(red: 0.920, green: 0.300, blue: 0.250),
-        priorityMedium:     Color(red: 0.940, green: 0.600, blue: 0.220),
-        fabBackground:      Color(red: 0.850, green: 0.480, blue: 0.280),
-        fabIcon:            .white,
-        separatorColor:     Color(red: 0.250, green: 0.165, blue: 0.125),
-        checkboxActive:     Color(red: 0.850, green: 0.480, blue: 0.280),
-        checkboxInactive:   Color(red: 0.360, green: 0.255, blue: 0.200),   // warm clay ring — visible
-        preferredScheme:    .dark
     )
 
     // ─────────────────────────────────────────────
@@ -704,59 +513,10 @@ extension AppTheme {
         priorityMedium:     Color(red: 1.000, green: 0.640, blue: 0.280),
         fabBackground:      Color(red: 0.660, green: 0.320, blue: 0.920),
         fabIcon:            .white,
-        separatorColor:     Color(red: 0.140, green: 0.080, blue: 0.250),   // vivid purple separator
+        separatorColor:     Color(red: 0.110, green: 0.055, blue: 0.180),   // muted amethyst-violet separator
         checkboxActive:     Color(red: 0.820, green: 0.480, blue: 0.980),   // bright lilac — distinct from accent
         checkboxInactive:   Color(red: 0.290, green: 0.195, blue: 0.450),   // visible amethyst ring
         preferredScheme:    .dark
-    )
-
-    // ─────────────────────────────────────────────
-    // PAID — Matrix (pure black + neon green radial burst)
-    // Target: Hacker aesthetic, dark mode power users
-    // ─────────────────────────────────────────────
-    public static let matrix = AppTheme(
-        id: "matrix",
-        name: "Matrix",
-        subtitle: "Hack the planet",
-        tag: "Dark",
-        isPaid: true,
-        meshColors: [
-            // TL      TC      TR  — top row: all near-black void
-            Color(red: 0.020, green: 0.031, blue: 0.012),
-            Color(red: 0.015, green: 0.025, blue: 0.008),
-            Color(red: 0.020, green: 0.031, blue: 0.012),
-            // ML      MC      MR  — middle: dark, mid-green transition right
-            Color(red: 0.000, green: 0.120, blue: 0.020),   // dark green fade left
-            Color(red: 0.000, green: 0.300, blue: 0.055),   // mid green center
-            Color(red: 0.015, green: 0.025, blue: 0.008),   // void right
-            // BL      BC      BR  — bottom: neon BURST from lower-left
-            Color(red: 0.000, green: 1.000, blue: 0.255),   // electric neon BL — SOURCE
-            Color(red: 0.000, green: 0.680, blue: 0.140),   // bright green BC
-            Color(red: 0.020, green: 0.031, blue: 0.012)    // void BR
-        ],
-        backgroundStyle: .gradient,
-        screenBackground:   Color(red: 0.020, green: 0.031, blue: 0.012),
-        surfaceBackground:  Color(red: 0.025, green: 0.055, blue: 0.025),
-        editorBackground:   Color(red: 0.025, green: 0.055, blue: 0.025),
-        primaryText:        Color(red: 0.000, green: 1.000, blue: 0.255),  // neon green text
-        secondaryText:      Color(red: 0.000, green: 0.700, blue: 0.180),
-        placeholderText:    Color(red: 0.000, green: 0.400, blue: 0.100),
-        accentColor:        Color(red: 0.000, green: 1.000, blue: 0.255),
-        linkColor:          Color(red: 0.000, green: 0.900, blue: 0.200),
-        quoteBarColor:      Color(red: 0.000, green: 0.800, blue: 0.150),
-        priorityHigh:       Color(red: 1.000, green: 0.200, blue: 0.200),
-        priorityMedium:     Color(red: 1.000, green: 0.600, blue: 0.100),   // system orange — not green
-        fabBackground:      Color(red: 0.000, green: 0.800, blue: 0.150),
-        fabIcon:            Color(red: 0.020, green: 0.031, blue: 0.012),
-        separatorColor:     Color(red: 0.000, green: 0.180, blue: 0.035),
-        checkboxActive:     Color(red: 0.000, green: 1.000, blue: 0.255),
-        checkboxInactive:   Color(red: 0.040, green: 0.310, blue: 0.095),   // visible dark-green ring
-        preferredScheme:    .dark,
-        meshPoints: [
-            [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
-            [0.00, 0.55], [0.40, 0.62], [1.00, 0.55],   // mid row pushed down, left-leaning
-            [0.00, 1.00], [0.30, 1.00], [1.00, 1.00]    // BL neon source stays bottom-left
-        ]
     )
 
     // ─────────────────────────────────────────────
@@ -809,63 +569,311 @@ extension AppTheme {
     )
 
     // ─────────────────────────────────────────────
-    // PAID — Brat Green (acid green + black, bold viral aesthetic)
-    // Target: Gen Z, trend-chasers, bold personality buyers
+    // PAID — Sakura (rich cherry blossom, warm dreamy pink)
+    // Target: feminine, journaling crowd — luxurious rose-gold feel
     // ─────────────────────────────────────────────
-    public static let bratGreen = AppTheme(
-        id: "brat-green",
-        name: "Brat",
-        subtitle: "Loud & proud",
-        tag: "Bold",
+    public static let sakura = AppTheme(
+        id: "sakura",
+        name: "Sakura",
+        subtitle: "Cherry blossom dreams",
+        tag: "Soft",
         isPaid: true,
         meshColors: [
-            // TL      TC      TR — top: acid green left, BLACK HOLE at TR
-            Color(red: 0.541, green: 0.808, blue: 0.000),   // acid green TL
-            Color(red: 0.620, green: 0.860, blue: 0.000),   // bright lime TC
-            Color(red: 0.040, green: 0.040, blue: 0.040),   // near-black TR — hole starts
-            // ML      MC      MR — mid: green left/center, black right
-            Color(red: 0.541, green: 0.808, blue: 0.000),   // acid green ML
-            Color(red: 0.480, green: 0.740, blue: 0.000),   // mid green MC
-            Color(red: 0.030, green: 0.030, blue: 0.030),   // near-black MR — hole
-            // BL      BC      BR — bottom: all acid green
-            Color(red: 0.500, green: 0.760, blue: 0.000),   // acid green BL
-            Color(red: 0.541, green: 0.808, blue: 0.000),   // acid green BC
-            Color(red: 0.400, green: 0.620, blue: 0.000)    // deeper green BR
+            Color(red: 1.000, green: 0.718, blue: 0.773),   // #FFB7C5 warm sakura pink TL
+            Color(red: 0.910, green: 0.628, blue: 0.749),   // #E8A0BF rose-gold TC
+            Color(red: 1.000, green: 0.761, blue: 0.820),   // #FFC2D1 soft petal pink TR
+            Color(red: 0.910, green: 0.628, blue: 0.749),   // rose-gold ML
+            Color(red: 1.000, green: 0.820, blue: 0.860),   // soft pink center MC (was near-white)
+            Color(red: 1.000, green: 0.718, blue: 0.773),   // warm pink MR
+            Color(red: 1.000, green: 0.761, blue: 0.820),   // petal pink BL
+            Color(red: 1.000, green: 0.800, blue: 0.840),   // soft pink blush BC (was near-white)
+            Color(red: 0.940, green: 0.680, blue: 0.780)    // deeper rose-gold BR
         ],
         backgroundStyle: .gradient,
-        screenBackground:   Color(red: 0.067, green: 0.067, blue: 0.067),
-        surfaceBackground:  Color(red: 0.100, green: 0.140, blue: 0.000),
-        editorBackground:   Color(red: 0.100, green: 0.140, blue: 0.000),
-        primaryText:        .black,
-        secondaryText:      Color(red: 0.100, green: 0.160, blue: 0.000),
-        placeholderText:    Color(red: 0.200, green: 0.300, blue: 0.000),
-        accentColor:        Color(red: 0.040, green: 0.040, blue: 0.040),   // black accent on green bg
-        linkColor:          Color(red: 0.040, green: 0.040, blue: 0.040),
-        quoteBarColor:      Color(red: 0.040, green: 0.040, blue: 0.040),
-        priorityHigh:       Color(red: 1.000, green: 0.200, blue: 0.400),
-        priorityMedium:     Color(red: 0.040, green: 0.040, blue: 0.040),
-        fabBackground:      Color(red: 0.040, green: 0.040, blue: 0.040),
-        fabIcon:            Color(red: 0.541, green: 0.808, blue: 0.000),
-        separatorColor:     Color(red: 0.300, green: 0.460, blue: 0.000),
-        checkboxActive:     Color(red: 0.040, green: 0.040, blue: 0.040),
-        checkboxInactive:   Color(red: 0.300, green: 0.460, blue: 0.000),
-        preferredScheme:    .light,   // light mode — acid green bg needs dark text
+        screenBackground:   Color(red: 1.000, green: 0.960, blue: 0.969),   // #FFF5F7
+        surfaceBackground:  Color(red: 1.000, green: 0.975, blue: 0.982),   // creamy pink-white
+        editorBackground:   Color(red: 1.000, green: 0.968, blue: 0.976),
+        primaryText:        Color(red: 0.220, green: 0.120, blue: 0.160),
+        secondaryText:      Color(red: 0.420, green: 0.300, blue: 0.350),
+        placeholderText:    Color(red: 0.620, green: 0.500, blue: 0.550),
+        accentColor:        Color(red: 0.880, green: 0.380, blue: 0.520),   // warm rose-pink
+        linkColor:          Color(red: 0.820, green: 0.340, blue: 0.480),
+        quoteBarColor:      Color(red: 0.910, green: 0.500, blue: 0.600),
+        priorityHigh:       Color(red: 0.900, green: 0.250, blue: 0.350),
+        priorityMedium:     Color(red: 0.900, green: 0.600, blue: 0.300),
+        fabBackground:      Color(red: 0.880, green: 0.380, blue: 0.520),
+        fabIcon:            .white,
+        separatorColor:     Color(red: 0.900, green: 0.780, blue: 0.820),   // soft rose-pink separator
+        checkboxActive:     Color(red: 0.880, green: 0.380, blue: 0.520),
+        checkboxInactive:   .white,
+        preferredScheme:    .light,
         meshPoints: [
             [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
-            [0.00, 0.50], [0.45, 0.45], [1.00, 0.50],   // black hole anchored right side
+            [0.00, 0.45], [0.48, 0.40], [1.00, 0.50],   // creamy center slightly above mid
             [0.00, 1.00], [0.50, 1.00], [1.00, 1.00]
         ]
     )
 
-    // MARK: — All themes ordered for display
+    // ─────────────────────────────────────────────
+    // PAID — Arctic (icy white-blue, crisp and cold)
+    // Target: minimalists
+    // ─────────────────────────────────────────────
+    public static let arctic = AppTheme(
+        id: "arctic",
+        name: "Arctic",
+        subtitle: "Crystal clear ice",
+        tag: "Crisp",
+        isPaid: true,
+        meshColors: [
+            Color(red: 0.920, green: 0.960, blue: 1.000),   // ice white TL
+            Color(red: 0.850, green: 0.920, blue: 0.980),   // pale blue TC
+            Color(red: 0.940, green: 0.970, blue: 1.000),   // near-white TR
+            Color(red: 0.800, green: 0.880, blue: 0.960),   // light blue ML
+            Color(red: 0.700, green: 0.820, blue: 0.940),   // medium ice MC
+            Color(red: 0.850, green: 0.910, blue: 0.970),   // soft blue MR
+            Color(red: 0.930, green: 0.960, blue: 0.990),   // ice white BL
+            Color(red: 0.780, green: 0.870, blue: 0.950),   // blue tint BC
+            Color(red: 0.900, green: 0.940, blue: 0.980)    // pale ice BR
+        ],
+        backgroundStyle: .gradient,
+        screenBackground:   Color(red: 0.955, green: 0.970, blue: 0.990),
+        surfaceBackground:  Color(red: 0.980, green: 0.988, blue: 1.000),
+        editorBackground:   Color(red: 0.965, green: 0.978, blue: 0.995),
+        primaryText:        Color(red: 0.120, green: 0.160, blue: 0.220),
+        secondaryText:      Color(red: 0.350, green: 0.400, blue: 0.480),
+        placeholderText:    Color(red: 0.550, green: 0.600, blue: 0.670),
+        accentColor:        Color(red: 0.200, green: 0.500, blue: 0.850),
+        linkColor:          Color(red: 0.150, green: 0.450, blue: 0.800),
+        quoteBarColor:      Color(red: 0.350, green: 0.600, blue: 0.900),
+        priorityHigh:       Color(red: 0.850, green: 0.200, blue: 0.250),
+        priorityMedium:     Color(red: 0.850, green: 0.600, blue: 0.200),
+        fabBackground:      Color(red: 0.200, green: 0.500, blue: 0.850),
+        fabIcon:            .white,
+        separatorColor:     Color(red: 0.850, green: 0.890, blue: 0.930),
+        checkboxActive:     Color(red: 0.200, green: 0.500, blue: 0.850),
+        checkboxInactive:   Color(red: 0.750, green: 0.800, blue: 0.850),
+        preferredScheme:    .light
+    )
+
+    // ─────────────────────────────────────────────
+    // PAID — Slate (neutral dark gray with blue undertones)
+    // Target: professionals, no-nonsense
+    // ─────────────────────────────────────────────
+    public static let slate = AppTheme(
+        id: "slate",
+        name: "Slate",
+        subtitle: "Clean & professional",
+        tag: "Pro",
+        isPaid: true,
+        meshColors: [
+            Color(red: 0.120, green: 0.135, blue: 0.160),   // dark slate TL
+            Color(red: 0.140, green: 0.155, blue: 0.185),   // blue-gray TC
+            Color(red: 0.100, green: 0.115, blue: 0.140),   // darker TR
+            Color(red: 0.150, green: 0.168, blue: 0.200),   // medium slate ML
+            Color(red: 0.200, green: 0.225, blue: 0.270),   // lighter center MC
+            Color(red: 0.130, green: 0.145, blue: 0.175),   // dark slate MR
+            Color(red: 0.090, green: 0.100, blue: 0.125),   // deep slate BL
+            Color(red: 0.160, green: 0.178, blue: 0.210),   // blue-gray BC
+            Color(red: 0.110, green: 0.125, blue: 0.150)    // dark slate BR
+        ],
+        backgroundStyle: .gradient,
+        screenBackground:   Color(red: 0.095, green: 0.105, blue: 0.130),
+        surfaceBackground:  Color(red: 0.135, green: 0.150, blue: 0.178),
+        editorBackground:   Color(red: 0.115, green: 0.128, blue: 0.155),
+        primaryText:        Color(red: 0.920, green: 0.930, blue: 0.950),
+        secondaryText:      Color(red: 0.580, green: 0.610, blue: 0.660),
+        placeholderText:    Color(red: 0.400, green: 0.430, blue: 0.475),
+        accentColor:        Color(red: 0.400, green: 0.560, blue: 0.800),
+        linkColor:          Color(red: 0.450, green: 0.600, blue: 0.850),
+        quoteBarColor:      Color(red: 0.350, green: 0.500, blue: 0.750),
+        priorityHigh:       Color(red: 0.900, green: 0.300, blue: 0.300),
+        priorityMedium:     Color(red: 0.880, green: 0.650, blue: 0.250),
+        fabBackground:      Color(red: 0.400, green: 0.560, blue: 0.800),
+        fabIcon:            .white,
+        separatorColor:     Color(red: 0.180, green: 0.200, blue: 0.235),
+        checkboxActive:     Color(red: 0.400, green: 0.560, blue: 0.800),
+        checkboxInactive:   Color(red: 0.250, green: 0.275, blue: 0.320),
+        preferredScheme:    .dark
+    )
+
+    // ─────────────────────────────────────────────
+    // PAID — Mint (fresh green-teal on dark)
+    // Target: wellness/health crowd
+    // ─────────────────────────────────────────────
+    public static let mint = AppTheme(
+        id: "mint",
+        name: "Mint",
+        subtitle: "Fresh & calming",
+        tag: "Fresh",
+        isPaid: true,
+        meshColors: [
+            Color(red: 0.040, green: 0.080, blue: 0.075),   // dark teal TL
+            Color(red: 0.060, green: 0.110, blue: 0.100),   // teal TC
+            Color(red: 0.035, green: 0.070, blue: 0.068),   // near-black TR
+            Color(red: 0.070, green: 0.130, blue: 0.120),   // medium teal ML
+            Color(red: 0.300, green: 0.800, blue: 0.700),   // bright mint MC
+            Color(red: 0.055, green: 0.105, blue: 0.095),   // dark teal MR
+            Color(red: 0.030, green: 0.065, blue: 0.060),   // deep dark BL
+            Color(red: 0.100, green: 0.200, blue: 0.180),   // muted mint BC
+            Color(red: 0.040, green: 0.080, blue: 0.075)    // dark teal BR
+        ],
+        backgroundStyle: .gradient,
+        screenBackground:   Color(red: 0.035, green: 0.068, blue: 0.065),
+        surfaceBackground:  Color(red: 0.065, green: 0.105, blue: 0.098),
+        editorBackground:   Color(red: 0.050, green: 0.088, blue: 0.082),
+        primaryText:        Color(red: 0.910, green: 0.970, blue: 0.960),
+        secondaryText:      Color(red: 0.550, green: 0.680, blue: 0.660),
+        placeholderText:    Color(red: 0.350, green: 0.460, blue: 0.440),
+        accentColor:        Color(red: 0.300, green: 0.800, blue: 0.700),
+        linkColor:          Color(red: 0.250, green: 0.750, blue: 0.680),
+        quoteBarColor:      Color(red: 0.300, green: 0.800, blue: 0.700),
+        priorityHigh:       Color(red: 0.950, green: 0.300, blue: 0.350),
+        priorityMedium:     Color(red: 0.900, green: 0.680, blue: 0.250),
+        fabBackground:      Color(red: 0.300, green: 0.800, blue: 0.700),
+        fabIcon:            Color(red: 0.035, green: 0.068, blue: 0.065),
+        separatorColor:     Color(red: 0.090, green: 0.150, blue: 0.140),
+        checkboxActive:     Color(red: 0.300, green: 0.800, blue: 0.700),
+        checkboxInactive:   Color(red: 0.150, green: 0.240, blue: 0.220),
+        preferredScheme:    .dark
+    )
+
+    // ─────────────────────────────────────────────
+    // PAID — Dusk (twilight blue-to-pink horizon)
+    // Target: dreamers, aesthetic crowd
+    // ─────────────────────────────────────────────
+    public static let dusk = AppTheme(
+        id: "dusk",
+        name: "Dusk",
+        subtitle: "Twilight horizon",
+        tag: "Dreamy",
+        isPaid: true,
+        meshColors: [
+            Color(red: 0.120, green: 0.080, blue: 0.200),   // deep indigo TL
+            Color(red: 0.160, green: 0.100, blue: 0.240),   // purple TC
+            Color(red: 0.200, green: 0.100, blue: 0.220),   // violet TR
+            Color(red: 0.180, green: 0.100, blue: 0.260),   // rich purple ML
+            Color(red: 0.350, green: 0.180, blue: 0.350),   // mauve MC
+            Color(red: 0.280, green: 0.140, blue: 0.300),   // twilight MR
+            Color(red: 0.500, green: 0.250, blue: 0.350),   // warm pink BL
+            Color(red: 0.600, green: 0.300, blue: 0.380),   // rose BC
+            Color(red: 0.450, green: 0.220, blue: 0.320)    // dusty rose BR
+        ],
+        backgroundStyle: .gradient,
+        screenBackground:   Color(red: 0.080, green: 0.055, blue: 0.130),
+        surfaceBackground:  Color(red: 0.120, green: 0.085, blue: 0.170),
+        editorBackground:   Color(red: 0.100, green: 0.070, blue: 0.150),
+        primaryText:        Color(red: 0.950, green: 0.920, blue: 0.960),
+        secondaryText:      Color(red: 0.650, green: 0.580, blue: 0.700),
+        placeholderText:    Color(red: 0.440, green: 0.380, blue: 0.500),
+        accentColor:        Color(red: 0.700, green: 0.400, blue: 0.750),
+        linkColor:          Color(red: 0.750, green: 0.450, blue: 0.800),
+        quoteBarColor:      Color(red: 0.600, green: 0.350, blue: 0.650),
+        priorityHigh:       Color(red: 0.950, green: 0.300, blue: 0.380),
+        priorityMedium:     Color(red: 0.900, green: 0.650, blue: 0.300),
+        fabBackground:      Color(red: 0.700, green: 0.400, blue: 0.750),
+        fabIcon:            .white,
+        separatorColor:     Color(red: 0.150, green: 0.105, blue: 0.185),   // muted twilight blue-pink separator
+        checkboxActive:     Color(red: 0.700, green: 0.400, blue: 0.750),
+        checkboxInactive:   Color(red: 0.250, green: 0.200, blue: 0.300),
+        preferredScheme:    .dark
+    )
+
+    // ─────────────────────────────────────────────
+    // PAID — Crimson (deep wine red, moody)
+    // Target: bold personality
+    // ─────────────────────────────────────────────
+    public static let crimson = AppTheme(
+        id: "crimson",
+        name: "Crimson",
+        subtitle: "Velvet wine cellar",
+        tag: "Bold",
+        isPaid: true,
+        meshColors: [
+            Color(red: 0.045, green: 0.008, blue: 0.018),   // deepest blood-black TL
+            Color(red: 0.080, green: 0.015, blue: 0.030),   // dark burgundy TC
+            Color(red: 0.035, green: 0.006, blue: 0.015),   // near-black wine TR
+            Color(red: 0.120, green: 0.025, blue: 0.045),   // deep wine ML
+            Color(red: 0.420, green: 0.050, blue: 0.090),   // rich burgundy focal MC
+            Color(red: 0.055, green: 0.010, blue: 0.025),   // dark blood shadow MR
+            Color(red: 0.030, green: 0.005, blue: 0.012),   // deepest corner BL
+            Color(red: 0.280, green: 0.080, blue: 0.065),   // subtle warm wine highlight BC
+            Color(red: 0.040, green: 0.008, blue: 0.016)    // deep blood-black BR
+        ],
+        backgroundStyle: .gradient,
+        screenBackground:   Color(red: 0.070, green: 0.020, blue: 0.030),
+        surfaceBackground:  Color(red: 0.110, green: 0.038, blue: 0.052),
+        editorBackground:   Color(red: 0.090, green: 0.028, blue: 0.042),
+        primaryText:        Color(red: 0.960, green: 0.920, blue: 0.925),
+        secondaryText:      Color(red: 0.650, green: 0.520, blue: 0.540),
+        placeholderText:    Color(red: 0.440, green: 0.340, blue: 0.360),
+        accentColor:        Color(red: 0.800, green: 0.150, blue: 0.200),
+        linkColor:          Color(red: 0.850, green: 0.250, blue: 0.300),
+        quoteBarColor:      Color(red: 0.700, green: 0.120, blue: 0.170),
+        priorityHigh:       Color(red: 1.000, green: 0.300, blue: 0.300),
+        priorityMedium:     Color(red: 0.900, green: 0.600, blue: 0.200),
+        fabBackground:      Color(red: 0.800, green: 0.150, blue: 0.200),
+        fabIcon:            Color(red: 0.960, green: 0.920, blue: 0.925),
+        separatorColor:     Color(red: 0.165, green: 0.055, blue: 0.072),
+        checkboxActive:     Color(red: 0.800, green: 0.150, blue: 0.200),
+        checkboxInactive:   Color(red: 0.250, green: 0.100, blue: 0.120),
+        preferredScheme:    .dark
+    )
+
+    // ─────────────────────────────────────────────
+    // PAID — Coral (vibrant coral-to-peach, warm light theme)
+    // Target: energetic, social
+    // ─────────────────────────────────────────────
+    public static let coral = AppTheme(
+        id: "coral",
+        name: "Coral",
+        subtitle: "Vibrant & playful",
+        tag: "Lively",
+        isPaid: true,
+        meshColors: [
+            Color(red: 1.000, green: 0.880, blue: 0.850),   // peach TL
+            Color(red: 1.000, green: 0.820, blue: 0.780),   // warm coral TC
+            Color(red: 1.000, green: 0.900, blue: 0.880),   // light peach TR
+            Color(red: 0.980, green: 0.750, blue: 0.700),   // medium coral ML
+            Color(red: 0.960, green: 0.650, blue: 0.580),   // vibrant coral MC
+            Color(red: 0.990, green: 0.800, blue: 0.750),   // soft coral MR
+            Color(red: 1.000, green: 0.910, blue: 0.890),   // near-white peach BL
+            Color(red: 0.970, green: 0.780, blue: 0.730),   // warm peach BC
+            Color(red: 0.990, green: 0.860, blue: 0.830)    // light coral BR
+        ],
+        backgroundStyle: .gradient,
+        screenBackground:   Color(red: 0.998, green: 0.955, blue: 0.945),
+        surfaceBackground:  Color(red: 1.000, green: 0.975, blue: 0.968),
+        editorBackground:   Color(red: 0.998, green: 0.965, blue: 0.955),
+        primaryText:        Color(red: 0.220, green: 0.140, blue: 0.120),
+        secondaryText:      Color(red: 0.440, green: 0.340, blue: 0.310),
+        placeholderText:    Color(red: 0.620, green: 0.520, blue: 0.500),
+        accentColor:        Color(red: 0.900, green: 0.380, blue: 0.300),
+        linkColor:          Color(red: 0.850, green: 0.350, blue: 0.280),
+        quoteBarColor:      Color(red: 0.950, green: 0.480, blue: 0.400),
+        priorityHigh:       Color(red: 0.900, green: 0.220, blue: 0.200),
+        priorityMedium:     Color(red: 0.880, green: 0.600, blue: 0.250),
+        fabBackground:      Color(red: 0.900, green: 0.380, blue: 0.300),
+        fabIcon:            .white,
+        separatorColor:     Color(red: 0, green: 0, blue: 0).opacity(0.09),
+        checkboxActive:     Color(red: 0.900, green: 0.380, blue: 0.300),
+        checkboxInactive:   Color(red: 0.620, green: 0.260, blue: 0.200),   // deep terracotta — visible on peach bg
+        preferredScheme:    .light
+    )
+
+    // MARK: — All themes ordered for display (gallery only — no free defaults)
     public static let all: [AppTheme] = [
-        .defaultLight, .midnight,                           // free originals
-        .tokyoNight, .nord, .forest,                        // dark essentials
-        .rose, .void, .ocean,                               // premium dark
-        .lavender,                                          // mood
-        .aurora, .neon,                                     // vibe
-        .terracotta, .amethyst,                             // earth & crystal
-        .matrix, .midnightBlue, .bratGreen                  // hacker · premium · bold
+        // User's picks — first row
+        .midnight, .slate, .midnightBlue, .tokyoNight,
+        // Viral / broad appeal
+        .coral, .forest, .sakura,
+        // Clean & professional
+        .nord, .dusk, .mint,
+        // Bold & personality
+        .crimson, .neon,
+        // Nature & crystal
+        .aurora, .amethyst,
+        // Warm & classic
+        .arctic,
     ]
 
     public static let free: [AppTheme] = all.filter { !$0.isPaid }
