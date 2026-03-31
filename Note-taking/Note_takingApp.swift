@@ -21,6 +21,7 @@ struct Note_takingApp: App {
     // Issue #76 — https://github.com/pnsw123/prod-note/issues/76
     @State private var storeKitManager = StoreKitManager.shared
 
+
     init() {
         log.info("App init — building ModelContainer via AppSchemaBuilder")
         do {
@@ -140,8 +141,11 @@ private actor StartupWorker {
             log.debug("syncWidgetData: no tasks found")
             return
         }
-        let widgetTasks = tasks.prefix(8).map {
-            WidgetTask(id: $0.id, title: $0.title, priority: $0.priority)
+        let widgetTasks = tasks.prefix(8).map { t in
+            let hasContent = (t.body != nil && !t.body!.isEmpty) ||
+                             (t.drawingData != nil && !t.drawingData!.isEmpty) ||
+                             (t.attachments != nil && !t.attachments!.isEmpty)
+            return WidgetTask(id: t.id, title: t.title, priority: t.priority, hasContent: hasContent)
         }
         let taskCount = tasks.count
         let encoded = try? JSONEncoder().encode(Array(widgetTasks))
@@ -185,6 +189,10 @@ private actor StartupWorker {
         for task in toRemove {
             if let eventId = task.calendarEventId {
                 let idToDelete = eventId
+                Task.detached { await CalendarSyncService.shared.deleteEvent(withId: idToDelete) }
+            }
+            if let googleEventId = task.googleCalendarEventId {
+                let idToDelete = googleEventId
                 Task.detached { await CalendarSyncService.shared.deleteEvent(withId: idToDelete) }
             }
             modelContext.delete(task)

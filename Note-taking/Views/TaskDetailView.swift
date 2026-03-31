@@ -19,6 +19,8 @@ import UniformTypeIdentifiers
 struct TaskDetailView: View {
     @Bindable var task: TaskItem
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    private var isRegular: Bool { hSizeClass == .regular }
 
     // RichTextKit bindings — attributed string is the source of truth for RTF content
     @State private var attributedText: NSAttributedString = NSAttributedString()
@@ -423,7 +425,7 @@ struct TaskDetailView: View {
 
     private var editorToolbar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
+            HStack(spacing: isRegular ? 6 : 2) {
                 ForEach(toolbarItems) { item in
                     toolbarItemView(for: item)
                         .opacity(draggingToolId == item.id ? 0.35 : 1)
@@ -439,13 +441,13 @@ struct TaskDetailView: View {
                         ))
                 }
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, isRegular ? 10 : 6)
         }
-        .frame(height: 52)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)), in: .rect(cornerRadius: 18))
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        .frame(height: isRegular ? 62 : 52)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: isRegular ? 22 : 18, style: .continuous))
+        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)), in: .rect(cornerRadius: isRegular ? 22 : 18))
+        .padding(.horizontal, isRegular ? 24 : 16)
+        .padding(.bottom, isRegular ? 12 : 8)
         .accessibilityIdentifier("editor-toolbar")
     }
 
@@ -513,13 +515,25 @@ struct TaskDetailView: View {
             guard let tv = richTextView else { return }
             tv.becomeFirstResponder()
             let range = tv.selectedRange
+            let increase = id == "fontSizeUp"
+            let step: CGFloat = 2
+            let minSize: CGFloat = 10
+            // Update typing attributes so the next keystroke on an empty page
+            // (or after a cursor move) uses the new size immediately.
+            let currentFont = tv.typingAttributes[.font] as? UIFont
+                ?? UIFont.preferredFont(forTextStyle: .body)
+            let newSize = increase ? currentFont.pointSize + step : max(minSize, currentFont.pointSize - step)
+            let newFont = UIFont(descriptor: currentFont.fontDescriptor, size: newSize)
+            tv.typingAttributes[.font] = newFont
+            // Also apply to existing text (no-op when body is empty).
             RichEditorCommands.stepFontSize(
-                increase: id == "fontSizeUp",
+                increase: increase,
                 attributedText: &attributedText,
                 selectedRange: range
             )
             tv.attributedText = attributedText
             tv.selectedRange = range
+            saveBody()
             return
         case "list.bullet":
             // toggleBulletList inserts "• " at paragraph start, shifting content right by 2.
@@ -789,9 +803,9 @@ struct TaskDetailView: View {
     private func toolbarButton(_ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 18))
+                .font(.system(size: isRegular ? 20 : 18))
                 .foregroundStyle(Color.primary)
-                .frame(width: 44, height: 44)
+                .frame(width: isRegular ? 50 : 44, height: isRegular ? 50 : 44)
         }
         .buttonStyle(.plain)
     }

@@ -24,11 +24,8 @@ struct ProdNoteProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ProdNoteEntry) -> Void) {
-        if context.isPreview {
-            completion(placeholder(in: context))
-        } else {
-            completion(entry())
-        }
+        // Always use real app data — theme, tasks, everything comes from the actual app state.
+        completion(entry())
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ProdNoteEntry>) -> Void) {

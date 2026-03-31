@@ -36,6 +36,8 @@ struct TaskListView: View {
     private var allTasks: [TaskItem]
 
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    private var isRegular: Bool { hSizeClass == .regular }
     @AppStorage("taskListSortBy") private var sortBy: SortOption = .manual
     @State private var selectedTask: TaskItem?
     @State private var showTheme = false
@@ -78,7 +80,7 @@ struct TaskListView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 0, leading: indentLevel(for: task), bottom: 0, trailing: 0))
                     .listRowSpacing(0)
-                    .listRowBackground(Color.clear)
+                    .listRowBackground(Color.rowBackground)
                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
                         Button { setPriority(task, to: "high") } label: {
                             Label("High", systemImage: "flag.fill")
@@ -124,12 +126,12 @@ struct TaskListView: View {
                             .onSubmit { commitNewTask() }
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, isRegular ? 36 : 20)
+                    .padding(.vertical, isRegular ? 14 : 10)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets())
                     .listRowSpacing(0)
-                    .listRowBackground(Color.clear)
+                    .listRowBackground(Color.rowBackground)
                 }
             }
             .contentMargins(.bottom, 72, for: .scrollContent)
@@ -209,6 +211,7 @@ struct TaskListView: View {
                 }
                 .contentShape(Rectangle())
                 .padding(.trailing, 8)
+                .padding(.horizontal, isRegular ? 28 : 0)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
                 .overlay(alignment: .bottom) {
@@ -281,8 +284,11 @@ struct TaskListView: View {
 
     private func syncWidget() {
         let activeTasks = allTasks.filter { !$0.isDeleted && !$0.isCompleted }
-        let widgetTasks = activeTasks.prefix(8).map {
-            WidgetTask(id: $0.id, title: $0.title, priority: $0.priority)
+        let widgetTasks = activeTasks.prefix(8).map { t in
+            let hasContent = (t.body != nil && !t.body!.isEmpty) ||
+                             (t.drawingData != nil && !t.drawingData!.isEmpty) ||
+                             (t.attachments != nil && !t.attachments!.isEmpty)
+            return WidgetTask(id: t.id, title: t.title, priority: t.priority, hasContent: hasContent)
         }
         ThemeManager.shared.syncActiveTasks(Array(widgetTasks), totalCount: activeTasks.count)
     }
@@ -401,6 +407,10 @@ struct TaskListView: View {
         if let eventId = task.calendarEventId {
             Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
             task.calendarEventId = nil
+        }
+        if let googleEventId = task.googleCalendarEventId {
+            Task { await CalendarSyncService.shared.deleteEvent(withId: googleEventId) }
+            task.googleCalendarEventId = nil
         }
         withAnimation(.smooth(duration: 0.3)) {
             task.isDeleted = true

@@ -81,26 +81,36 @@ struct ProdNoteWidgetView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             } else {
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: 5) {
                     ForEach(visible) { task in
-                        HStack(spacing: 7) {
-                            Circle()
-                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
-                                .frame(width: 12, height: 12)
-                            Text(task.title)
-                                .font(.system(size: 12))
-                                .foregroundStyle(theme.primaryText)
-                                .lineLimit(1)
-                            Spacer()
-                            if task.priority == "high" {
-                                WidgetPennant()
-                                    .fill(Color(theme.priorityHigh))
-                                    .frame(width: 7, height: 10)
-                            } else if task.priority == "medium" {
-                                WidgetPennant()
-                                    .fill(Color(theme.priorityMedium))
-                                    .frame(width: 7, height: 10)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 7) {
+                                Circle()
+                                    .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
+                                    .frame(width: 12, height: 12)
+                                Text(task.title)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(theme.primaryText)
+                                    .lineLimit(1)
+                                Spacer()
+                                if task.priority == "high" {
+                                    WidgetPennant()
+                                        .fill(Color(theme.priorityHigh))
+                                        .frame(width: 7, height: 10)
+                                } else if task.priority == "medium" {
+                                    WidgetPennant()
+                                        .fill(Color(theme.priorityMedium))
+                                        .frame(width: 7, height: 10)
+                                }
                             }
+                            Text("*")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(
+                                    task.hasContent
+                                        ? Color(theme.accentColor)
+                                        : theme.secondaryText.opacity(0.35)
+                                )
+                                .padding(.leading, 19)
                         }
                     }
 
@@ -153,26 +163,36 @@ struct ProdNoteWidgetView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
                     ForEach(visible) { task in
-                        HStack(spacing: 8) {
-                            Circle()
-                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
-                                .frame(width: 11, height: 11)
-                            Text(task.title)
-                                .font(.system(size: 11))
-                                .foregroundStyle(theme.primaryText)
-                                .lineLimit(1)
-                            Spacer()
-                            if task.priority == "high" {
-                                WidgetPennant()
-                                    .fill(Color(theme.priorityHigh))
-                                    .frame(width: 7, height: 11)
-                            } else if task.priority == "medium" {
-                                WidgetPennant()
-                                    .fill(Color(theme.priorityMedium))
-                                    .frame(width: 7, height: 11)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
+                                    .frame(width: 11, height: 11)
+                                Text(task.title)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(theme.primaryText)
+                                    .lineLimit(1)
+                                Spacer()
+                                if task.priority == "high" {
+                                    WidgetPennant()
+                                        .fill(Color(theme.priorityHigh))
+                                        .frame(width: 7, height: 11)
+                                } else if task.priority == "medium" {
+                                    WidgetPennant()
+                                        .fill(Color(theme.priorityMedium))
+                                        .frame(width: 7, height: 11)
+                                }
                             }
+                            Text("*")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(
+                                    task.hasContent
+                                        ? Color(theme.accentColor)
+                                        : theme.secondaryText.opacity(0.35)
+                                )
+                                .padding(.leading, 19)
                         }
                     }
 

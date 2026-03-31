@@ -142,12 +142,7 @@ final class RichEditorCommands {
         let step: CGFloat = 2
         let minSize: CGFloat = 10
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
-        let range: NSRange
-        if selectedRange.length > 0 {
-            range = selectedRange
-        } else {
-            range = (mutable.string as NSString).paragraphRange(for: selectedRange)
-        }
+        let range = NSRange(location: 0, length: mutable.length)
         guard range.length > 0, range.location + range.length <= mutable.length else { return }
 
         mutable.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in

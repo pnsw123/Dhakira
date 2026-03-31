@@ -25,6 +25,9 @@ struct TaskRowView: View {
     var onToggleComplete: () -> Void = {}
     var onTapDetail: () -> Void = {}
 
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    private var isRegular: Bool { hSizeClass == .regular }
+
     /// Local focus state for the inline TextField — driven by the `isFocused` prop.
     @FocusState private var isEditing: Bool
     /// Cached — recomputed only when task.body / drawingData / attachments change.
@@ -103,8 +106,8 @@ struct TaskRowView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
+            .padding(.horizontal, isRegular ? 36 : 20)
+            .padding(.vertical, isRegular ? 14 : 10)
 
             // Full-width separator — bypasses List's trailing inset gap
             Rectangle()
