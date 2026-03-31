@@ -564,48 +564,62 @@ struct TaskDetailView: View {
     private func applyColorAttribute(key: NSAttributedString.Key,
                                      value: Any?,
                                      range: NSRange) {
-        guard range.length > 0,
-              let tv = richTextView,
+        guard let tv = richTextView,
               let current = tv.attributedText else {
-            log.debug("applyColorAttribute: skipped — empty range or missing textView")
+            log.debug("applyColorAttribute: skipped — missing textView")
             return
         }
         tv.becomeFirstResponder()
-        let mutable = current.mutableCopy() as! NSMutableAttributedString
-        let loc  = min(range.location, mutable.length)
-        let len  = min(range.length,   mutable.length - loc)
-        guard len > 0 else { return }
-        let safe    = NSRange(location: loc, length: len)
-        let nsStr   = mutable.string as NSString
-        var applied = 0
-        // Apply attribute character-by-character.
-        // For font color: skip all whitespace (invisible on spaces anyway).
-        // For highlight: only skip newlines/line-endings — spaces between words must
-        // be included or the highlight appears broken with gaps.
-        for i in safe.location ..< (safe.location + safe.length) {
-            guard i < mutable.length else { break }
-            let charRange = NSRange(location: i, length: 1)
-            let scalar    = nsStr.character(at: i)
-            if key == .foregroundColor {
-                // Font color — skip all whitespace
-                if scalar == 0x20 || scalar == 0x09 || scalar == 0x0A ||
-                   scalar == 0x0D || scalar == 0xA0 { continue }
-            } else {
-                // Highlight (backgroundColor) — only skip line endings to avoid
-                // coloured blocks on blank lines; spaces between words are included.
-                if scalar == 0x0A || scalar == 0x0D { continue }
+
+        // Apply to selected range when text is selected.
+        if range.length > 0 {
+            let mutable = current.mutableCopy() as! NSMutableAttributedString
+            let loc  = min(range.location, mutable.length)
+            let len  = min(range.length,   mutable.length - loc)
+            if len > 0 {
+                let safe  = NSRange(location: loc, length: len)
+                let nsStr = mutable.string as NSString
+                var applied = 0
+                // Apply attribute character-by-character.
+                // For font color: skip all whitespace (invisible on spaces anyway).
+                // For highlight: only skip newlines/line-endings — spaces between words must
+                // be included or the highlight appears broken with gaps.
+                for i in safe.location ..< (safe.location + safe.length) {
+                    guard i < mutable.length else { break }
+                    let charRange = NSRange(location: i, length: 1)
+                    let scalar    = nsStr.character(at: i)
+                    if key == .foregroundColor {
+                        if scalar == 0x20 || scalar == 0x09 || scalar == 0x0A ||
+                           scalar == 0x0D || scalar == 0xA0 { continue }
+                    } else {
+                        if scalar == 0x0A || scalar == 0x0D { continue }
+                    }
+                    if let v = value {
+                        mutable.addAttribute(key, value: v, range: charRange)
+                    } else {
+                        mutable.removeAttribute(key, range: charRange)
+                    }
+                    applied += 1
+                }
+                tv.attributedText = mutable
+                tv.selectedRange  = range   // restore selection (setting attributedText resets it)
+                attributedText    = mutable
+                log.debug("applyColorAttribute: \(key.rawValue) — \(applied) chars coloured")
             }
-            if let v = value {
-                mutable.addAttribute(key, value: v, range: charRange)
-            } else {
-                mutable.removeAttribute(key, range: charRange)
-            }
-            applied += 1
         }
-        tv.attributedText = mutable
-        tv.selectedRange  = range       // restore selection (setting attributedText resets it)
-        attributedText    = mutable     // keep the SwiftUI binding in sync
-        log.debug("applyColorAttribute: \(key.rawValue) — \(applied) chars coloured (whitespace skipped)")
+
+        // ALWAYS apply as typing attribute so new typed text inherits the color —
+        // this makes color work even with no selection (cursor-only) and continues
+        // the chosen color after a selection is colored and the user keeps typing.
+        if let v = value {
+            tv.typingAttributes[key] = v
+        } else {
+            tv.typingAttributes.removeValue(forKey: key)
+            // Removing font color: restore adaptive label so text stays visible
+            if key == .foregroundColor {
+                tv.typingAttributes[.foregroundColor] = UIColor.label
+            }
+        }
     }
 
     /// Read the foreground color at the start of the saved selection and match it

@@ -25,7 +25,6 @@ struct NamedColor {
         // Palette-only entries
         NamedColor(id: "paletteYellow", label: "Yellow", uiColor: UIColor(hex: "#FFCC02"), role: .paletteOnly),
         NamedColor(id: "paletteRed",    label: "Red",    uiColor: UIColor(hex: "#FF3B30"), role: .paletteOnly),
-        NamedColor(id: "paletteGreen",  label: "Green",  uiColor: UIColor(hex: "#34C759"), role: .paletteOnly),
         NamedColor(id: "paletteTeal",   label: "Teal",   uiColor: UIColor(hex: "#5AC8FA"), role: .paletteOnly),
         NamedColor(id: "paletteBlack",  label: "Black",  uiColor: UIColor(hex: "#1C1C1E"), role: .paletteOnly),
         NamedColor(id: "paletteWhite",  label: "White",  uiColor: UIColor(hex: "#FFFFFF"), role: .paletteOnly),
@@ -35,26 +34,27 @@ struct NamedColor {
     static var forEditor: [NamedColor] { all.filter { $0.role != .paletteOnly } }
 
     /// Main 4 preset swatches for the color palette pill (palette-first + shared)
+    /// Main 4 swatches always visible: most universal colors first.
+    /// Black + White are critical across all themes — they're here not buried in extra.
     static var paletteMain: [NamedColor] {
         [
+            NamedColor(id: "paletteBlack",  label: "Black",  uiColor: UIColor(hex: "#1C1C1E"), role: .paletteOnly),
+            NamedColor(id: "paletteWhite",  label: "White",  uiColor: UIColor(hex: "#FFFFFF"), role: .paletteOnly),
             NamedColor(id: "paletteYellow", label: "Yellow", uiColor: UIColor(hex: "#FFCC02"), role: .paletteOnly),
             NamedColor(id: "paletteRed",    label: "Red",    uiColor: UIColor(hex: "#FF3B30"), role: .paletteOnly),
-            NamedColor(id: "colorBlue",     label: "Blue",   uiColor: UIColor(hex: "#0A84FF"), role: .shared),
-            NamedColor(id: "paletteGreen",  label: "Green",  uiColor: UIColor(hex: "#34C759"), role: .paletteOnly),
         ]
     }
 
-    /// Extra 8 colors for the expanded palette row
+    /// Extra colors behind the rainbow button
     static var paletteExtra: [NamedColor] {
         [
+            NamedColor(id: "colorBlue",    label: "Blue",   uiColor: UIColor(hex: "#0A84FF"), role: .shared),
             NamedColor(id: "colorOrange",  label: "Orange", uiColor: UIColor(hex: "#FF6A00"), role: .shared),
             NamedColor(id: "colorPink",    label: "Pink",   uiColor: UIColor(hex: "#FF375F"), role: .shared),
             NamedColor(id: "colorPurple",  label: "Purple", uiColor: UIColor(hex: "#BF5AF2"), role: .shared),
             NamedColor(id: "paletteTeal",  label: "Teal",   uiColor: UIColor(hex: "#5AC8FA"), role: .paletteOnly),
             NamedColor(id: "colorBrown",   label: "Brown",  uiColor: UIColor(hex: "#AC8E68"), role: .shared),
             NamedColor(id: "colorGray",    label: "Gray",   uiColor: UIColor(hex: "#8E8E93"), role: .shared),
-            NamedColor(id: "paletteBlack", label: "Black",  uiColor: UIColor(hex: "#1C1C1E"), role: .paletteOnly),
-            NamedColor(id: "paletteWhite", label: "White",  uiColor: UIColor(hex: "#FFFFFF"), role: .paletteOnly),
         ]
     }
 
