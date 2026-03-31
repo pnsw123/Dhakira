@@ -908,7 +908,7 @@ struct TaskDetailView: View {
             RichEditorCommands.applyHeading(.h2, attributedText: &workingText, selectedRange: selRange)
         case "heading3":
             RichEditorCommands.applyHeading(.h3, attributedText: &workingText, selectedRange: selRange)
-        case _ where cmd.id.hasPrefix("color"):
+        case _ where NamedColor.find(id: cmd.id) != nil:
             isColorCommand = true
         default:
             log.warning("applySlashCommand: unhandled command id '\(cmd.id)'")
