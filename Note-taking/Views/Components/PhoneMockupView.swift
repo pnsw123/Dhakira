@@ -143,8 +143,8 @@ private struct MockTasksPage: View {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 16))
                                         .foregroundStyle(
-                                            row.priority == "high"   ? theme.priorityHigh :
-                                            row.priority == "medium" ? theme.priorityMedium :
+                                            row.priority == "high"   ? Color.priorityHighColor :
+                                            row.priority == "medium" ? Color.priorityMediumColor :
                                             theme.secondaryText
                                         )
                                 } else {
@@ -170,11 +170,11 @@ private struct MockTasksPage: View {
 
                             if row.priority == "high" {
                                 MockPennant()
-                                    .fill(theme.priorityHigh)
+                                    .fill(Color.priorityHighColor)
                                     .frame(width: 8, height: 12)
                             } else if row.priority == "medium" {
                                 MockPennant()
-                                    .fill(theme.priorityMedium)
+                                    .fill(Color.priorityMediumColor)
                                     .frame(width: 8, height: 12)
                             }
                         }
