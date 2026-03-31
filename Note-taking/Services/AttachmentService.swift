@@ -5,6 +5,14 @@ import AVFoundation
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "AttachmentService")
 
+extension Notification.Name {
+    /// Posted by AttachmentService after an image/file is appended.
+    /// `object` carries the fully updated NSAttributedString so the editor
+    /// can push it directly to the UITextView (which ignores SwiftUI binding
+    /// updates because RichTextKit's updateUIView is intentionally empty).
+    static let attachmentAppended = Notification.Name("AttachmentService.attachmentAppended")
+}
+
 // MARK: - AttachmentError (Issue #49)
 
 enum AttachmentError: Error, LocalizedError {
@@ -93,6 +101,10 @@ final class AttachmentService: NSObject {
         mutable.append(NSAttributedString(attachment: attachment))
         attributedText = mutable
         log.info("AttachmentService.appendImage: appended \(Int(image.size.width))×\(Int(image.size.height))")
+        // Notify the editor to push the new text into UITextView directly.
+        // RichTextKit's updateUIView is intentionally empty, so the SwiftUI
+        // binding update above never reaches the live UITextView on its own.
+        NotificationCenter.default.post(name: .attachmentAppended, object: mutable)
     }
 
     func appendFile(url: URL, to attributedText: inout NSAttributedString) {

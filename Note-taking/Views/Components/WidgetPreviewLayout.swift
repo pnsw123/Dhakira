@@ -12,43 +12,41 @@ struct WidgetPreviewLayout: View {
     private let taskCount = 5
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 20) {
+        VStack(spacing: 12) {
 
-                // SMALL · 2×2
-                VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader("SMALL · 2×2")
-                    SmallWidgetPreview(theme: theme, taskCount: taskCount)
-                        .frame(width: 170, height: 170)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                // MEDIUM · 2×4
-                VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader("MEDIUM · 2×4")
-                    MediumWidgetPreview(theme: theme, taskCount: taskCount)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 170)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
-                }
-
-                // LARGE · 4×4
-                VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader("LARGE · 4×4")
-                    LargeWidgetPreview(theme: theme, taskCount: taskCount)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 330)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
-                }
+            // SMALL · 2×2
+            VStack(alignment: .leading, spacing: 6) {
+                sectionHeader("SMALL · 2×2")
+                SmallWidgetPreview(theme: theme, taskCount: taskCount)
+                    .frame(width: 118, height: 118)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // MEDIUM · 2×4
+            VStack(alignment: .leading, spacing: 6) {
+                sectionHeader("MEDIUM · 2×4")
+                MediumWidgetPreview(theme: theme, taskCount: taskCount)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 118)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+            }
+
+            // LARGE · 4×4
+            VStack(alignment: .leading, spacing: 6) {
+                sectionHeader("LARGE · 4×4")
+                LargeWidgetPreview(theme: theme, taskCount: taskCount)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+            }
         }
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
     private func sectionHeader(_ label: String) -> some View {
@@ -146,13 +144,13 @@ private struct MediumWidgetPreview: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Header
                 HStack(alignment: .firstTextBaseline) {
-                    Text("ProdNote")
+                    Text("Today")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(theme.primaryText)
+                        .foregroundStyle(.white)
                     Spacer()
                     Text("\(taskCount) tasks")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(theme.secondaryText)
+                        .foregroundStyle(.white.opacity(0.70))
                 }
                 .padding(.bottom, 8)
 
@@ -161,11 +159,11 @@ private struct MediumWidgetPreview: View {
                     ForEach(visible) { task in
                         HStack(spacing: 7) {
                             Circle()
-                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
+                                .strokeBorder(.white.opacity(0.50), lineWidth: 1.2)
                                 .frame(width: 12, height: 12)
                             Text(task.title)
                                 .font(.system(size: 12))
-                                .foregroundStyle(theme.primaryText)
+                                .foregroundStyle(.white)
                                 .lineLimit(1)
                             Spacer()
                             if task.priority == "high" {
@@ -182,7 +180,7 @@ private struct MediumWidgetPreview: View {
                     if overflow > 0 {
                         Text("+\(overflow) more")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(theme.secondaryText)
+                            .foregroundStyle(.white.opacity(0.60))
                     }
                 }
 
@@ -228,13 +226,13 @@ private struct LargeWidgetPreview: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Header
                 HStack(alignment: .firstTextBaseline) {
-                    Text("ProdNote")
+                    Text("Today")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(theme.primaryText)
+                        .foregroundStyle(.white)
                     Spacer()
                     Text("\(taskCount) tasks")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(theme.secondaryText)
+                        .foregroundStyle(.white.opacity(0.70))
                 }
 
                 // Separator
@@ -244,15 +242,15 @@ private struct LargeWidgetPreview: View {
                     .padding(.vertical, 9)
 
                 // Task rows
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(visible) { task in
                         HStack(spacing: 8) {
                             Circle()
-                                .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
-                                .frame(width: 13, height: 13)
+                                .strokeBorder(.white.opacity(0.50), lineWidth: 1.2)
+                                .frame(width: 11, height: 11)
                             Text(task.title)
-                                .font(.system(size: 13))
-                                .foregroundStyle(theme.primaryText)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white)
                                 .lineLimit(1)
                             Spacer()
                             if task.priority == "high" {
@@ -269,7 +267,8 @@ private struct LargeWidgetPreview: View {
                     if overflow > 0 {
                         Text("+\(overflow) more")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(theme.secondaryText)
+                            .foregroundStyle(.white.opacity(0.60))
+                            .padding(.top, 2)
                     }
                 }
 

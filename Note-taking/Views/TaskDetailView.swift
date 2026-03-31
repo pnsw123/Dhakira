@@ -77,6 +77,7 @@ struct TaskDetailView: View {
         .init(id: "text.alignleft",   icon: "text.alignleft"),
         .init(id: "text.aligncenter", icon: "text.aligncenter"),
         .init(id: "text.alignright",  icon: "text.alignright"),
+        .init(id: "photo",            icon: "photo"),
         .init(id: "paperclip",        icon: "paperclip"),
         .init(id: "pencil",           icon: "pencil.tip.crop.circle"),
     ]
@@ -294,6 +295,14 @@ struct TaskDetailView: View {
                 evaluateSlashCommand()
                 DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .attachmentAppended)) { note in
+                guard let newText = note.object as? NSAttributedString,
+                      let tv = richTextView else { return }
+                tv.attributedText = newText
+                attributedText = newText
+                prevTextLength = newText.length
+                DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
+            }
             .onChange(of: richTextContext.selectedRange) { _, range in
                 onSelectionChanged(range)
             }
@@ -319,8 +328,16 @@ struct TaskDetailView: View {
         if showColorPalette && !isDrawingMode && !selectionGlobalRect.isEmpty {
             GeometryReader { geo in
                 let gf = geo.frame(in: .global)
-                let localY = selectionGlobalRect.maxY - gf.minY + 60
-                if localY > 0 && localY < geo.size.height {
+                let selBottomLocal = selectionGlobalRect.maxY - gf.minY
+                let selTopLocal    = selectionGlobalRect.minY - gf.minY
+                let paletteH: CGFloat = 52  // collapsed pill height
+                // Mirror Apple's system bar: flip above when not enough room below
+                let belowY = selBottomLocal + 60
+                let wouldClip = belowY + paletteH > geo.size.height
+                let localY: CGFloat = wouldClip
+                    ? selTopLocal - 60 - paletteH  // above the system bar
+                    : belowY                        // below the system bar (default)
+                if localY > -paletteH && localY < geo.size.height {
                     ColorPaletteView(
                         mode: $paletteMode,
                         onApplyHighlight: { color in
@@ -452,6 +469,9 @@ struct TaskDetailView: View {
 
         // Special-case non-dispatcher actions first
         switch id {
+        case "photo":
+            attachmentService.choosePhotoOrVideo()
+            return
         case "pencil":
             log.debug("handleToolbarTap: entering drawing mode")
             richTextView?.resignFirstResponder()
@@ -772,6 +792,14 @@ struct TaskDetailView: View {
         // start — newCursor shifts +2 to land after the prefix.
         var isColorCommand = false
         switch cmd.id {
+        case "photo":
+            // Delete the slash+command text, dismiss keyboard, then open photo picker.
+            tv.attributedText = workingText
+            tv.selectedRange  = NSRange(location: newCursor, length: 0)
+            attributedText    = workingText
+            prevTextLength    = workingText.length
+            DispatchQueue.main.async { attachmentService.choosePhotoOrVideo() }
+            return
         case "bulletList":
             RichEditorCommands.toggleBulletList(attributedText: &workingText, selectedRange: selRange)
             newCursor += 2   // past the inserted "• "
@@ -1258,9 +1286,19 @@ struct TaskDetailView: View {
                let start = tv.position(from: tv.beginningOfDocument, offset: loc),
                let end   = tv.position(from: start, offset: len),
                let tRange = tv.textRange(from: start, to: end) {
-                let r = tv.firstRect(for: tRange)
-                if !r.isNull, !r.isInfinite, r.width < 5000 {
-                    selectionGlobalRect = tv.convert(r, to: nil)
+                // Use all selection rects so the bounding box covers the full
+                // multi-line selection, not just the first line.
+                let selRects = tv.selectionRects(for: tRange)
+                    .map { tv.convert($0.rect, to: nil) }
+                    .filter { $0.height > 0 }
+                if !selRects.isEmpty {
+                    let minY = selRects.map(\.minY).min()!
+                    let maxY = selRects.map(\.maxY).max()!
+                    let minX = selRects.map(\.minX).min()!
+                    let maxX = selRects.map(\.maxX).max()!
+                    selectionGlobalRect = CGRect(x: minX, y: minY,
+                                                 width: maxX - minX,
+                                                 height: maxY - minY)
                 } else {
                     selectionGlobalRect = .zero
                 }

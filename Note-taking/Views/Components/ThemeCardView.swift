@@ -163,15 +163,21 @@ struct ThemeCardView: View {
     @ViewBuilder
     private var cardBackground: some View {
         ZStack {
+            // Base: focal/mid color
             theme.meshColors[4]
-            LinearGradient(
-                colors: [
-                    theme.meshColors[0].opacity(0.78),
-                    theme.meshColors[4].opacity(0.0),
-                    theme.meshColors[8].opacity(0.78)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+            // Top-left bloom
+            RadialGradient(
+                colors: [theme.meshColors[0].opacity(0.85), .clear],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 180
+            )
+            // Bottom-right bloom
+            RadialGradient(
+                colors: [theme.meshColors[8].opacity(0.80), .clear],
+                center: .bottomTrailing,
+                startRadius: 0,
+                endRadius: 160
             )
         }
     }
@@ -199,7 +205,7 @@ private struct CardPennant: Shape {
         columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
         spacing: 16
     ) {
-        ThemeCardView(theme: .academia,   isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .tokyoNight, isSelected: false, namespace: Namespace().wrappedValue)
         ThemeCardView(theme: .nord,       isSelected: false, namespace: Namespace().wrappedValue)
         ThemeCardView(theme: .tokyoNight, isSelected: false, namespace: Namespace().wrappedValue)
         ThemeCardView(theme: .forest,     isSelected: true,  namespace: Namespace().wrappedValue)

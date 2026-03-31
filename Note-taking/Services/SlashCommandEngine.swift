@@ -12,6 +12,7 @@ struct SlashCommand: Identifiable, Equatable {
     let label: String
     let iconText: String
     let iconColor: UIColor
+    var sfSymbol: String? = nil
 
     static let all: [SlashCommand] = {
         var commands: [SlashCommand] = [
@@ -20,6 +21,7 @@ struct SlashCommand: Identifiable, Equatable {
             SlashCommand(id: "bulletList", section: "Basic Blocks", label: "Bulleted List", iconText: "•",  iconColor: .label),
             SlashCommand(id: "todoList",   section: "Basic Blocks", label: "To-do List",   iconText: "✓",   iconColor: .label),
             SlashCommand(id: "quote",      section: "Basic Blocks", label: "Quote",        iconText: "\"",  iconColor: .label),
+            SlashCommand(id: "photo",      section: "Basic Blocks", label: "Photo",        iconText: "",    iconColor: .label, sfSymbol: "photo"),
             // Headings
             SlashCommand(id: "heading1",   section: "Headings",     label: "Heading 1",    iconText: "H1",  iconColor: .label),
             SlashCommand(id: "heading2",   section: "Headings",     label: "Heading 2",    iconText: "H2",  iconColor: .label),

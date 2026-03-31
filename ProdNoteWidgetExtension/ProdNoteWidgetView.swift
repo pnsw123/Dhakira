@@ -49,6 +49,10 @@ struct ProdNoteWidgetView: View {
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .modifier(WidgetGlassModifier())
+        .overlay(
+            ContainerRelativeShape()
+                .strokeBorder(Color(theme.accentColor).opacity(0.28), lineWidth: 1)
+        )
     }
 
     // Medium widget — same structure as large, compressed to ~4 visible rows.
@@ -120,6 +124,10 @@ struct ProdNoteWidgetView: View {
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .modifier(WidgetGlassModifier())
+        .overlay(
+            ContainerRelativeShape()
+                .strokeBorder(Color(theme.accentColor).opacity(0.28), lineWidth: 1)
+        )
     }
 
     // Large widget — fills the extra height with more rows + a completion stat line.
@@ -129,7 +137,7 @@ struct ProdNoteWidgetView: View {
         let maxRows = 8
         let visible = Array(entry.tasks.prefix(maxRows))
         let overflow = entry.taskCount - visible.count
-        let completed = entry.tasks.filter { $0.priority == "done" }.count  // approximation
+
 
         return VStack(alignment: .leading, spacing: 0) {
             // Header
@@ -198,6 +206,10 @@ struct ProdNoteWidgetView: View {
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .modifier(WidgetGlassModifier())
+        .overlay(
+            ContainerRelativeShape()
+                .strokeBorder(Color(theme.accentColor).opacity(0.28), lineWidth: 1)
+        )
     }
 
     // MARK: — Pennant shape (matches PennantShape in main app)

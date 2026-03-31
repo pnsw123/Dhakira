@@ -1,74 +1,95 @@
 # Pre-Launch Requirements — V1 (iPhone + iPad)
-> Testing first. Themes + Widgets second. Branding and publishing last.
-> Scope: Full iOS theme control, full widget designs, background support — iPhone and iPad.
+> Last updated: March 30, 2026
+> Status: **95% Complete** — 2–3 days to launch
+> Testing first. Themes second. Branding and publishing last.
 
 ---
 
-## Priority 1 — Simulator Testing
-Fix everything broken before moving on. Nothing else matters until this passes.
+## Overall Progress
+
+| Area | Status | Notes |
+|---|---|---|
+| Core Note Features | ✅ Done | Editor, formatting, folders all working |
+| Calendar Integration | ✅ Done | Events save at correct time, 5pm → 5pm in Apple Calendar |
+| Widget System | ✅ Done | Fully compatible, theme syncs almost instantly |
+| Theme System | ✅ Done | Applies across app and widgets live |
+| Export | ✅ Done | PDF, RTF, plain text |
+| Attachments | ✅ Done | Photos, files, voice, scan |
+| Reminders Import | ✅ Done | |
+| More Themes (paid) | 🔲 Remaining | Need to add more theme designs |
+| Paywall | 🔲 Remaining | StoreKit integration |
+| Testing + Edge Cases | 🔲 Remaining | Ongoing until launch |
+| Branding + Logo | 🔲 Remaining | App icon, screens |
+| App Store Submission | 🔲 Remaining | License, listing, review |
+| Domain | 🔲 Remaining | Find and register |
+
+---
+
+## Priority 1 — Testing (Do This Repeatedly Until Launch)
+Test everything below. If anything breaks, fix it before moving on.
 
 ### Core Note Features
-- [ ] Create a new task / note
-- [ ] Type in the editor — text appears correctly
-- [ ] Bold, italic, underline, strikethrough formatting works
-- [ ] Heading 1, 2, 3 apply and revert correctly
-- [ ] Bullet list inserts and toggles off
-- [ ] Quote block inserts with blue bar and toggles off
-- [ ] Checklist inserts and checkbox toggles checked/unchecked
-- [ ] Slash `/` menu appears, filters, and applies command correctly
-- [ ] Slash menu dismisses on backspace
-- [ ] Drag-to-reorder toolbar icons works
+- [x] Create a new task / note
+- [x] Type in the editor — text appears correctly
+- [x] Bold, italic, underline, strikethrough formatting works
+- [x] Heading 1, 2, 3 apply and revert correctly
+- [x] Bullet list inserts and toggles off
+- [x] Quote block inserts with blue bar and toggles off
+- [x] Checklist inserts and checkbox toggles checked/unchecked
+- [x] Slash `/` menu appears, filters, and applies command correctly
+- [x] Slash menu dismisses on backspace
+- [x] Drag-to-reorder toolbar icons works
 
 ### Folders & Navigation
-- [ ] Create a new folder
-- [ ] Rename a folder inline
-- [ ] Delete a folder
-- [ ] Navigate Tasks → Folders → Tasks smoothly
-- [ ] Select a task list from a folder and it becomes active
+- [x] Create a new folder
+- [x] Rename a folder inline
+- [x] Delete a folder
+- [x] Navigate Tasks → Folders → Tasks smoothly
+- [x] Select a task list from a folder and it becomes active
 
 ### Calendar & Date Detection
-- [ ] Type a date in a note title (e.g. "Dentist tomorrow at 3pm")
-- [ ] App detects the date automatically
-- [ ] Calendar event is created in Apple Calendar
-- [ ] Event has correct title, date, and time
-- [ ] Event has 15-minute reminder alarm
-- [ ] Edit the date in the title — event updates
-- [ ] Remove the date from the title — event is deleted
-- [ ] Deep link in calendar event opens the app at the correct note
+- [x] Type a date in a note title (e.g. "Dentist tomorrow at 3pm")
+- [x] App detects the date automatically
+- [x] Calendar event is created in Apple Calendar
+- [x] Event has correct title, date, and time ✅ confirmed 5pm → 5pm
+- [x] Event has 15-minute reminder alarm
+- [ ] Edit the date in the title — event updates (re-test)
+- [ ] Remove the date from the title — event is deleted (re-test)
+- [ ] Deep link in calendar event opens the app at the correct note (re-test)
 
 ### Export
-- [ ] PDF export: tap export → share sheet appears with .pdf file
-- [ ] PDF file opens correctly and contains title + body content
-- [ ] Word/RTF export: share sheet appears with .rtf file
-- [ ] RTF file opens in Pages or Word correctly
-- [ ] Plain text share works
+- [x] PDF export: tap export → share sheet appears with .pdf file
+- [x] PDF file opens correctly and contains title + body content
+- [x] Word/RTF export: share sheet appears with .rtf file
+- [x] RTF file opens in Pages or Word correctly
+- [x] Plain text share works
 
 ### Attachments
-- [ ] Attach a photo from photo library
-- [ ] Attach a file (PDF, doc, etc.)
-- [ ] Record and attach a voice message
-- [ ] Scan a document with camera (text scan)
-- [ ] Attached items appear inline in the note
+- [x] Attach a photo from photo library
+- [x] Attach a file (PDF, doc, etc.)
+- [x] Record and attach a voice message
+- [x] Scan a document with camera (text scan)
+- [x] Attached items appear inline in the note
 
 ### Reminders Import
-- [ ] Grant Reminders permission
-- [ ] Import from Apple Reminders works
-- [ ] Imported reminder becomes a task with correct title and notes
+- [x] Grant Reminders permission
+- [x] Import from Apple Reminders works
+- [x] Imported reminder becomes a task with correct title and notes
 
 ### Sync & Data
-- [ ] Close and reopen app — all notes are still there
-- [ ] Recently Completed shows completed tasks
-- [ ] Recently Deleted shows soft-deleted tasks
-- [ ] Restore a deleted task works
-- [ ] Permanently delete a task works
+- [x] Close and reopen app — all notes are still there
+- [x] Recently Completed shows completed tasks
+- [x] Recently Deleted shows soft-deleted tasks
+- [x] Restore a deleted task works
+- [x] Permanently delete a task works
 
 ### Deep Links & Siri
-- [ ] Siri shortcut "Create Task" works
-- [ ] Deep link URL (prodnote://task/{uuid}) opens correct note
+- [ ] Siri shortcut "Create Task" works (re-test)
+- [ ] Deep link URL (prodnote://task/{uuid}) opens correct note (re-test)
 
 ### iPhone Polish
-- [ ] App looks correct in Light Mode
-- [ ] App looks correct in Dark Mode
+- [ ] App looks correct in Light Mode (re-test all themes)
+- [ ] App looks correct in Dark Mode (re-test all themes)
 - [ ] No visible layout breaks on iPhone 16 Pro Max
 - [ ] No visible layout breaks on iPhone SE (small screen)
 - [ ] App does not crash on cold launch
@@ -76,112 +97,118 @@ Fix everything broken before moving on. Nothing else matters until this passes.
 ### iPad Polish
 - [ ] No visible layout breaks on iPad Pro 13"
 - [ ] No visible layout breaks on iPad Mini
-- [ ] App works correctly in iPad Split View (two apps side by side)
-- [ ] App works correctly in Slide Over (floating window)
+- [ ] App works correctly in iPad Split View
+- [ ] App works correctly in Slide Over
 - [ ] Keyboard shortcuts work on iPad with external keyboard
 - [ ] App does not crash on cold launch on iPad
 
----
-
-## Priority 2 — Theme System (V1 Revenue Driver)
-Full iOS theme control. Works identically on iPhone and iPad.
-
-### Bones (Infrastructure — no visible change to users)
-- [ ] Create `AppTheme` struct with all color, font, spacing tokens
-- [ ] Register AppTheme into SwiftUI environment (`@Entry` / `EnvironmentKey`)
-- [ ] Create `ThemeManager` service — saves/loads selected theme via UserDefaults
-- [ ] Inject theme at app root in `Note_takingApp.swift`
-- [ ] Migrate `Color+App.swift` static vars to forward to active theme (zero view changes)
-- [ ] Move semantic colors to Asset Catalog (WidgetKit requirement)
-- [ ] Set up App Group (`group.com.prodnote.shared`) for widget theme sharing
-
-### Theme Designs
-- [ ] Default theme (current app look — free)
-- [ ] Dark theme (free)
-- [ ] At least 3 paid premium themes designed (colors, typography, style)
-- [ ] Each theme tested on both iPhone and iPad
-
-### Theme Picker UI
-- [ ] ThemeView replaced with real picker (swatches, live preview, select)
-- [ ] Selected theme applies instantly across the whole app
-- [ ] Theme persists after app is killed and reopened
-- [ ] Picker looks correct on both iPhone and iPad
-
-### Background Image Support
-- [ ] User can set a photo from their library as app background
-- [ ] Background scales and fits correctly on iPhone (all sizes)
-- [ ] Background scales and fits correctly on iPad (all sizes)
-- [ ] Background applies across all screens consistently
-- [ ] Background works in both light and dark mode
-- [ ] Background is saved and restored on relaunch
-
-### Paywall
-- [ ] Free tier: Default + Dark themes only
-- [ ] Paid theme packs: $1.99 per pack
-- [ ] Pro bundle: all packs (current + future) — $7.99 one-time
-- [ ] StoreKit integration for in-app purchases
-- [ ] Purchased themes persist and restore correctly
+### Edge Cases to Think Through
+- [ ] What happens if you delete a note that has a calendar event?
+- [ ] What if the user denies calendar permission — does the app crash or handle it gracefully?
+- [ ] What if a note title has two dates in it?
+- [ ] What happens when storage is almost full?
+- [ ] What if the user types a date with no time — does it default reasonably?
+- [ ] What if the widget loads with no notes yet?
+- [ ] What if the user switches themes rapidly — does anything break?
+- [ ] What if a photo attachment is very large?
+- [ ] What if the user force-quits mid-edit — is anything lost?
+- [ ] Accessibility (VoiceOver) — does the app work for visually impaired users?
 
 ---
 
-## Priority 3 — Widgets (V1, iPhone + iPad)
-Full widget designs that inherit the active theme automatically.
+## Priority 2 — More Themes (Revenue Driver)
+The infrastructure is done. Now add more theme designs.
 
-### Widget Infrastructure
-- [ ] Add Widget Extension target to Xcode project
-- [ ] Set up App Group so widget reads active theme from ThemeManager
-- [ ] Widget reads same background/colors as the app
+### Current Theme Status
+| Name | Tier | Status |
+|---|---|---|
+| Default | Free | ✅ Done |
+| Midnight | Free | ✅ Done |
+| Academia | Paid | 🔲 Design + build |
+| Nord | Paid | 🔲 Design + build |
+| Tokyo Night | Paid | 🔲 Design + build |
+| Forest | Paid | 🔲 Design + build |
+| Rosé | Paid | 🔲 Design + build |
+| Void | Paid (bundle) | 🔲 Design + build |
 
-### Home Screen Widgets (iPhone + iPad)
-- [ ] Small widget (2x2) — recent note or task count
-- [ ] Medium widget (4x2) — recent tasks list
-- [ ] Large widget (4x4) — expanded task list or note preview
-- [ ] All sizes themed: colors + background match active app theme
-- [ ] Widget taps deep link into the correct note/task in the app
-
-### Lock Screen Widgets (iPhone)
-- [ ] Circular widget — task count or streak
-- [ ] Rectangular widget — most recent task title
-- [ ] Inline widget — quick note count
-
-### Widget Polish
-- [ ] All widgets update when theme changes in the app
-- [ ] All widgets look correct in Light Mode
-- [ ] All widgets look correct in Dark Mode
-- [ ] All widgets look correct in iOS 18 Tinted mode
-- [ ] No stale/broken data shown when widget first loads
+### Theme Checklist (per theme)
+- [ ] Colors defined (background, text, accent)
+- [ ] Tested on iPhone (light + dark)
+- [ ] Tested on iPad
+- [ ] Widget inherits theme correctly
+- [ ] Theme persists after app kill/reopen
 
 ---
 
-## Priority 4 — Apple Developer Program + iCloud Setup
-- [ ] Enroll at developer.apple.com/programs/enroll ($99/year)
-- [ ] Xcode → Note-taking target → Signing & Capabilities → add iCloud
-- [ ] Check the CloudKit checkbox
-- [ ] Commit the auto-generated Note-taking.entitlements file
-- [ ] iCloud sync: notes appear on a second device (iPhone + iPad)
+## Priority 3 — Widgets ✅ (Infrastructure Complete)
+Widget system is fully working and syncs with themes instantly.
+
+### Remaining Widget Polish
+- [ ] All widgets tested on iPhone home screen
+- [ ] All widgets tested on iPad home screen
+- [ ] Lock screen widgets look correct
+- [ ] Tinted mode (iOS 18) looks correct
+- [ ] No stale data after theme change
 
 ---
 
-## Priority 5 — Branding
-- [ ] Design and finalize app logo (1024x1024 px)
-- [ ] Add all required icon sizes in Xcode Assets catalog
-- [ ] Choose final app name (confirm "Note-taking" or rename)
+## Priority 4 — Paywall
+- [ ] Free tier confirmed: Default + Midnight only
+- [ ] Paid theme pack pricing locked ($1.99/pack or $7.99 bundle)
+- [ ] StoreKit 2 `Product.products` integrated
+- [ ] `product.purchase()` flow works end-to-end
+- [ ] `Transaction.updates` listener active (restores purchases)
+- [ ] `ProductView` / `StoreView` UI in theme picker
+- [ ] Purchases persist after app reinstall (restore purchases button)
+- [ ] Tested in Xcode sandbox (StoreKit testing)
 
 ---
 
-## Priority 6 — App Store Screenshots
-Showcase the themes and widgets. Capture both iPhone and iPad.
+## Priority 5 — Apple Developer Program + iCloud
+- [x] Enrolled at developer.apple.com/programs/enroll ($99/year)
+- [ ] iCloud + CloudKit capability added in Xcode
+- [ ] iCloud sync tested: notes appear on second device
+- [ ] App Group `group.com.prodnote.shared` confirmed working
 
-- [ ] Screenshot: Home / Folders screen
-- [ ] Screenshot: Task list view
-- [ ] Screenshot: Note editor with formatting toolbar
-- [ ] Screenshot: Slash command `/` menu open
-- [ ] Screenshot: Theme picker showing paid theme options
-- [ ] Screenshot: Widget on home screen with active theme
-- [ ] Screenshot: Calendar event created from a note
-- [ ] Minimum: 3 screenshots — iPhone 6.9"
-- [ ] Minimum: 3 screenshots — iPhone 6.5"
-- [ ] Minimum: 3 screenshots — iPad Pro 13"
+---
+
+## Priority 6 — Branding
+- [ ] App name finalized (confirm "ProdNote" or other)
+- [ ] Logo designed (1024x1024 px, works on white and black backgrounds)
+- [ ] All Xcode icon sizes added to Assets catalog
+- [ ] App Store screenshots planned and captured (see below)
+- [ ] Domain registered (e.g. prodnote.app or similar)
+
+---
+
+## Priority 7 — App Store Screenshots
+Showcase themes and widgets. Capture on real device or high-quality simulator.
+
+| Screen | Status |
+|---|---|
+| Home / Folders screen | 🔲 |
+| Task list view | 🔲 |
+| Note editor with formatting toolbar | 🔲 |
+| Slash `/` command menu open | 🔲 |
+| Theme picker showing paid options | 🔲 |
+| Widget on home screen with active theme | 🔲 |
+| Calendar event created from a note | 🔲 |
+
+- [ ] Minimum 3 screenshots — iPhone 6.9"
+- [ ] Minimum 3 screenshots — iPhone 6.5"
+- [ ] Minimum 3 screenshots — iPad Pro 13"
+
+---
+
+## Priority 8 — Final Submission
+- [ ] App Store description written (highlight themes + widgets + calendar)
+- [ ] Keywords researched and added
+- [ ] Bundle ID set correctly in Xcode
+- [ ] Version 1.0.0, Build 1
+- [ ] Archive build (Product → Archive)
+- [ ] Upload via Xcode Organizer
+- [ ] App Store Connect listing complete
+- [ ] Submit for Apple Review
 
 ---
 
@@ -276,16 +303,16 @@ Showcase the themes and widgets. Capture both iPhone and iPad.
 | WWDC reference | WWDC 2018 Session 416 — Image and Graphics Best Practices |
 
 ### Theme Names (V1)
-| Name | Tier | Audience | Color Direction |
-|---|---|---|---|
-| Default | Free | Everyone | Warm off-white (current look) |
-| Midnight | Free | Everyone | Deep charcoal (current dark) |
-| Academia | Paid | Millennial women, students | Warm sepia, cream, deep brown |
-| Nord | Paid | Men, professionals | Arctic blue-grey, icy white |
-| Tokyo Night | Paid | Gen Z, creatives | Deep navy, neon purple, electric teal |
-| Forest | Paid | Creatives, nature lovers | Muted green, earthy brown, amber |
-| Rosé | Paid | Women 20–35 | Dusty rose, warm pink, cream |
-| Void | Paid (bundle) | Power users, OLED screens | Pure #000000 black |
+| Name | Tier | Audience | Color Direction | Status |
+|---|---|---|---|---|
+| Default | Free | Everyone | Warm off-white (current look) | ✅ Done |
+| Midnight | Free | Everyone | Deep charcoal (current dark) | ✅ Done |
+| Academia | Paid | Millennial women, students | Warm sepia, cream, deep brown | 🔲 |
+| Nord | Paid | Men, professionals | Arctic blue-grey, icy white | 🔲 |
+| Tokyo Night | Paid | Gen Z, creatives | Deep navy, neon purple, electric teal | 🔲 |
+| Forest | Paid | Creatives, nature lovers | Muted green, earthy brown, amber | 🔲 |
+| Rosé | Paid | Women 20–35 | Dusty rose, warm pink, cream | 🔲 |
+| Void | Paid (bundle) | Power users, OLED screens | Pure #000000 black | 🔲 |
 
 ### Key WWDC Sessions
 | Session | Year | What It Covers |
@@ -298,14 +325,3 @@ Showcase the themes and widgets. Capture both iPhone and iPad.
 | WWDC22 #10058 — SwiftUI on iPad | 2022 | NavigationSplitView |
 | WWDC22 #10050 — Complications and Widgets: Reloaded | 2022 | Lock screen widgets |
 | WWDC18 #416 — Image and Graphics Best Practices | 2018 | Image downsampling (MANDATORY read) |
-
----
-
-## Priority 7 — Final Submission
-- [ ] Write App Store description and keywords (highlight themes + widgets)
-- [ ] Set correct Bundle ID in Xcode
-- [ ] Set version number (1.0.0) and build number (1)
-- [ ] Archive the app (Product → Archive)
-- [ ] Upload to App Store Connect via Xcode Organizer
-- [ ] Fill in App Store Connect listing (description, category, age rating)
-- [ ] Submit for Apple Review

@@ -13,7 +13,6 @@ final class StoreKitManager {
 
     // All known product IDs
     static let allProductIds: Set<String> = [
-        "com.prodnote.theme.academia",
         "com.prodnote.theme.nord",
         "com.prodnote.theme.tokyonight",
         "com.prodnote.theme.forest",

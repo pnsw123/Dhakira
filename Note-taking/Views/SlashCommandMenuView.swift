@@ -86,6 +86,10 @@ struct SlashCommandMenuView: View {
                     Text(cmd.iconText)
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(Color(cmd.iconColor))
+                } else if let symbol = cmd.sfSymbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.primaryText)
                 } else {
                     Text(cmd.iconText)
                         .font(.system(size: 13, weight: .semibold))

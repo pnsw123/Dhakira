@@ -6,7 +6,7 @@ import StoreKit
 // Issue #76 — https://github.com/pnsw123/prod-note/issues/76
 
 #Preview {
-    ThemePaywallView(theme: .academia)
+    ThemePaywallView(theme: .tokyoNight)
         .environment(StoreKitManager.shared)
 }
 
