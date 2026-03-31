@@ -294,6 +294,7 @@ struct TaskDetailView: View {
                 guard let tv = note.object as? UITextView, tv === richTextView else { return }
                 handleReturnKey(tv: tv)
                 evaluateSlashCommand()
+                evaluateMarkdownHeader(tv: tv)
                 DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
             }
             .onReceive(NotificationCenter.default.publisher(for: .attachmentAppended)) { note in
@@ -302,6 +303,13 @@ struct TaskDetailView: View {
                 tv.attributedText = newText
                 attributedText = newText
                 prevTextLength = newText.length
+                // Setting attributedText programmatically resets UITextView's typingAttributes
+                // to UIKit's default (black). Restore adaptive colour so text typed after an
+                // image/file attachment stays visible on dark/themed backgrounds.
+                let endLoc = newText.length
+                tv.selectedRange = NSRange(location: endLoc, length: 0)
+                tv.typingAttributes[.foregroundColor] = UIColor.label
+                tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
                 DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
             }
             .onChange(of: richTextContext.selectedRange) { _, range in
@@ -654,6 +662,54 @@ struct TaskDetailView: View {
         } else {
             slashCursorGlobalRect = .zero
         }
+    }
+
+    // MARK: - Markdown Header Auto-Conversion
+    /// Detects `## `, `### `, `#### ` typed at the start of a paragraph and converts
+    /// them to h2 / h3 / h4 heading styles, removing the markdown prefix.
+    private func evaluateMarkdownHeader(tv: UITextView) {
+        guard let tvText = tv.attributedText else { return }
+        let str = tvText.string as NSString
+        let cursorLoc = tv.selectedRange.location
+        // Only trigger when the character just before the cursor is a space
+        guard cursorLoc > 0, str.character(at: cursorLoc - 1) == 0x20 else { return }
+
+        let parRange = str.paragraphRange(for: NSRange(location: cursorLoc - 1, length: 0))
+        let parText = str.substring(with: parRange)
+
+        // Match longest prefix first so "###" doesn't match as "##"
+        let match: (prefix: String, level: RichEditorCommands.HeadingLevel)?
+        if parText.hasPrefix("#### ") {
+            match = ("#### ", .h4)
+        } else if parText.hasPrefix("### ") {
+            match = ("### ", .h3)
+        } else if parText.hasPrefix("## ") {
+            match = ("## ", .h2)
+        } else {
+            return
+        }
+        guard let (prefix, level) = match else { return }
+
+        let mutable = NSMutableAttributedString(attributedString: tvText)
+        let prefixLen = (prefix as NSString).length
+        mutable.deleteCharacters(in: NSRange(location: parRange.location, length: prefixLen))
+
+        // Apply heading font to the now-prefix-free paragraph
+        let newParRange = (mutable.string as NSString).paragraphRange(
+            for: NSRange(location: parRange.location, length: 0))
+        if newParRange.length > 0 {
+            mutable.addAttribute(.font, value: level.font, range: newParRange)
+            mutable.addAttribute(.foregroundColor, value: UIColor.label, range: newParRange)
+        }
+
+        tv.attributedText = mutable
+        let safeCursor = min(parRange.location, mutable.length)
+        tv.selectedRange = NSRange(location: safeCursor, length: 0)
+        tv.typingAttributes[.font] = level.font
+        tv.typingAttributes[.foregroundColor] = UIColor.label
+        attributedText = mutable
+        prevTextLength = mutable.length
+        log.debug("evaluateMarkdownHeader: applied \(String(describing: level)) from prefix '\(prefix)'")
     }
 
     /// Calculate Y offset for the slash menu relative to the editor ZStack.

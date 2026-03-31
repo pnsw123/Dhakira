@@ -52,6 +52,9 @@ final class ThemeManager {
             }
         }
         #endif
+        // Ensure the App Group always has the current themeId on launch so the
+        // widget shows the correct theme even if the user has never opened Theme settings.
+        syncToAppGroup()
     }
 
     // MARK: — Stored widget theme (can differ from app theme)
@@ -150,6 +153,7 @@ final class ThemeManager {
             try? jpeg.write(to: sharedURL)
         }
         #endif
+        defaults.synchronize()
     }
 
     // MARK: — Downsampling (WWDC18 #416, UIKit only)
@@ -336,6 +340,8 @@ extension ThemeManager {
         if let encoded = try? JSONEncoder().encode(tasks) {
             defaults.set(encoded, forKey: "activeTasks")
         }
+        // Force flush to disk — App Group UserDefaults may not sync immediately
+        defaults.synchronize()
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

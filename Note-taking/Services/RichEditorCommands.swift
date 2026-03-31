@@ -169,13 +169,14 @@ final class RichEditorCommands {
     // MARK: - Headings (#42) — via NSAttributedString + UITextView
 
     enum HeadingLevel {
-        case h1, h2, h3, body
+        case h1, h2, h3, h4, body
 
         var font: UIFont {
             switch self {
             case .h1: return UIFont.systemFont(ofSize: 22, weight: .bold)
             case .h2: return UIFont.systemFont(ofSize: 18, weight: .semibold)
             case .h3: return UIFont.systemFont(ofSize: 15, weight: .semibold)
+            case .h4: return UIFont.systemFont(ofSize: 13, weight: .semibold)
             case .body: return UIFont.preferredFont(forTextStyle: .body)
             }
         }
