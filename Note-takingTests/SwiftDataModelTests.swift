@@ -4,13 +4,11 @@ import SwiftData
 
 // MARK: - SwiftDataModelTests
 // Validates the local model layer using an in-memory SwiftData container.
-// These tests run on the Simulator with NO network or iCloud required.
-// They prove that models save, relate, and purge correctly —
-// a prerequisite before trusting iCloud to sync them.
+// No network, no iCloud, no entitlements required — runs on Simulator in ~5s.
+// Predicate style matches the production codebase (== true / == false, never !).
 
 final class SwiftDataModelTests: XCTestCase {
 
-    // Each test gets its own isolated in-memory container.
     private var container: ModelContainer!
     private var context: ModelContext!
 
@@ -26,7 +24,7 @@ final class SwiftDataModelTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    // MARK: - Test 1: Create task and fetch it back
+    // MARK: - 1. Create task and fetch it back
 
     func testCreateTaskPersists() throws {
         let task = TaskItem(title: "Buy groceries")
@@ -38,7 +36,7 @@ final class SwiftDataModelTests: XCTestCase {
         XCTAssertEqual(results.first?.title, "Buy groceries")
     }
 
-    // MARK: - Test 2: Soft-deleted task excluded from active query
+    // MARK: - 2. Soft-deleted task excluded from active query
 
     func testDeleteTaskSoftDeletes() throws {
         let active  = TaskItem(title: "Active task")
@@ -50,54 +48,53 @@ final class SwiftDataModelTests: XCTestCase {
         context.insert(deleted)
         try context.save()
 
-        // Active query — mirrors what TaskListView uses
-        let activeDescriptor = FetchDescriptor<TaskItem>(
-            predicate: #Predicate { !$0.isDeleted }
-        )
-        let activeResults = try context.fetch(activeDescriptor)
+        // Matches the predicate pattern used in production (Note_takingApp.swift)
+        let activeResults = try context.fetch(FetchDescriptor<TaskItem>(
+            predicate: #Predicate<TaskItem> { $0.isDeleted == false }
+        ))
         XCTAssertEqual(activeResults.count, 1)
         XCTAssertEqual(activeResults.first?.title, "Active task")
 
-        // Deleted query — mirrors what RecentlyDeletedView uses
-        let deletedDescriptor = FetchDescriptor<TaskItem>(
-            predicate: #Predicate { $0.isDeleted }
-        )
-        let deletedResults = try context.fetch(deletedDescriptor)
+        let deletedResults = try context.fetch(FetchDescriptor<TaskItem>(
+            predicate: #Predicate<TaskItem> { $0.isDeleted == true }
+        ))
         XCTAssertEqual(deletedResults.count, 1)
         XCTAssertEqual(deletedResults.first?.title, "Deleted task")
     }
 
-    // MARK: - Test 3: Folder ↔ TaskItem relationship
+    // MARK: - 3. Folder ↔ TaskItem relationship
 
     func testFolderWithTasksRelationship() throws {
         let folder = Folder(name: "Work")
-        let task   = TaskItem(title: "Write report", folder: folder)
-
         context.insert(folder)
+
+        // Insert task AFTER folder is in context so SwiftData can wire the inverse
+        let task = TaskItem(title: "Write report", folder: folder)
         context.insert(task)
         try context.save()
 
-        // Fetch folder back and confirm relationship is intact
+        // Forward: task knows its folder
+        let tasks = try context.fetch(FetchDescriptor<TaskItem>())
+        XCTAssertEqual(tasks.count, 1)
+        XCTAssertEqual(tasks.first?.folder?.name, "Work")
+
+        // Inverse: folder knows its tasks
         let folders = try context.fetch(FetchDescriptor<Folder>())
         let fetched = try XCTUnwrap(folders.first)
         XCTAssertEqual(fetched.name, "Work")
         XCTAssertEqual(fetched.tasks?.count, 1)
         XCTAssertEqual(fetched.tasks?.first?.title, "Write report")
-
-        // Fetch task back and confirm inverse
-        let tasks = try context.fetch(FetchDescriptor<TaskItem>())
-        XCTAssertEqual(tasks.first?.folder?.name, "Work")
     }
 
-    // MARK: - Test 4: TaskList contains attached tasks
+    // MARK: - 4. TaskList contains attached tasks
 
     func testTaskListContainsTasks() throws {
-        let list  = TaskList(name: "Sprint 1")
-        let task1 = TaskItem(title: "Design", taskList: list)
-        let task2 = TaskItem(title: "Build", taskList: list)
-        let task3 = TaskItem(title: "Ship", taskList: list)
-
+        let list = TaskList(name: "Sprint 1")
         context.insert(list)
+
+        let task1 = TaskItem(title: "Design", taskList: list)
+        let task2 = TaskItem(title: "Build",  taskList: list)
+        let task3 = TaskItem(title: "Ship",   taskList: list)
         context.insert(task1)
         context.insert(task2)
         context.insert(task3)
@@ -109,52 +106,53 @@ final class SwiftDataModelTests: XCTestCase {
         XCTAssertEqual(fetched.tasks?.count, 3)
     }
 
-    // MARK: - Test 5: Attachment links back to parent TaskItem
+    // MARK: - 5. Attachment links back to parent TaskItem
 
     func testAttachmentLinksToTask() throws {
-        let task       = TaskItem(title: "Note with photo")
-        let attachment = Attachment(type: "image", fileName: "photo.jpg", task: task)
-
+        let task = TaskItem(title: "Note with photo")
         context.insert(task)
+
+        // Insert attachment AFTER task is in context
+        let attachment = Attachment(type: "image", fileName: "photo.jpg", task: task)
         context.insert(attachment)
         try context.save()
 
+        // Forward: attachment → task
         let attachments = try context.fetch(FetchDescriptor<Attachment>())
-        let fetched     = try XCTUnwrap(attachments.first)
+        let fetched = try XCTUnwrap(attachments.first)
         XCTAssertEqual(fetched.fileName, "photo.jpg")
         XCTAssertEqual(fetched.task?.title, "Note with photo")
 
-        // Verify reverse lookup via task
+        // Inverse: task → attachments
         let tasks = try context.fetch(FetchDescriptor<TaskItem>())
         XCTAssertEqual(tasks.first?.attachments?.count, 1)
         XCTAssertEqual(tasks.first?.attachments?.first?.fileName, "photo.jpg")
     }
 
-    // MARK: - Test 6: 30-day purge logic identifies expired deleted tasks
+    // MARK: - 6. 30-day purge filter matches production logic
 
     func testPurgeLogicIdentifiesExpiredDeletedTasks() throws {
+        // Replicates the cutoff from StartupWorker.cleanup30DayDeletedTasks()
         let cutoff = Date().addingTimeInterval(-30 * 24 * 60 * 60)
 
-        // Expired (31 days ago) — should be purged
-        let expired       = TaskItem(title: "Expired task")
+        let expired = TaskItem(title: "Expired task")
         expired.isDeleted = true
-        expired.deletedAt = Date().addingTimeInterval(-31 * 24 * 60 * 60)
+        expired.deletedAt = Date().addingTimeInterval(-31 * 24 * 60 * 60) // 31 days ago
 
-        // Recent (10 days ago) — should be kept
-        let recent        = TaskItem(title: "Recent deleted")
-        recent.isDeleted  = true
-        recent.deletedAt  = Date().addingTimeInterval(-10 * 24 * 60 * 60)
+        let recent = TaskItem(title: "Recent deleted")
+        recent.isDeleted = true
+        recent.deletedAt = Date().addingTimeInterval(-10 * 24 * 60 * 60)  // 10 days ago
 
         context.insert(expired)
         context.insert(recent)
         try context.save()
 
-        // Replicate the purge filter from StartupWorker.cleanup30DayDeletedTasks()
         let allDeleted = try context.fetch(FetchDescriptor<TaskItem>(
-            predicate: #Predicate { $0.isDeleted == true }
+            predicate: #Predicate<TaskItem> { $0.isDeleted == true }
         ))
-        let toRemove = allDeleted.filter { ($0.deletedAt ?? Date()) < cutoff }
+        XCTAssertEqual(allDeleted.count, 2)
 
+        let toRemove = allDeleted.filter { ($0.deletedAt ?? Date()) < cutoff }
         XCTAssertEqual(toRemove.count, 1)
         XCTAssertEqual(toRemove.first?.title, "Expired task")
     }
