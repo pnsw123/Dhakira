@@ -44,11 +44,13 @@ private struct AppScopePreview: View {
 
     var body: some View {
         TabView(selection: $currentPage) {
-            MockTasksPage(theme: theme).tag(0)   // page 1 — task list
-            MockDetailPage(theme: theme).tag(1)  // page 2 — task detail
-            MockFolderPage(theme: theme).tag(2)  // page 3 — folders
+            MockTasksPage(theme: theme).tag(0)
+            MockDetailPage(theme: theme).tag(1)
+            MockFolderPage(theme: theme).tag(2)
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
+        // Force correct color scheme so adaptive colors (text, separators) match the background
+        .environment(\.colorScheme, theme.backgroundIsDark ? .dark : .light)
     }
 }
 
@@ -74,17 +76,17 @@ private struct MockTasksPage: View {
         Row(title: "Plan next sprint",     done: false, priority: "none"),
     ]
 
+    private static let defaultGrid: [SIMD2<Float>] = [
+        [0,0],[0.5,0],[1,0],[0,0.5],[0.5,0.5],[1,0.5],[0,1],[0.5,1],[1,1]
+    ]
+
     @ViewBuilder
     private var background: some View {
         if theme.backgroundStyle == .gradient {
             if #available(iOS 18, *) {
                 MeshGradient(
                     width: 3, height: 3,
-                    points: [
-                        [0,0],[0.5,0],[1,0],
-                        [0,0.5],[0.5,0.5],[1,0.5],
-                        [0,1],[0.5,1],[1,1]
-                    ],
+                    points: theme.meshPoints ?? Self.defaultGrid,
                     colors: theme.meshColors
                 )
             } else {
@@ -218,7 +220,11 @@ private struct MockDetailPage: View {
             if #available(iOS 18, *) {
                 MeshGradient(
                     width: 3, height: 3,
-                    points: [[0,0],[0.5,0],[1,0],[0,0.5],[0.5,0.5],[1,0.5],[0,1],[0.5,1],[1,1]],
+                    points: theme.meshPoints ?? [
+                        [0,0],[0.5,0],[1,0],
+                        [0,0.5],[0.5,0.5],[1,0.5],
+                        [0,1],[0.5,1],[1,1]
+                    ],
                     colors: theme.meshColors
                 )
             } else {
@@ -313,7 +319,7 @@ private struct MockDetailPage: View {
 
                 // Formatting toolbar — compact, glass on gradient themes
                 HStack(spacing: 0) {
-                    ForEach(["bold", "italic", "underline", "strikethrough", "textformat.size.smaller", "textformat.size.larger"], id: \.self) { icon in
+                    ForEach(["bold", "italic", "checklist", "list.bullet", "underline", "strikethrough", "textformat.size.smaller", "textformat.size.larger"], id: \.self) { icon in
                         Image(systemName: icon)
                             .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(theme.accentColor)
@@ -345,7 +351,11 @@ private struct MockFolderPage: View {
             if #available(iOS 18, *) {
                 MeshGradient(
                     width: 3, height: 3,
-                    points: [[0,0],[0.5,0],[1,0],[0,0.5],[0.5,0.5],[1,0.5],[0,1],[0.5,1],[1,1]],
+                    points: theme.meshPoints ?? [
+                        [0,0],[0.5,0],[1,0],
+                        [0,0.5],[0.5,0.5],[1,0.5],
+                        [0,1],[0.5,1],[1,1]
+                    ],
                     colors: theme.meshColors
                 )
             } else {

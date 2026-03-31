@@ -80,6 +80,9 @@ public struct AppTheme: Equatable, Hashable, Identifiable {
         self.meshPoints = meshPoints
     }
 
+    // MARK: — Convenience: true when background is dark (used by mockup to force colorScheme)
+    public var backgroundIsDark: Bool { preferredScheme != .light }
+
     // MARK: — StoreKit product ID (nil for free themes)
     public var productId: String? {
         guard isPaid else { return nil }
@@ -95,6 +98,9 @@ public struct AppTheme: Equatable, Hashable, Identifiable {
         case "neon":         return "com.prodnote.theme.neon"
         case "terracotta":   return "com.prodnote.theme.terracotta"
         case "amethyst":     return "com.prodnote.theme.amethyst"
+        case "matrix":       return "com.prodnote.theme.matrix"
+        case "midnight-blue": return "com.prodnote.theme.midnightblue"
+        case "brat-green":   return "com.prodnote.theme.bratgreen"
         default:             return nil
         }
     }
@@ -157,7 +163,7 @@ extension AppTheme {
         checkboxActive:     Color(red: 0.000, green: 0.478, blue: 1.000),
         checkboxInactive:   Color(light: Color(red: 0.780, green: 0.780, blue: 0.800),
                                   dark:  Color(red: 0.350, green: 0.350, blue: 0.380)),
-        preferredScheme:    nil
+        preferredScheme:    .light   // light mesh — must force light mode or text is invisible
     )
 
     // ─────────────────────────────────────────────
@@ -387,7 +393,7 @@ extension AppTheme {
                                  dark:  Color(red: 0.960, green: 0.200, blue: 0.520)),  // cerise
         checkboxInactive:  Color(light: Color(red: 0.820, green: 0.680, blue: 0.760),
                                  dark:  Color(red: 0.200, green: 0.120, blue: 0.300)),
-        preferredScheme:   nil,
+        preferredScheme:   .dark,    // dark mesh — force dark mode for text visibility
         meshPoints: [
             [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
             [0.00, 0.38], [0.40, 0.26], [1.00, 0.42],   // sakura focal in upper-left area
@@ -698,6 +704,144 @@ extension AppTheme {
         preferredScheme:    .dark
     )
 
+    // ─────────────────────────────────────────────
+    // PAID — Matrix (pure black + neon green radial burst)
+    // Target: Hacker aesthetic, dark mode power users
+    // ─────────────────────────────────────────────
+    public static let matrix = AppTheme(
+        id: "matrix",
+        name: "Matrix",
+        subtitle: "Hack the planet",
+        tag: "Dark",
+        isPaid: true,
+        meshColors: [
+            Color(red: 0.051, green: 0.008, blue: 0.031),   // near-black corner
+            Color(red: 0.000, green: 0.231, blue: 0.000),   // dark green top
+            Color(red: 0.051, green: 0.008, blue: 0.031),   // near-black corner
+            Color(red: 0.000, green: 0.180, blue: 0.000),   // forest green left
+            Color(red: 0.000, green: 0.800, blue: 0.150),   // bright neon green CENTER
+            Color(red: 0.000, green: 0.180, blue: 0.000),   // forest green right
+            Color(red: 0.000, green: 0.561, blue: 0.067),   // mid green bloom
+            Color(red: 0.000, green: 1.000, blue: 0.255),   // electric neon bottom
+            Color(red: 0.051, green: 0.008, blue: 0.031)    // near-black corner
+        ],
+        backgroundStyle: .gradient,
+        screenBackground:   Color(red: 0.051, green: 0.008, blue: 0.031),
+        surfaceBackground:  Color(red: 0.040, green: 0.080, blue: 0.040),
+        editorBackground:   Color(red: 0.040, green: 0.080, blue: 0.040),
+        primaryText:        Color(red: 0.000, green: 1.000, blue: 0.255),  // neon green text
+        secondaryText:      Color(red: 0.000, green: 0.700, blue: 0.180),
+        placeholderText:    Color(red: 0.000, green: 0.400, blue: 0.100),
+        accentColor:        Color(red: 0.000, green: 1.000, blue: 0.255),
+        linkColor:          Color(red: 0.000, green: 0.900, blue: 0.200),
+        quoteBarColor:      Color(red: 0.000, green: 0.800, blue: 0.150),
+        priorityHigh:       Color(red: 1.000, green: 0.200, blue: 0.200),
+        priorityMedium:     Color(red: 0.000, green: 0.900, blue: 0.200),
+        fabBackground:      Color(red: 0.000, green: 0.800, blue: 0.150),
+        fabIcon:            Color(red: 0.051, green: 0.008, blue: 0.031),
+        separatorColor:     Color(red: 0.000, green: 0.231, blue: 0.000),
+        checkboxActive:     Color(red: 0.000, green: 1.000, blue: 0.255),
+        checkboxInactive:   Color(red: 0.000, green: 0.200, blue: 0.050),
+        preferredScheme:    .dark,
+        meshPoints: [
+            [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
+            [0.00, 0.50], [0.50, 0.65], [1.00, 0.50],   // neon bloom pulled to lower-center
+            [0.00, 1.00], [0.50, 0.85], [1.00, 1.00]
+        ]
+    )
+
+    // ─────────────────────────────────────────────
+    // PAID — Midnight Blue (deep navy, cobalt blobs, premium dark)
+    // Target: Professional, premium feel buyers
+    // ─────────────────────────────────────────────
+    public static let midnightBlue = AppTheme(
+        id: "midnight-blue",
+        name: "Midnight Blue",
+        subtitle: "Deep & premium",
+        tag: "Dark",
+        isPaid: true,
+        meshColors: [
+            Color(red: 0.016, green: 0.024, blue: 0.133),   // deep navy corner
+            Color(red: 0.098, green: 0.098, blue: 0.439),   // cobalt top
+            Color(red: 0.016, green: 0.024, blue: 0.133),   // deep navy corner
+            Color(red: 0.057, green: 0.055, blue: 0.220),   // indigo left
+            Color(red: 0.157, green: 0.141, blue: 0.520),   // bright cobalt CENTER
+            Color(red: 0.057, green: 0.055, blue: 0.220),   // indigo right
+            Color(red: 0.016, green: 0.024, blue: 0.133),   // deep navy corner
+            Color(red: 0.060, green: 0.040, blue: 0.200),   // purple-navy bottom
+            Color(red: 0.016, green: 0.024, blue: 0.133)    // deep navy corner
+        ],
+        backgroundStyle: .gradient,
+        screenBackground:   Color(red: 0.016, green: 0.024, blue: 0.133),
+        surfaceBackground:  Color(red: 0.057, green: 0.055, blue: 0.200),
+        editorBackground:   Color(red: 0.057, green: 0.055, blue: 0.200),
+        primaryText:        .white,
+        secondaryText:      Color(red: 0.600, green: 0.620, blue: 0.860),
+        placeholderText:    Color(red: 0.380, green: 0.390, blue: 0.620),
+        accentColor:        Color(red: 0.400, green: 0.600, blue: 1.000),
+        linkColor:          Color(red: 0.400, green: 0.600, blue: 1.000),
+        quoteBarColor:      Color(red: 0.300, green: 0.500, blue: 0.900),
+        priorityHigh:       Color(red: 1.000, green: 0.300, blue: 0.400),
+        priorityMedium:     Color(red: 0.400, green: 0.700, blue: 1.000),
+        fabBackground:      Color(red: 0.400, green: 0.600, blue: 1.000),
+        fabIcon:            .white,
+        separatorColor:     Color(red: 0.057, green: 0.055, blue: 0.220),
+        checkboxActive:     Color(red: 0.400, green: 0.600, blue: 1.000),
+        checkboxInactive:   Color(red: 0.100, green: 0.100, blue: 0.300),
+        preferredScheme:    .dark,
+        meshPoints: [
+            [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
+            [0.00, 0.40], [0.55, 0.35], [1.00, 0.40],   // cobalt bloom upper-center
+            [0.00, 1.00], [0.50, 1.00], [1.00, 1.00]
+        ]
+    )
+
+    // ─────────────────────────────────────────────
+    // PAID — Brat Green (acid green + black, bold viral aesthetic)
+    // Target: Gen Z, trend-chasers, bold personality buyers
+    // ─────────────────────────────────────────────
+    public static let bratGreen = AppTheme(
+        id: "brat-green",
+        name: "Brat",
+        subtitle: "Loud & proud",
+        tag: "Bold",
+        isPaid: true,
+        meshColors: [
+            Color(red: 0.541, green: 0.808, blue: 0.000),   // acid green corner
+            Color(red: 0.710, green: 0.941, blue: 0.000),   // bright lime top
+            Color(red: 0.400, green: 0.600, blue: 0.000),   // darker green corner
+            Color(red: 0.067, green: 0.067, blue: 0.067),   // near-black left
+            Color(red: 0.541, green: 0.808, blue: 0.000),   // acid green CENTER
+            Color(red: 0.067, green: 0.067, blue: 0.067),   // near-black right
+            Color(red: 0.300, green: 0.500, blue: 0.000),   // deep green corner
+            Color(red: 0.067, green: 0.067, blue: 0.067),   // near-black bottom
+            Color(red: 0.541, green: 0.808, blue: 0.000)    // acid green corner
+        ],
+        backgroundStyle: .gradient,
+        screenBackground:   Color(red: 0.067, green: 0.067, blue: 0.067),
+        surfaceBackground:  Color(red: 0.120, green: 0.120, blue: 0.120),
+        editorBackground:   Color(red: 0.120, green: 0.120, blue: 0.120),
+        primaryText:        Color(red: 0.541, green: 0.808, blue: 0.000),  // acid green text
+        secondaryText:      Color(red: 0.400, green: 0.600, blue: 0.000),
+        placeholderText:    Color(red: 0.250, green: 0.380, blue: 0.000),
+        accentColor:        Color(red: 0.541, green: 0.808, blue: 0.000),
+        linkColor:          Color(red: 0.710, green: 0.941, blue: 0.000),
+        quoteBarColor:      Color(red: 0.541, green: 0.808, blue: 0.000),
+        priorityHigh:       Color(red: 1.000, green: 0.200, blue: 0.400),
+        priorityMedium:     Color(red: 0.710, green: 0.941, blue: 0.000),
+        fabBackground:      Color(red: 0.541, green: 0.808, blue: 0.000),
+        fabIcon:            .black,
+        separatorColor:     Color(red: 0.200, green: 0.200, blue: 0.200),
+        checkboxActive:     Color(red: 0.541, green: 0.808, blue: 0.000),
+        checkboxInactive:   Color(red: 0.200, green: 0.200, blue: 0.200),
+        preferredScheme:    .dark,
+        meshPoints: [
+            [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
+            [0.00, 0.45], [0.50, 0.30], [1.00, 0.45],   // acid green blob upper-center
+            [0.00, 1.00], [0.50, 1.00], [1.00, 1.00]
+        ]
+    )
+
     // MARK: — All themes ordered for display
     public static let all: [AppTheme] = [
         .defaultLight, .midnight,                           // free originals
@@ -705,7 +849,8 @@ extension AppTheme {
         .rose, .void, .ocean,                               // premium dark
         .lavender,                                          // mood
         .aurora, .neon,                                     // vibe
-        .terracotta, .amethyst                              // earth & crystal
+        .terracotta, .amethyst,                             // earth & crystal
+        .matrix, .midnightBlue, .bratGreen                  // new: hacker · premium · bold
     ]
 
     public static let free: [AppTheme] = all.filter { !$0.isPaid }

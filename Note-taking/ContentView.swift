@@ -62,7 +62,6 @@ struct ContentView: View {
                         onShowRecentlyCompleted: { homeNav = .recentlyCompleted },
                         onShowRecentlyDeleted:   { homeNav = .recentlyDeleted }
                     )
-                    .withAppBackground()
                     .scrollContentBackground(.hidden)
                     .navigationDestination(item: $homeNav) { nav in
                         switch nav {
@@ -71,6 +70,7 @@ struct ContentView: View {
                         }
                     }
                 }
+                .background(Color.clear)
                 .transition(.move(edge: .leading))
             } else {
                 NavigationStack {
@@ -79,11 +79,13 @@ struct ContentView: View {
                         onShowHome: { slideToHome() },
                         pendingDeepLinkTaskId: $pendingDeepLinkTaskId
                     )
-                    .withAppBackground()
                 }
+                .background(Color.clear)
                 .transition(.move(edge: .trailing))
             }
         }
+        // One gradient covers the entire window — no black gaps below list content
+        .withAppBackground()
         .animation(.spring(duration: 0.35, bounce: 0.05), value: showHome)
     }
 
@@ -101,7 +103,6 @@ struct ContentView: View {
                 onShowRecentlyCompleted: { homeNav = .recentlyCompleted },
                 onShowRecentlyDeleted:   { homeNav = .recentlyDeleted }
             )
-            .withAppBackground()
             .scrollContentBackground(.hidden)
             .navigationDestination(item: $homeNav) { nav in
                 switch nav {
@@ -115,8 +116,8 @@ struct ContentView: View {
                 onShowHome: { columnVisibility = .all },
                 pendingDeepLinkTaskId: $pendingDeepLinkTaskId
             )
-            .withAppBackground()
         }
+        .withAppBackground()
     }
 
     // MARK: — Helpers
