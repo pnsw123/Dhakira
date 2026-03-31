@@ -219,9 +219,14 @@ struct WithAppBackground: ViewModifier {
                         }
                     } else if tm.current.backgroundStyle == .gradient {
                         if #available(iOS 18, *) {
+                            let defaultGrid: [SIMD2<Float>] = [
+                                [0,0],[0.5,0],[1,0],
+                                [0,0.5],[0.5,0.5],[1,0.5],
+                                [0,1],[0.5,1],[1,1]
+                            ]
                             MeshGradient(
                                 width: 3, height: 3,
-                                points: [[0,0],[0.5,0],[1,0],[0,0.5],[0.5,0.5],[1,0.5],[0,1],[0.5,1],[1,1]],
+                                points: tm.current.meshPoints ?? defaultGrid,
                                 colors: tm.current.meshColors
                             )
                         } else {
@@ -288,9 +293,14 @@ struct WithEditorBackground: ViewModifier {
                         }
                     } else if tm.current.backgroundStyle == .gradient {
                         if #available(iOS 18, *) {
+                            let defaultGrid: [SIMD2<Float>] = [
+                                [0,0],[0.5,0],[1,0],
+                                [0,0.5],[0.5,0.5],[1,0.5],
+                                [0,1],[0.5,1],[1,1]
+                            ]
                             MeshGradient(
                                 width: 3, height: 3,
-                                points: [[0,0],[0.5,0],[1,0],[0,0.5],[0.5,0.5],[1,0.5],[0,1],[0.5,1],[1,1]],
+                                points: tm.current.meshPoints ?? defaultGrid,
                                 colors: tm.current.meshColors
                             )
                         } else {
