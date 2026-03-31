@@ -78,7 +78,7 @@ struct TaskListView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 0, leading: indentLevel(for: task), bottom: 0, trailing: 0))
                     .listRowSpacing(0)
-                    .listRowBackground(Color.screenBackground)
+                    .listRowBackground(Color.clear)
                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
                         Button { setPriority(task, to: "high") } label: {
                             Label("High", systemImage: "flag.fill")
@@ -129,7 +129,7 @@ struct TaskListView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets())
                     .listRowSpacing(0)
-                    .listRowBackground(Color.screenBackground)
+                    .listRowBackground(Color.clear)
                 }
             }
             .contentMargins(.bottom, 72, for: .scrollContent)
@@ -146,7 +146,7 @@ struct TaskListView: View {
                     .foregroundStyle(.secondary)
                 }
             }
-            .background(themeManager.current.screenBackground)
+            .background(Color.clear)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top) {
                 HStack(spacing: 0) {
@@ -206,10 +206,10 @@ struct TaskListView: View {
                             .transition(.scale.combined(with: .opacity))
                     }
                 }
+                .contentShape(Rectangle())
                 .padding(.trailing, 8)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
-                .background(Color.screenBackground)
                 .overlay(alignment: .bottom) {
                     Rectangle()
                         .fill(Color.separatorColor)
@@ -279,10 +279,11 @@ struct TaskListView: View {
     }
 
     private func syncWidget() {
-        let widgetTasks = filteredTasks.prefix(5).map {
+        let activeTasks = allTasks.filter { !$0.isDeleted && !$0.isCompleted }
+        let widgetTasks = activeTasks.prefix(8).map {
             WidgetTask(id: $0.id, title: $0.title, priority: $0.priority)
         }
-        ThemeManager.shared.syncActiveTasks(Array(widgetTasks), totalCount: filteredTasks.count)
+        ThemeManager.shared.syncActiveTasks(Array(widgetTasks), totalCount: activeTasks.count)
     }
 
     private var doneButton: some View {

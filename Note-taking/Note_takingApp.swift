@@ -139,7 +139,7 @@ private actor StartupWorker {
             log.debug("syncWidgetData: no tasks found")
             return
         }
-        let widgetTasks = tasks.prefix(5).map {
+        let widgetTasks = tasks.prefix(8).map {
             WidgetTask(id: $0.id, title: $0.title, priority: $0.priority)
         }
         let taskCount = tasks.count

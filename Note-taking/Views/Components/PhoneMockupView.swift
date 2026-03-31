@@ -74,14 +74,39 @@ private struct MockTasksPage: View {
         Row(title: "Plan next sprint",     done: false, priority: "none"),
     ]
 
+    @ViewBuilder
+    private var background: some View {
+        if theme.backgroundStyle == .gradient {
+            if #available(iOS 18, *) {
+                MeshGradient(
+                    width: 3, height: 3,
+                    points: [
+                        [0,0],[0.5,0],[1,0],
+                        [0,0.5],[0.5,0.5],[1,0.5],
+                        [0,1],[0.5,1],[1,1]
+                    ],
+                    colors: theme.meshColors
+                )
+            } else {
+                ZStack {
+                    theme.meshColors[4]
+                    RadialGradient(colors: [theme.meshColors[0].opacity(0.85), .clear],
+                                   center: .topLeading, startRadius: 0, endRadius: 220)
+                    RadialGradient(colors: [theme.meshColors[8].opacity(0.80), .clear],
+                                   center: .bottomTrailing, startRadius: 0, endRadius: 200)
+                }
+            }
+        } else {
+            theme.screenBackground
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            theme.screenBackground
-
             VStack(spacing: 0) {
                 Color.clear.frame(height: 18) // status bar spacer
 
-                // Nav bar
+                // Nav bar — .background{} so ultraThinMaterial blurs gradient backdrop
                 HStack(spacing: 0) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 11, weight: .semibold))
@@ -101,20 +126,18 @@ private struct MockTasksPage: View {
                         .padding(.trailing, 12)
                 }
                 .padding(.vertical, 9)
-                .background(theme.screenBackground)
                 .overlay(alignment: .bottom) {
                     Rectangle()
                         .fill(theme.separatorColor)
                         .frame(height: 0.5)
                 }
 
-                // Task rows
+                // Task rows — transparent, float directly on gradient (matches real app)
                 VStack(spacing: 0) {
                     ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
                         HStack(spacing: 8) {
                             ZStack {
                                 if row.done {
-                                    // Mirrors real TaskRowView: checkmark colored by priority
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 16))
                                         .foregroundStyle(
@@ -131,13 +154,18 @@ private struct MockTasksPage: View {
 
                             Text(row.title)
                                 .font(.system(size: 11))
-                                .foregroundStyle(row.done ? theme.secondaryText : theme.primaryText)
-                                .strikethrough(row.done, color: theme.secondaryText)
+                                .foregroundStyle(theme.primaryText)
+                                .strikethrough(row.done, color:
+                                    row.done ? (
+                                        row.priority == "high"   ? theme.priorityHigh :
+                                        row.priority == "medium" ? theme.priorityMedium :
+                                        theme.secondaryText
+                                    ) : theme.secondaryText
+                                )
                                 .lineLimit(1)
 
                             Spacer()
 
-                            // Pennant flag — matches real TaskRowView shape
                             if row.priority == "high" {
                                 MockPennant()
                                     .fill(theme.priorityHigh)
@@ -150,24 +178,19 @@ private struct MockTasksPage: View {
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .background(theme.surfaceBackground)
+                        .opacity(row.done ? 0.35 : 1.0)
 
-                        if i < rows.count - 1 {
-                            Rectangle()
-                                .fill(theme.separatorColor)
-                                .frame(height: 0.5)
-                                .padding(.leading, 38)
-                        }
+                        Rectangle()
+                            .fill(theme.separatorColor)
+                            .frame(height: 0.5)
+                            .padding(.leading, 38)
                     }
+                    Spacer()
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .padding(.horizontal, 12)
                 .padding(.top, 8)
-
-                Spacer()
             }
 
-            // FAB — themed plus button, bottom-right
+            // FAB
             Circle()
                 .fill(theme.fabBackground)
                 .frame(width: 28, height: 28)
@@ -180,6 +203,7 @@ private struct MockTasksPage: View {
                 .padding(.trailing, 12)
                 .padding(.bottom, 12)
         }
+        .background { background }
     }
 }
 
@@ -188,10 +212,29 @@ private struct MockTasksPage: View {
 private struct MockDetailPage: View {
     let theme: AppTheme
 
+    @ViewBuilder
+    private var background: some View {
+        if theme.backgroundStyle == .gradient {
+            if #available(iOS 18, *) {
+                MeshGradient(
+                    width: 3, height: 3,
+                    points: [[0,0],[0.5,0],[1,0],[0,0.5],[0.5,0.5],[1,0.5],[0,1],[0.5,1],[1,1]],
+                    colors: theme.meshColors
+                )
+            } else {
+                ZStack {
+                    theme.meshColors[4]
+                    RadialGradient(colors: [theme.meshColors[0].opacity(0.85), .clear], center: .topLeading, startRadius: 0, endRadius: 220)
+                    RadialGradient(colors: [theme.meshColors[8].opacity(0.80), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 200)
+                }
+            }
+        } else {
+            theme.editorBackground
+        }
+    }
+
     var body: some View {
         ZStack {
-            theme.editorBackground
-
             VStack(spacing: 0) {
                 Color.clear.frame(height: 18) // status bar spacer
 
@@ -268,25 +311,26 @@ private struct MockDetailPage: View {
 
                 Spacer()
 
-                // Formatting toolbar — all icons themed with accentColor
+                // Formatting toolbar — compact, glass on gradient themes
                 HStack(spacing: 0) {
                     ForEach(["bold", "italic", "underline", "strikethrough", "textformat.size.smaller", "textformat.size.larger"], id: \.self) { icon in
                         Image(systemName: icon)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(theme.accentColor)
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .padding(.vertical, 9)
-                .background(theme.surfaceBackground)
+                .padding(.vertical, 6)
+                .background(theme.backgroundStyle == .gradient ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(theme.surfaceBackground))
                 .overlay(alignment: .top) {
                     Rectangle()
                         .fill(theme.separatorColor)
                         .frame(height: 0.5)
                 }
-                .padding(.bottom, 10)
+                .padding(.bottom, 4)
             }
         }
+        .background { background }
     }
 }
 
@@ -294,6 +338,27 @@ private struct MockDetailPage: View {
 
 private struct MockFolderPage: View {
     let theme: AppTheme
+
+    @ViewBuilder
+    private var background: some View {
+        if theme.backgroundStyle == .gradient {
+            if #available(iOS 18, *) {
+                MeshGradient(
+                    width: 3, height: 3,
+                    points: [[0,0],[0.5,0],[1,0],[0,0.5],[0.5,0.5],[1,0.5],[0,1],[0.5,1],[1,1]],
+                    colors: theme.meshColors
+                )
+            } else {
+                ZStack {
+                    theme.meshColors[4]
+                    RadialGradient(colors: [theme.meshColors[0].opacity(0.85), .clear], center: .topLeading, startRadius: 0, endRadius: 220)
+                    RadialGradient(colors: [theme.meshColors[8].opacity(0.80), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 200)
+                }
+            }
+        } else {
+            theme.screenBackground
+        }
+    }
 
     private struct FolderRow: Identifiable {
         let id = UUID()
@@ -316,8 +381,6 @@ private struct MockFolderPage: View {
 
     var body: some View {
         ZStack {
-            theme.screenBackground
-
             VStack(spacing: 0) {
                 Color.clear.frame(height: 18) // status bar spacer
 
@@ -344,6 +407,7 @@ private struct MockFolderPage: View {
                 Spacer()
             }
         }
+        .background { background }
     }
 
     @ViewBuilder
@@ -375,7 +439,7 @@ private struct MockFolderPage: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 9)
-                .background(theme.surfaceBackground)
+                .background(.clear)
 
                 if i < rows.count - 1 {
                     Rectangle()
@@ -385,7 +449,7 @@ private struct MockFolderPage: View {
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .glassEffect(.regular, in: .rect(cornerRadius: 10))
     }
 }
 
@@ -409,7 +473,7 @@ private struct MockPennant: Shape {
 #Preview {
     HStack(spacing: 12) {
         PhoneMockupView(theme: .rose,      scope: .app,     currentPage: .constant(0))
-        PhoneMockupView(theme: .academia,  scope: .app,     currentPage: .constant(1))
+        PhoneMockupView(theme: .tokyoNight, scope: .app,     currentPage: .constant(1))
         PhoneMockupView(theme: .nord,      scope: .widgets, currentPage: .constant(0))
     }
     .frame(height: 490)

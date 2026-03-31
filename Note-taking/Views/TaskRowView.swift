@@ -77,7 +77,7 @@ struct TaskRowView: View {
                             HStack(alignment: .top, spacing: 8) {
                                 Text(task.title.isEmpty ? "New Task" : task.title)
                                     .font(.system(size: 17, weight: .regular))
-                                    .foregroundStyle(task.isCompleted ? Color.secondaryText : Color.primaryText)
+                                    .foregroundStyle(Color.primaryText)
                                     .strikethrough(task.isCompleted)
                                     .multilineTextAlignment(.leading)
                                     .frame(maxWidth: .infinity, alignment: .leading)

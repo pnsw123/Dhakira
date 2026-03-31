@@ -63,11 +63,11 @@ struct RecentlyCompletedView: View {
                         }
                     }
                     .padding(.vertical, 4)
-                    .listRowBackground(Color.screenBackground)
+                    .listRowBackground(Color.clear)
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                .background(Color.screenBackground)
+                .background(Color.clear)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -86,17 +86,17 @@ struct RecentlyCompletedView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.leading, 4)
             }
+            .contentShape(Rectangle())
             .padding(.trailing, 16)
             .padding(.top, 4)
             .padding(.bottom, 8)
-            .background(Color.screenBackground)
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(Color.primary.opacity(0.06))
                     .frame(height: 0.5)
             }
         }
-        .background(Color.screenBackground)
+        .background(Color.clear)
         .navigationBarBackButtonHidden(true)
     }
 

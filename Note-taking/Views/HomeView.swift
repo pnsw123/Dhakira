@@ -75,13 +75,12 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                    .glassEffect(.regular, in: .rect(cornerRadius: 14))
                     .padding(.horizontal, 16)
                 }
                 .padding(.top, 12)
                 .padding(.bottom, 32)
             }
-            .background(Color.screenBackground)
+            .background(Color.clear)
             .onAppear {
                 log.info("HomeView: appeared — topLevelFolders=\(topLevelFolders.count), allTaskLists=\(allTaskLists.count)")
             }
@@ -121,9 +120,9 @@ struct HomeView: View {
                     .padding(.trailing, 8)
                     .accessibilityIdentifier("btn-go-to-tasks")
                 }
+                .contentShape(Rectangle())
                 .padding(.top, 4)
                 .padding(.bottom, 8)
-                .background(Color.screenBackground)
                 .overlay(alignment: .bottom) {
                     Rectangle()
                         .fill(Color.separatorColor)
@@ -170,7 +169,6 @@ struct HomeView: View {
                 .buttonStyle(.plain)
             }
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .glassEffect(.regular, in: .rect(cornerRadius: 14))
             .padding(.horizontal, 16)
         }
     }

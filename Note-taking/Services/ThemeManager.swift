@@ -190,34 +190,58 @@ struct WithAppBackground: ViewModifier {
     @Environment(\.colorScheme) var colorScheme
 
     func body(content: Content) -> some View {
-        // Reading ThemeManager.shared properties here registers observation
-        // dependencies — SwiftUI re-renders automatically on any theme change.
+        // Use .background{} instead of ZStack so the gradient is a true backdrop layer.
+        // UIVisualEffectView (.ultraThinMaterial) only blurs content in the backdrop —
+        // a sibling ZStack element is NOT a backdrop and won't be blurred by materials.
         let tm = ThemeManager.shared
-        return ZStack {
-            #if canImport(UIKit)
-            if let img = tm.backgroundImage {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea(.all)
-                Color.black.opacity(colorScheme == .dark ? 0.55 : 0.25)
-                    .ignoresSafeArea(.all)
-            } else if let color = tm.backgroundColorOverride {
-                color
-                    .ignoresSafeArea(.all)
-            } else if let gradColors = tm.backgroundGradientColors {
-                LinearGradient(colors: gradColors, startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .ignoresSafeArea(.all)
-            } else {
-                tm.current.screenBackground
-                    .ignoresSafeArea(.all)
+        return content
+            .background {
+                Group {
+                    #if canImport(UIKit)
+                    if let img = tm.backgroundImage {
+                        ZStack {
+                            Image(uiImage: img)
+                                .resizable()
+                                .scaledToFill()
+                            Color.black.opacity(colorScheme == .dark ? 0.55 : 0.25)
+                        }
+                    } else if let color = tm.backgroundColorOverride {
+                        color
+                    } else if let gradColors = tm.backgroundGradientColors {
+                        if #available(iOS 18, *) {
+                            MeshGradient(
+                                width: 2, height: 2,
+                                points: [[0, 0], [1, 0], [0, 1], [1, 1]],
+                                colors: Array(gradColors.prefix(4))
+                            )
+                        } else {
+                            LinearGradient(colors: gradColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                        }
+                    } else if tm.current.backgroundStyle == .gradient {
+                        if #available(iOS 18, *) {
+                            MeshGradient(
+                                width: 3, height: 3,
+                                points: [[0,0],[0.5,0],[1,0],[0,0.5],[0.5,0.5],[1,0.5],[0,1],[0.5,1],[1,1]],
+                                colors: tm.current.meshColors
+                            )
+                        } else {
+                            ZStack {
+                                tm.current.meshColors[4]
+                                RadialGradient(colors: [tm.current.meshColors[0].opacity(0.85), .clear],
+                                               center: .topLeading, startRadius: 0, endRadius: 600)
+                                RadialGradient(colors: [tm.current.meshColors[8].opacity(0.80), .clear],
+                                               center: .bottomTrailing, startRadius: 0, endRadius: 500)
+                            }
+                        }
+                    } else {
+                        tm.current.screenBackground
+                    }
+                    #else
+                    tm.current.screenBackground
+                    #endif
+                }
+                .ignoresSafeArea()
             }
-            #else
-            tm.current.screenBackground
-                .ignoresSafeArea(.all)
-            #endif
-            content
-        }
     }
 }
 
@@ -239,30 +263,54 @@ struct WithEditorBackground: ViewModifier {
 
     func body(content: Content) -> some View {
         let tm = ThemeManager.shared
-        return ZStack {
-            #if canImport(UIKit)
-            if let img = tm.backgroundImage {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea(.all)
-                Color.black.opacity(colorScheme == .dark ? 0.55 : 0.25)
-                    .ignoresSafeArea(.all)
-            } else if let color = tm.backgroundColorOverride {
-                color.ignoresSafeArea(.all)
-            } else if let gradColors = tm.backgroundGradientColors {
-                LinearGradient(colors: gradColors, startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .ignoresSafeArea(.all)
-            } else {
-                tm.current.editorBackground
-                    .ignoresSafeArea(.all)
+        return content
+            .background {
+                Group {
+                    #if canImport(UIKit)
+                    if let img = tm.backgroundImage {
+                        ZStack {
+                            Image(uiImage: img)
+                                .resizable()
+                                .scaledToFill()
+                            Color.black.opacity(colorScheme == .dark ? 0.55 : 0.25)
+                        }
+                    } else if let color = tm.backgroundColorOverride {
+                        color
+                    } else if let gradColors = tm.backgroundGradientColors {
+                        if #available(iOS 18, *) {
+                            MeshGradient(
+                                width: 2, height: 2,
+                                points: [[0, 0], [1, 0], [0, 1], [1, 1]],
+                                colors: Array(gradColors.prefix(4))
+                            )
+                        } else {
+                            LinearGradient(colors: gradColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                        }
+                    } else if tm.current.backgroundStyle == .gradient {
+                        if #available(iOS 18, *) {
+                            MeshGradient(
+                                width: 3, height: 3,
+                                points: [[0,0],[0.5,0],[1,0],[0,0.5],[0.5,0.5],[1,0.5],[0,1],[0.5,1],[1,1]],
+                                colors: tm.current.meshColors
+                            )
+                        } else {
+                            ZStack {
+                                tm.current.meshColors[4]
+                                RadialGradient(colors: [tm.current.meshColors[0].opacity(0.85), .clear],
+                                               center: .topLeading, startRadius: 0, endRadius: 600)
+                                RadialGradient(colors: [tm.current.meshColors[8].opacity(0.80), .clear],
+                                               center: .bottomTrailing, startRadius: 0, endRadius: 500)
+                            }
+                        }
+                    } else {
+                        tm.current.editorBackground
+                    }
+                    #else
+                    tm.current.editorBackground
+                    #endif
+                }
+                .ignoresSafeArea()
             }
-            #else
-            tm.current.editorBackground
-                .ignoresSafeArea(.all)
-            #endif
-            content
-        }
     }
 }
 

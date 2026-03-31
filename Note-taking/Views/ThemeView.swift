@@ -93,7 +93,7 @@ struct ThemeView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
             }
-            .background(Color.screenBackground)
+            .contentShape(Rectangle())
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(Color.separatorColor)
