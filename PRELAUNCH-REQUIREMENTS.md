@@ -166,9 +166,62 @@ Widget system is fully working and syncs with themes instantly.
 
 ## Priority 5 — Apple Developer Program + iCloud
 - [x] Enrolled at developer.apple.com/programs/enroll ($99/year)
-- [ ] iCloud + CloudKit capability added in Xcode
-- [ ] iCloud sync tested: notes appear on second device
-- [ ] App Group `group.com.prodnote.shared` confirmed working
+- [x] iCloud + CloudKit capability added in Xcode (`iCloud.com.prodnote.notetaking`, `.automatic` mode)
+- [ ] iCloud sync tested: notes appear on second device (use Simulator as second device — see checklist below)
+- [x] App Group `group.com.prodnote.notetaking` confirmed working (widgets use it)
+
+### iCloud E2E Test — Automated (Unit Tests)
+Run `Cmd+U` in Xcode. No network or iCloud needed. Proves local model layer is correct.
+- [ ] `testCreateTaskPersists` — insert task, fetch back, title matches
+- [ ] `testDeleteTaskSoftDeletes` — soft-delete excludes from active query
+- [ ] `testFolderWithTasksRelationship` — Folder ↔ TaskItem relationship intact
+- [ ] `testTaskListContainsTasks` — TaskList holds attached tasks, count correct
+- [ ] `testAttachmentLinksToTask` — Attachment links back to parent TaskItem
+- [ ] `testPurgeLogicIdentifiesExpiredDeletedTasks` — 31-day-old deleted task flagged for removal
+
+### iCloud E2E Test — Manual (iPhone + Mac Simulator as second device)
+
+**One-time Simulator setup (do once on Mac):**
+1. Open Xcode → Simulator (iPhone 16, iOS 17+)
+2. In Simulator: Settings → Sign in with Apple ID → use **same Apple ID as your iPhone**
+3. Enable iCloud Drive in Simulator Settings
+4. Build & run the app on Simulator from Xcode
+
+**12-step sync test (do in order):**
+
+| Step | Device | Action | Expected | Wait |
+|---|---|---|---|---|
+| 1 | Simulator | Cold launch app | Launches, no crash | — |
+| 2 | Simulator | Wait after first launch | Tasks from iPhone appear | 30–60s |
+| 3 | iPhone | Create task "iCloud Test A" | Visible on iPhone | — |
+| 4 | Simulator | Watch list | "iCloud Test A" appears | ~30s |
+| 5 | Simulator | Edit title → "iCloud Edited" | Title changes on Simulator | — |
+| 6 | iPhone | Watch list | Title shows "iCloud Edited" | ~30s |
+| 7 | iPhone | Soft-delete the task | Moves to Recently Deleted on iPhone | — |
+| 8 | Simulator | Watch list | Task gone from active list | ~30s |
+| 9 | iPhone | Airplane Mode ON → create "Offline Task" | Task on iPhone only | — |
+| 10 | iPhone | Airplane Mode OFF | "Offline Task" appears on Simulator | ~60s |
+| 11 | Simulator | Create task while iPhone is offline | Task on Simulator only | — |
+| 12 | iPhone | Come back online | Simulator's task appears on iPhone | ~60s |
+
+- [ ] Steps 1–4 passed (basic sync works)
+- [ ] Steps 5–8 passed (edit + delete sync)
+- [ ] Steps 9–12 passed (offline sync / conflict)
+
+### CloudKit Dashboard Verification (fallback — no Simulator needed)
+1. Open: https://icloud.developer.apple.com/dashboard
+2. Sign in → select container `iCloud.com.prodnote.notetaking`
+3. Navigate: Data → Private Database → `CD_TaskItem`
+4. Create a task on iPhone → refresh → record appears within ~60s
+
+| SwiftData Model | CloudKit Record Type |
+|---|---|
+| TaskItem | `CD_TaskItem` |
+| Folder | `CD_Folder` |
+| TaskList | `CD_TaskList` |
+| Attachment | `CD_Attachment` |
+
+- [ ] `CD_TaskItem` records visible in dashboard after creating tasks on iPhone
 
 ---
 
@@ -325,3 +378,18 @@ Showcase themes and widgets. Capture on real device or high-quality simulator.
 | WWDC22 #10058 — SwiftUI on iPad | 2022 | NavigationSplitView |
 | WWDC22 #10050 — Complications and Widgets: Reloaded | 2022 | Lock screen widgets |
 | WWDC18 #416 — Image and Graphics Best Practices | 2018 | Image downsampling (MANDATORY read) |
+
+
+
+## progres:
+app seems to be ready:
+currently phasing the following issues:
+1-2 are fixed !.
+
+
+3- i don't know yet if widget theme matches actual phone widgets yet. 
+4- icloud is working, but not tested yet
+5- need to set up a simple price for each theme, no seperate price page is needed. ( keep it simple)
+6- screenshots + logo + name for branding  ( will have to use samples + will use Figma and sample designe for that. )
+7- full end to end test ( on a local device ) before shipping
+8- finally shipping on apple store + making a landing page for it later -> marketing.
