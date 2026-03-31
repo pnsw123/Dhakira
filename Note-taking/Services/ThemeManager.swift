@@ -184,16 +184,17 @@ final class ThemeManager {
 // Issue #70 — https://github.com/pnsw123/prod-note/issues/70
 
 struct WithAppBackground: ViewModifier {
-    // Use the singleton directly instead of @Environment so this modifier never
-    // crashes when pushed from a view that didn't explicitly inject ThemeManager.
-    // @Observable tracking still fires re-renders whenever current / overrides change.
+    // @Environment(ThemeManager.self) gives SwiftUI a proper @Observable property to
+    // track — the modifier re-renders whenever current / overrides change.
+    // The singleton approach (let tm = ThemeManager.shared) does NOT register an
+    // observation dependency and therefore never re-renders on theme change.
     @Environment(\.colorScheme) var colorScheme
+    @Environment(ThemeManager.self) private var tm
 
     func body(content: Content) -> some View {
         // Use .background{} instead of ZStack so the gradient is a true backdrop layer.
         // UIVisualEffectView (.ultraThinMaterial) only blurs content in the backdrop —
         // a sibling ZStack element is NOT a backdrop and won't be blurred by materials.
-        let tm = ThemeManager.shared
         return content
             .background {
                 Group {
@@ -265,9 +266,9 @@ extension View {
 
 struct WithEditorBackground: ViewModifier {
     @Environment(\.colorScheme) var colorScheme
+    @Environment(ThemeManager.self) private var tm
 
     func body(content: Content) -> some View {
-        let tm = ThemeManager.shared
         return content
             .background {
                 Group {
