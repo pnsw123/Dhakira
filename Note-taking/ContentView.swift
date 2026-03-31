@@ -63,6 +63,7 @@ struct ContentView: View {
                         onShowRecentlyDeleted:   { homeNav = .recentlyDeleted }
                     )
                     .scrollContentBackground(.hidden)
+                    .withAppBackground()          // inside NavigationStack — bypasses UINavigationController opaque background
                     .navigationDestination(item: $homeNav) { nav in
                         switch nav {
                         case .recentlyCompleted: RecentlyCompletedView().withAppBackground()
@@ -70,7 +71,6 @@ struct ContentView: View {
                         }
                     }
                 }
-                .background(Color.clear)
                 .transition(.move(edge: .leading))
             } else {
                 NavigationStack {
@@ -79,13 +79,11 @@ struct ContentView: View {
                         onShowHome: { slideToHome() },
                         pendingDeepLinkTaskId: $pendingDeepLinkTaskId
                     )
+                    .withAppBackground()          // inside NavigationStack — bypasses UINavigationController opaque background
                 }
-                .background(Color.clear)
                 .transition(.move(edge: .trailing))
             }
         }
-        // One gradient covers the entire window — no black gaps below list content
-        .withAppBackground()
         .animation(.spring(duration: 0.35, bounce: 0.05), value: showHome)
     }
 
@@ -104,6 +102,7 @@ struct ContentView: View {
                 onShowRecentlyDeleted:   { homeNav = .recentlyDeleted }
             )
             .scrollContentBackground(.hidden)
+            .withAppBackground()
             .navigationDestination(item: $homeNav) { nav in
                 switch nav {
                 case .recentlyCompleted: RecentlyCompletedView().withAppBackground()
@@ -116,8 +115,8 @@ struct ContentView: View {
                 onShowHome: { columnVisibility = .all },
                 pendingDeepLinkTaskId: $pendingDeepLinkTaskId
             )
+            .withAppBackground()
         }
-        .withAppBackground()
     }
 
     // MARK: — Helpers
