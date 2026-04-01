@@ -416,6 +416,7 @@ struct TaskListView: View {
             task.isDeleted = true
             task.deletedAt = Date()
         }
+        try? modelContext.save()
     }
 
     private func moveTask(from source: IndexSet, to destination: Int) {
