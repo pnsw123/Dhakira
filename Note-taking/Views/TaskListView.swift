@@ -32,7 +32,7 @@ struct TaskListView: View {
         self._pendingDeepLinkTaskId = pendingDeepLinkTaskId
     }
 
-    @Query(sort: \TaskItem.sortOrder, order: .forward)
+    @Query(filter: #Predicate<TaskItem> { !$0.isDeleted }, sort: \TaskItem.sortOrder, order: .forward)
     private var allTasks: [TaskItem]
 
     @Environment(ThemeManager.self) private var themeManager
@@ -54,9 +54,8 @@ struct TaskListView: View {
     private var filteredTasks: [TaskItem] {
         var result = allTasks.filter { task in
             let belongsHere = taskList == nil ? true : task.taskList?.id == taskList?.id
-            let notDeleted = !task.isDeleted
             let notCompleted = !task.isCompleted || recentlyCompletedIds.contains(task.id)
-            return belongsHere && notDeleted && notCompleted
+            return belongsHere && notCompleted
         }
         if sortBy == .creationDate {
             result.sort { $0.createdAt < $1.createdAt }
@@ -283,7 +282,7 @@ struct TaskListView: View {
     }
 
     private func syncWidget() {
-        let activeTasks = allTasks.filter { !$0.isDeleted && !$0.isCompleted }
+        let activeTasks = allTasks.filter { !$0.isCompleted }
         let widgetTasks = activeTasks.prefix(8).map { t in
             let hasContent = (t.body != nil && !t.body!.isEmpty) ||
                              (t.drawingData != nil && !t.drawingData!.isEmpty) ||
