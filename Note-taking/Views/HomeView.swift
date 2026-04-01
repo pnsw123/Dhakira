@@ -21,6 +21,11 @@ struct HomeView: View {
     private var allTaskLists: [TaskList]
 
     @State private var autoRenameFolderId: UUID? = nil
+    @State private var showSettings = false
+    @State private var calendarExpanded = false
+
+    @State private var calendarService = CalendarSelectionService.shared
+    @State private var authService     = GoogleAuthService.shared
 
     var body: some View {
             ScrollViewReader { proxy in
@@ -29,6 +34,9 @@ struct HomeView: View {
                     // Folders section
                     foldersSection
                         .id("folders-section")
+
+                    // Choose your Calendar section
+                    calendarSection
 
                     // Recently Completed + Recently Deleted — one grouped card
                     VStack(spacing: 0) {
@@ -133,6 +141,144 @@ struct HomeView: View {
             } // ScrollViewReader
     }
 
+    // MARK: - Calendar Section
+
+    private var calendarSection: some View {
+        VStack(spacing: 0) {
+            // Header row — tapping expands / collapses the three options
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    calendarExpanded.toggle()
+                }
+            }) {
+                HStack(spacing: 10) {
+                    Spacer().frame(width: 0)
+                    Image(systemName: "calendar.badge.checkmark")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Color.themeAccent)
+                        .frame(width: 22)
+                    Text("Choose your Calendar")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color.primaryText)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.secondaryText)
+                        .rotationEffect(.degrees(calendarExpanded ? 90 : 0))
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: calendarExpanded)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+
+            // Expanded options
+            if calendarExpanded {
+                Divider().padding(.leading, 16)
+
+                // Apple Calendar row
+                Button(action: { calendarService.toggleAppleSync() }) {
+                    HStack(spacing: 10) {
+                        Spacer().frame(width: 0)
+                        Image(systemName: "calendar")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Color.themeAccent)
+                            .frame(width: 22)
+                        Text("Apple Calendar")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.primaryText)
+                        Spacer()
+                        if calendarService.appleCalendarSyncEnabled {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+                .buttonStyle(.plain)
+
+                Divider().padding(.leading, 16)
+
+                // Local Google Calendar row
+                Button(action: { calendarService.toggleGoogleSync() }) {
+                    HStack(spacing: 10) {
+                        Spacer().frame(width: 0)
+                        Image(systemName: "g.circle")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(calendarService.hasGoogleCalendar ? Color.themeAccent : Color.secondaryText)
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Local Google Calendar")
+                                .font(.system(size: 16))
+                                .foregroundStyle(calendarService.hasGoogleCalendar ? Color.primaryText : Color.secondaryText)
+                            if !calendarService.hasGoogleCalendar {
+                                Text("Add Google account in iOS Settings")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.secondaryText)
+                            }
+                        }
+                        Spacer()
+                        if calendarService.googleCalendarSyncEnabled && calendarService.hasGoogleCalendar {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+                .buttonStyle(.plain)
+                .disabled(!calendarService.hasGoogleCalendar)
+
+                Divider().padding(.leading, 16)
+
+                // Web Google Calendar row
+                Button(action: {
+                    if authService.isConnected {
+                        authService.disconnect()
+                        if calendarService.googleWebCalendarEnabled { calendarService.toggleWebSync() }
+                    } else {
+                        if !calendarService.googleWebCalendarEnabled { calendarService.toggleWebSync() }
+                        Task { await authService.connect() }
+                    }
+                }) {
+                    HStack(spacing: 10) {
+                        Spacer().frame(width: 0)
+                        Image(systemName: "globe")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Color.themeAccent)
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Web Google Calendar")
+                                .font(.system(size: 16))
+                                .foregroundStyle(Color.primaryText)
+                            Text(authService.isConnected ? "Connected" : "Sign in with Google")
+                                .font(.system(size: 12))
+                                .foregroundStyle(authService.isConnected ? Color.themeAccent : Color.secondaryText)
+                        }
+                        Spacer()
+                        if authService.isConnected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                        } else {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.secondaryText)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, 16)
+    }
+
     // MARK: - Folders Section
 
     private var foldersSection: some View {
@@ -230,5 +376,5 @@ private func previewHomeView(theme: AppTheme? = nil) -> some View {
 }
 
 #Preview("Folders — Default") { previewHomeView() }
-#Preview("Folders — Nord") { previewHomeView(theme: .nord) }
-#Preview("Folders — Tokyo Night") { previewHomeView(theme: .tokyoNight) }
+#Preview("Folders — Coral") { previewHomeView(theme: .coral) }
+#Preview("Folders — Forest") { previewHomeView(theme: .forest) }

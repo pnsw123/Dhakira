@@ -140,6 +140,9 @@ struct RecentlyDeletedView: View {
         if let eventId = task.calendarEventId {
             Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
         }
+        if let googleEventId = task.googleCalendarEventId {
+            Task { await CalendarSyncService.shared.deleteGoogleEvent(googleEventId) }
+        }
         withAnimation(.smooth(duration: 0.3)) {
             modelContext.delete(task)
         }
@@ -190,4 +193,4 @@ private func previewDeleted(theme: AppTheme? = nil) -> some View {
 }
 
 #Preview("Recently Deleted — Default") { previewDeleted() }
-#Preview("Recently Deleted — Nord") { previewDeleted(theme: .nord) }
+#Preview("Recently Deleted — Coral") { previewDeleted(theme: .coral) }

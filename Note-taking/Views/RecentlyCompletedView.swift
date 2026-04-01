@@ -160,4 +160,4 @@ private func previewCompleted(theme: AppTheme? = nil) -> some View {
 }
 
 #Preview("Recently Completed — Default") { previewCompleted() }
-#Preview("Recently Completed — Nord") { previewCompleted(theme: .nord) }
+#Preview("Recently Completed — Coral") { previewCompleted(theme: .coral) }

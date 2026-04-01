@@ -11,7 +11,8 @@ final class TaskItem {
     var createdAt: Date = Date()
     var completedAt: Date?
     var drawingData: Data?
-    var calendarEventId: String?
+    var calendarEventId: String?         // Apple Calendar EKEvent identifier
+    var googleCalendarEventId: String?   // Google Calendar EKEvent identifier (CalDAV)
     var sortOrder: Int = 0
 
     var parentTask: TaskItem?

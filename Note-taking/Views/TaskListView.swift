@@ -80,7 +80,7 @@ struct TaskListView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 0, leading: indentLevel(for: task), bottom: 0, trailing: 0))
                     .listRowSpacing(0)
-                    .listRowBackground(Color.rowBackground)
+                    .listRowBackground(Color.clear)
                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
                         Button { setPriority(task, to: "high") } label: {
                             Label("High", systemImage: "flag.fill")
@@ -131,7 +131,7 @@ struct TaskListView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets())
                     .listRowSpacing(0)
-                    .listRowBackground(Color.rowBackground)
+                    .listRowBackground(Color.clear)
                 }
             }
             .contentMargins(.bottom, 72, for: .scrollContent)
@@ -409,7 +409,7 @@ struct TaskListView: View {
             task.calendarEventId = nil
         }
         if let googleEventId = task.googleCalendarEventId {
-            Task { await CalendarSyncService.shared.deleteEvent(withId: googleEventId) }
+            Task { await CalendarSyncService.shared.deleteGoogleEvent(googleEventId) }
             task.googleCalendarEventId = nil
         }
         withAnimation(.smooth(duration: 0.3)) {
@@ -490,5 +490,5 @@ private func previewTaskList(theme: AppTheme? = nil) -> some View {
 }
 
 #Preview("Task List — Default") { previewTaskList() }
-#Preview("Task List — Nord") { previewTaskList(theme: .nord) }
-#Preview("Task List — Tokyo Night") { previewTaskList(theme: .tokyoNight) }
+#Preview("Task List — Coral") { previewTaskList(theme: .coral) }
+#Preview("Task List — Forest") { previewTaskList(theme: .forest) }

@@ -407,6 +407,10 @@ private struct MockFolderPage: View {
                     .padding(.horizontal, 12)
                     .padding(.bottom, 10)
 
+                rowGroup([FolderRow(icon: "calendar", iconColor: theme.accentColor, name: "Choose your Calendar", count: nil)])
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
+
                 rowGroup(systemFolders)
                     .padding(.horizontal, 12)
 
@@ -479,8 +483,8 @@ private struct MockPennant: Shape {
 #Preview {
     HStack(spacing: 12) {
         PhoneMockupView(theme: .sakura,    scope: .app,     currentPage: .constant(0))
-        PhoneMockupView(theme: .tokyoNight, scope: .app,     currentPage: .constant(1))
-        PhoneMockupView(theme: .nord,      scope: .widgets, currentPage: .constant(0))
+        PhoneMockupView(theme: .coral,  scope: .app,     currentPage: .constant(1))
+        PhoneMockupView(theme: .forest, scope: .widgets, currentPage: .constant(0))
     }
     .frame(height: 490)
     .padding()

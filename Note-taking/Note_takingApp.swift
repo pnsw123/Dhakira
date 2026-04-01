@@ -21,6 +21,9 @@ struct Note_takingApp: App {
     // Issue #76 — https://github.com/pnsw123/prod-note/issues/76
     @State private var storeKitManager = StoreKitManager.shared
 
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
+
 
     init() {
         log.info("App init — building ModelContainer via AppSchemaBuilder")
@@ -40,6 +43,10 @@ struct Note_takingApp: App {
                 .environment(themeManager)
                 .environment(storeKitManager)
                 .preferredColorScheme(themeManager.current.preferredScheme)
+                .onChange(of: colorScheme, initial: true) { _, scheme in
+                    guard themeManager.isAutoTheme else { return }
+                    themeManager.current = scheme == .dark ? .midnight : .defaultLight
+                }
                 .task {
                     // Request calendar permission once on first launch (Issue #60).
                     await CalendarPermissionService.shared.requestIfNeeded()
@@ -56,6 +63,11 @@ struct Note_takingApp: App {
                 }
         }
         .modelContainer(container)
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            // Re-read iOS Settings toggles every time the app comes to foreground.
+            CalendarSelectionService.shared.refreshFromUserDefaults()
+        }
     }
 }
 
@@ -193,7 +205,7 @@ private actor StartupWorker {
             }
             if let googleEventId = task.googleCalendarEventId {
                 let idToDelete = googleEventId
-                Task.detached { await CalendarSyncService.shared.deleteEvent(withId: idToDelete) }
+                Task.detached { await CalendarSyncService.shared.deleteGoogleEvent(idToDelete) }
             }
             modelContext.delete(task)
         }

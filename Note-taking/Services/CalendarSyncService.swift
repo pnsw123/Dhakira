@@ -38,6 +38,7 @@ final class CalendarSyncService {
         title: String,
         date: Date,
         existingEventId: String?,
+        targetCalendar: EKCalendar? = nil,
         deepLinkURL: URL? = nil
     ) async -> String? {
         let permitted = await MainActor.run { CalendarPermissionService.shared.isGranted }
@@ -66,8 +67,8 @@ final class CalendarSyncService {
             }
         }
 
-        // Create a brand-new event.
-        guard let calendar = eventStore.defaultCalendarForNewEvents else {
+        // Create a brand-new event in the specified calendar (or system default).
+        guard let calendar = targetCalendar ?? eventStore.defaultCalendarForNewEvents else {
             log.error("syncDateToCalendar: no default calendar available")
             return nil
         }
@@ -86,7 +87,22 @@ final class CalendarSyncService {
 
     // MARK: - Delete
 
-    /// Removes a calendar event by its stored identifier.
+    /// Deletes a Google Calendar event — tries EventKit (CalDAV) first, then REST API (OAuth).
+    /// Safe to call with a stale ID.
+    func deleteGoogleEvent(_ eventId: String) async {
+        // Try EventKit first (CalDAV-created events have EKEvent identifiers).
+        if eventStore.event(withIdentifier: eventId) != nil {
+            await deleteEvent(withId: eventId)
+            return
+        }
+        // Not an EKEvent ID — assume it's a Google REST API event ID.
+        let isOAuth = await MainActor.run { GoogleAuthService.shared.isConnected }
+        if isOAuth {
+            await GoogleCalendarAPIService.shared.deleteEvent(id: eventId)
+        }
+    }
+
+    /// Removes an Apple Calendar (EKEvent) by its stored identifier.
     ///
     /// Safe to call with a stale or already-deleted identifier — does not throw or crash.
     func deleteEvent(withId eventId: String) async {
@@ -136,10 +152,14 @@ final class CalendarSyncService {
         let allRelevant   = relevantTitle + relevantBody
 
         guard let earliest = allRelevant.min(by: { $0.date < $1.date }) else {
-            // No date in the text — delete any stale calendar event.
+            // No date in the text — delete any stale calendar events (Apple + Google).
             if let staleId = existingEventId {
                 await deleteEvent(withId: staleId)
                 await MainActor.run { task.calendarEventId = nil }
+            }
+            if let staleGoogleId = task.googleCalendarEventId {
+                await deleteGoogleEvent(staleGoogleId)
+                await MainActor.run { task.googleCalendarEventId = nil }
             }
             return
         }
@@ -154,14 +174,54 @@ final class CalendarSyncService {
             eventTitle = title
         }
 
+        let cleanTitle = eventTitle.isEmpty ? title : eventTitle
         let deepLinkURL = DeepLinkHandler.taskURL(for: task.id)
-        let newEventId = await syncDateToCalendar(
-            title: eventTitle.isEmpty ? title : eventTitle,
-            date: earliest.date,
-            existingEventId: existingEventId,
-            deepLinkURL: deepLinkURL
-        )
-        await MainActor.run { task.calendarEventId = newEventId }
+
+        // Sync to Apple Calendar (unless the user disabled it).
+        let appleEnabled = await MainActor.run { CalendarSelectionService.shared.appleCalendarSyncEnabled }
+        let appleEventId: String?
+        if appleEnabled {
+            appleEventId = await syncDateToCalendar(
+                title: cleanTitle,
+                date: earliest.date,
+                existingEventId: existingEventId,
+                targetCalendar: eventStore.defaultCalendarForNewEvents,
+                deepLinkURL: deepLinkURL
+            )
+        } else {
+            // Apple sync disabled — delete any stale event and clear the stored ID.
+            if let staleId = existingEventId { await deleteEvent(withId: staleId) }
+            appleEventId = nil
+        }
+        await MainActor.run { task.calendarEventId = appleEventId }
+
+        // Sync to Google Calendar.
+        // Priority: CalDAV (local Google account in system Settings) → REST API (OAuth).
+        let googleCal = await MainActor.run { CalendarSelectionService.shared.googleCalendar() }
+        let googleEventId: String?
+
+        if let googleCal {
+            // User has Google Calendar synced locally via iOS/Mac Settings — use CalDAV.
+            googleEventId = await syncDateToCalendar(
+                title: cleanTitle,
+                date: earliest.date,
+                existingEventId: task.googleCalendarEventId,
+                targetCalendar: googleCal,
+                deepLinkURL: deepLinkURL
+            )
+        } else if await MainActor.run(body: { GoogleAuthService.shared.isConnected && CalendarSelectionService.shared.googleWebCalendarEnabled }) {
+            // No local Google Calendar but user authenticated via OAuth — use REST API.
+            googleEventId = await GoogleCalendarAPIService.shared.syncEvent(
+                title: cleanTitle,
+                date: earliest.date,
+                existingId: task.googleCalendarEventId,
+                deepLinkURL: deepLinkURL
+            )
+        } else {
+            googleEventId = nil
+        }
+
+        await MainActor.run { task.googleCalendarEventId = googleEventId }
     }
 
     // MARK: - Date text stripping

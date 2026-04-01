@@ -205,10 +205,10 @@ private struct CardPennant: Shape {
         columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
         spacing: 16
     ) {
-        ThemeCardView(theme: .tokyoNight, isSelected: false, namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .nord,       isSelected: false, namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .tokyoNight, isSelected: false, namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .forest,     isSelected: true,  namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .coral,   isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .forest,  isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .mint,    isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .crimson, isSelected: true,  namespace: Namespace().wrappedValue)
         ThemeCardView(theme: .sakura,     isSelected: false, namespace: Namespace().wrappedValue)
         ThemeCardView(theme: .coral,       isSelected: false, namespace: Namespace().wrappedValue)
     }

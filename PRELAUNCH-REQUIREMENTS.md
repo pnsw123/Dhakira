@@ -226,11 +226,20 @@ Run `Cmd+U` in Xcode. No network or iCloud needed. Proves local model layer is c
 ---
 
 ## Priority 6 — Branding
-- [ ] App name finalized (confirm "ProdNote" or other)
+- [x] App name finalized → **Dhakira** (Arabic: "memory")
 - [ ] Logo designed (1024x1024 px, works on white and black backgrounds)
 - [ ] All Xcode icon sizes added to Assets catalog
 - [ ] App Store screenshots planned and captured (see below)
-- [ ] Domain registered (e.g. prodnote.app or similar)
+- [x] Domain decided → **dhakira.app**
+- [ ] Register dhakira.app on Namecheap or Cloudflare
+- [ ] Point domain to Cloudflare
+
+### Landing Page (dhakira.app)
+- [ ] Build landing page with iOS-style theme
+- [ ] Add App Store screenshots to landing page
+- [ ] State availability: iPhone · iPad · Mac
+- [ ] Add App Store download button/link
+- [ ] Deploy via Cloudflare Pages (free)
 
 ---
 
@@ -250,6 +259,42 @@ Showcase themes and widgets. Capture on real device or high-quality simulator.
 - [ ] Minimum 3 screenshots — iPhone 6.9"
 - [ ] Minimum 3 screenshots — iPhone 6.5"
 - [ ] Minimum 3 screenshots — iPad Pro 13"
+
+### Screenshot Workflow
+
+#### Step 1 — Take Raw Screenshots
+1. Open Xcode
+2. Run the app in **Simulator** (not a real device)
+3. Switch to each device: iPhone 16 Pro Max, iPad Pro 13", Mac
+4. Take screenshots using `Cmd + S` in the Simulator
+5. Save to a folder called `screenshots/raw`
+
+#### Step 2 — Design in Figma
+1. Go to **figma.com** and create a free account
+2. Search Figma Community for "App Store screenshot template"
+3. Recommended free templates:
+   - **ASO.dev template**: aso.dev/figma/screenshot-template (iPhone + iPad + Mac mockups)
+   - **iOS/iPadOS/visionOS template**: Figma Community file `1288121980561553565`
+4. Replace the placeholder screens with your own screenshots
+5. Add app name, short tagline, and brand colors
+6. Export each design as **PNG**
+
+#### Step 3 — Resize for All Devices in Figma
+Duplicate the frame for each device size and adjust layout:
+
+| Device | Required Dimensions |
+|---|---|
+| iPhone 6.9" | 1260 x 2736 px |
+| iPhone 6.5" | 1284 x 2778 px |
+| iPad Pro 13" | 2064 x 2752 px |
+| Mac | 1440 x 900 px |
+
+#### Step 4 — Upload to App Store Connect
+1. Go to **appstoreconnect.apple.com**
+2. Open your app listing
+3. Navigate to each device slot
+4. Drag and drop the matching screenshot into the correct slot
+5. Apple handles routing the right screenshot to the right device automatically
 
 ---
 
@@ -393,3 +438,14 @@ currently phasing the following issues:
 6- screenshots + logo + name for branding  ( will have to use samples + will use Figma and sample designe for that. )
 7- full end to end test ( on a local device ) before shipping
 8- finally shipping on apple store + making a landing page for it later -> marketing.
+
+## Current Sprint
+| # | Task | Status |
+|---|------|--------|
+| 1 | App name → **Dhakira** | ✅ Done |
+| 2 | Register dhakira.app domain | 🔲 Next |
+| 3 | Screenshots (in progress) | 🔄 Active |
+| 4 | Landing page on Cloudflare | 🔲 After screenshots |
+| 5 | End-to-end test on device | 🔲 |
+| 6 | Submit to App Store | 🔲 |
+

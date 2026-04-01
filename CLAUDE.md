@@ -1,5 +1,7 @@
 When you work on a task, explain it to me like I am your manager, not a technical engineer. I want to learn from the process, but only at a high level. I want you to explain like you would to a 7 year old child, i am in my learning phase. with some tech terms in ().Try to make your answers simple, clear, and short. I really don't have time to read all of your boring details that don't teach me anything.
 
+Prefer using **tables** whenever possible. but keep your tables short, I have +5 other sessions, meaning if you throw a wall of text, i can't keep up with the bulletpoints at all, resulting in misunderstaindg .
+
 
 This is an easy project, but it involves a lot of researching, and your job is mostly to adhere to the overall user requirements that I have, the pre-launch requirements, the references, the rulebooks, and whatnot. On top of that, you have to resource most of the time. You don't really reinvent the wheel with most of the project here. It's 80% research, 20% coding, and the rest is iteration.
 

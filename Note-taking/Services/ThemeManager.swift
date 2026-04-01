@@ -33,6 +33,10 @@ final class ThemeManager {
     @ObservationIgnored
     @AppStorage("selectedThemeId") private var selectedThemeId: String = "default"
 
+    /// True when the user has not manually selected a paid theme.
+    /// In this state, dark mode auto-applies Midnight; light mode shows defaultLight.
+    var isAutoTheme: Bool { selectedThemeId == "default" }
+
     @ObservationIgnored
     @AppStorage("backgroundImagePath") private var backgroundImagePath: String = ""
 
@@ -78,6 +82,19 @@ final class ThemeManager {
         selectedThemeId = theme.id
         backgroundColorOverride = nil
         backgroundGradientColors = nil
+    }
+
+    /// Reset the app theme back to system default (follows iOS light/dark mode automatically).
+    func resetToDefault() {
+        current = .defaultLight
+        selectedThemeId = "default"
+        backgroundColorOverride = nil
+        backgroundGradientColors = nil
+        #if canImport(UIKit)
+        clearBackground()
+        #endif
+        syncToAppGroup()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// Apply theme to widgets only.
@@ -222,7 +239,10 @@ struct WithAppBackground: ViewModifier {
                         } else {
                             LinearGradient(colors: gradColors, startPoint: .topLeading, endPoint: .bottomTrailing)
                         }
-                    } else if tm.current.backgroundStyle == .gradient {
+                    } else if !tm.isAutoTheme && tm.current.backgroundStyle == .gradient {
+                        // Only render the themed gradient when a specific theme is active.
+                        // When isAutoTheme (id == "default"), meshColors are hardcoded light-cream
+                        // and would break dark mode — use the adaptive screenBackground instead.
                         if #available(iOS 18, *) {
                             let defaultGrid: [SIMD2<Float>] = [
                                 [0,0],[0.5,0],[1,0],
@@ -244,6 +264,8 @@ struct WithAppBackground: ViewModifier {
                             }
                         }
                     } else {
+                        // Auto theme or flat-color theme: use adaptive screenBackground
+                        // which correctly returns dark/light via UIColor(UITraitCollection).
                         tm.current.screenBackground
                     }
                     #else
@@ -296,7 +318,7 @@ struct WithEditorBackground: ViewModifier {
                         } else {
                             LinearGradient(colors: gradColors, startPoint: .topLeading, endPoint: .bottomTrailing)
                         }
-                    } else if tm.current.backgroundStyle == .gradient {
+                    } else if !tm.isAutoTheme && tm.current.backgroundStyle == .gradient {
                         if #available(iOS 18, *) {
                             let defaultGrid: [SIMD2<Float>] = [
                                 [0,0],[0.5,0],[1,0],

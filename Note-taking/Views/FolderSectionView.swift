@@ -13,7 +13,7 @@ struct FolderSectionView: View {
     var autoRenameId: UUID? = nil
 
     /// Expanded folder IDs persisted in UserDefaults so state survives data refreshes.
-    @AppStorage("expandedFolderIds") private var expandedFolderIdsStorage: String = ""
+    @AppStorage("expandedFolderIds_v2") private var expandedFolderIdsStorage: String = ""
     @State private var expandedFolderIds: Set<UUID> = []
 
     var body: some View {
@@ -40,16 +40,6 @@ struct FolderSectionView: View {
             let persisted = Set(expandedFolderIdsStorage.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
             expandedFolderIds = persisted
 
-            // Pre-expand Default Folder if it has contents and no saved state exists
-            if persisted.isEmpty {
-                for folder in folders where folder.name == "Default" {
-                    let hasContents = !(folder.subfolders?.isEmpty ?? true) ||
-                        !allTaskLists.filter({ $0.folder?.id == folder.id }).isEmpty
-                    if hasContents {
-                        expandedFolderIds.insert(folder.id)
-                    }
-                }
-            }
             // Auto-expand newly created folder so user sees Add List immediately
             if let id = autoRenameId {
                 expandedFolderIds.insert(id)

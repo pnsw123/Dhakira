@@ -28,20 +28,31 @@ struct ThemeDetailView: View {
 
             VStack(spacing: 16) {
 
-                // Top bar: Cancel + Apply — sits below status bar in safe area
+                // Top bar: Cancel + Apply/Remove — sits below status bar in safe area
                 HStack {
                     Button("Cancel") { dismiss() }
                         .modifier(GlassButtonStyle(prominent: false))
 
                     Spacer()
 
-                    Button("Apply") {
-                        withAnimation(.easeInOut(duration: 0.35)) {
-                            themeManager.apply(theme)
+                    if themeManager.current.id == theme.id && !themeManager.isAutoTheme {
+                        // Already active — offer to remove and return to system default
+                        Button("Remove Theme") {
+                            withAnimation(.easeInOut(duration: 0.35)) {
+                                themeManager.resetToDefault()
+                            }
+                            dismiss()
                         }
-                        dismiss()
+                        .modifier(GlassButtonStyle(prominent: false))
+                    } else {
+                        Button("Apply") {
+                            withAnimation(.easeInOut(duration: 0.35)) {
+                                themeManager.apply(theme)
+                            }
+                            dismiss()
+                        }
+                        .modifier(GlassButtonStyle(prominent: true))
                     }
-                    .modifier(GlassButtonStyle(prominent: true))
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
