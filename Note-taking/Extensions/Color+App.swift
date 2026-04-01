@@ -96,8 +96,8 @@ extension UIColor {
 extension Color {
     // MARK: - Priority colors (adaptive: brighter in dark mode for contrast)
     static let priorityHighColor = Color(
-        light: Color(red: 0.910, green: 0.251, blue: 0.251),   // #E84040 — dark red on white
-        dark:  Color(red: 1.000, green: 0.420, blue: 0.420)    // #FF6B6B — softer red on dark
+        light: Color(red: 1.000, green: 0.231, blue: 0.188),   // #FF3B30 — iOS system red (matches Delete)
+        dark:  Color(red: 1.000, green: 0.271, blue: 0.227)    // #FF4538 — iOS system red dark variant
     )
     static let priorityMediumColor = Color(
         light: Color(red: 0.878, green: 0.439, blue: 0.125),   // #E07020 — deep orange on white

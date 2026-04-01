@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - ThemeDetailView
 // Full-screen detail that opens when the user taps a theme card.
@@ -19,6 +20,18 @@ struct ThemeDetailView: View {
     @State private var mockPage = 0
 
     private let pageCount = 3
+
+    // Detects whether the app is running on iPad so we can show the correct mockup shape.
+    // UIDevice.current.userInterfaceIdiom is the Apple-recommended way to distinguish
+    // physical device type (phone vs pad), independent of window size or multitasking.
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    // iPad mockup uses a wider, squarer frame to match the actual iPad screen proportions.
+    private var mockupSize: CGSize {
+        isIPad ? CGSize(width: 360, height: 480) : CGSize(width: 288, height: 624)
+    }
 
     var body: some View {
         ZStack {
@@ -57,22 +70,28 @@ struct ThemeDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
 
-                // Phone mockup + page dots below the bezel
+                // Device-aware mockup: iPad gets a wider tablet frame, iPhone keeps the phone frame.
                 VStack(spacing: 10) {
-                    PhoneMockupView(theme: theme, scope: selectedScope, currentPage: $mockPage)
-                        .frame(width: 288, height: 624)
-                        .overlay(alignment: .leading) {
-                            if selectedScope == .app {
-                                mockNavArrow(forward: false)
-                                    .offset(x: -64)
-                            }
+                    Group {
+                        if isIPad {
+                            iPadMockupView(theme: theme, scope: selectedScope, currentPage: $mockPage)
+                        } else {
+                            PhoneMockupView(theme: theme, scope: selectedScope, currentPage: $mockPage)
                         }
-                        .overlay(alignment: .trailing) {
-                            if selectedScope == .app {
-                                mockNavArrow(forward: true)
-                                    .offset(x: 64)
-                            }
+                    }
+                    .frame(width: mockupSize.width, height: mockupSize.height)
+                    .overlay(alignment: .leading) {
+                        if selectedScope == .app {
+                            mockNavArrow(forward: false)
+                                .offset(x: isIPad ? -54 : -64)
                         }
+                    }
+                    .overlay(alignment: .trailing) {
+                        if selectedScope == .app {
+                            mockNavArrow(forward: true)
+                                .offset(x: isIPad ? 54 : 64)
+                        }
+                    }
 
                     // Page indicator dots — only for App scope
                     if selectedScope == .app {

@@ -18,8 +18,10 @@ import UniformTypeIdentifiers
 
 struct TaskDetailView: View {
     @Bindable var task: TaskItem
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     private var isRegular: Bool { hSizeClass == .regular }
 
     // RichTextKit bindings — attributed string is the source of truth for RTF content
@@ -240,6 +242,11 @@ struct TaskDetailView: View {
         )
         .onAppear { loadToolbarOrder(); loadBody() }
         .onDisappear { saveBody() }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .inactive || newPhase == .background {
+                saveBody()
+            }
+        }
         // Sync checkbox toggle back to the @State binding (Bug #1 fix)
         .onChange(of: checkboxCoordinator.toggleVersion) { _, _ in
             if let toggled = checkboxCoordinator.lastToggledText {
@@ -288,6 +295,17 @@ struct TaskDetailView: View {
                 context: richTextContext,
                 onEditorReady: { tv in
                     richTextView = tv
+                    // RichTextKit's updateUIView() is intentionally empty, so changes to
+                    // attributedText after makeUIView don't reach the UITextView automatically.
+                    // onAppear → loadBody() runs before onEditorReady fires (async dispatch),
+                    // so attributedText is already populated here — push it into the live view.
+                    if attributedText.length > 0 {
+                        tv.attributedText = attributedText
+                        let endLoc = attributedText.length
+                        tv.selectedRange = NSRange(location: endLoc, length: 0)
+                        tv.typingAttributes[.foregroundColor] = UIColor.label
+                        prevTextLength = attributedText.length
+                    }
                     let tap = UITapGestureRecognizer(
                         target: checkboxCoordinator,
                         action: #selector(CheckboxTapCoordinator.handleTap(_:))
@@ -313,6 +331,8 @@ struct TaskDetailView: View {
             .padding(.horizontal, 4)
             .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidChangeNotification)) { note in
                 guard let tv = note.object as? UITextView, tv === richTextView else { return }
+                // Keep attributedText in sync so saveBody() fallback is accurate when richTextView is nil on disappear.
+                attributedText = tv.attributedText ?? NSAttributedString()
                 handleReturnKey(tv: tv)
                 evaluateSlashCommand()
                 evaluateMarkdownHeader(tv: tv)
@@ -525,15 +545,17 @@ struct TaskDetailView: View {
             let newSize = increase ? currentFont.pointSize + step : max(minSize, currentFont.pointSize - step)
             let newFont = UIFont(descriptor: currentFont.fontDescriptor, size: newSize)
             tv.typingAttributes[.font] = newFont
-            // Also apply to existing text (no-op when body is empty).
-            RichEditorCommands.stepFontSize(
-                increase: increase,
-                attributedText: &attributedText,
-                selectedRange: range
-            )
-            tv.attributedText = attributedText
-            tv.selectedRange = range
-            saveBody()
+            // Apply to selected text only; if no selection, only the cursor changes.
+            if range.length > 0 {
+                RichEditorCommands.stepFontSize(
+                    increase: increase,
+                    attributedText: &attributedText,
+                    selectedRange: range
+                )
+                tv.attributedText = attributedText
+                tv.selectedRange = range
+                saveBody()
+            }
             return
         case "list.bullet":
             // toggleBulletList inserts "• " at paragraph start, shifting content right by 2.
@@ -613,26 +635,64 @@ struct TaskDetailView: View {
                 let safe  = NSRange(location: loc, length: len)
                 let nsStr = mutable.string as NSString
                 var applied = 0
-                // Apply attribute character-by-character.
-                // For font color: skip all whitespace (invisible on spaces anyway).
-                // For highlight: only skip newlines/line-endings — spaces between words must
-                // be included or the highlight appears broken with gaps.
-                for i in safe.location ..< (safe.location + safe.length) {
-                    guard i < mutable.length else { break }
-                    let charRange = NSRange(location: i, length: 1)
-                    let scalar    = nsStr.character(at: i)
-                    if key == .foregroundColor {
-                        if scalar == 0x20 || scalar == 0x09 || scalar == 0x0A ||
-                           scalar == 0x0D || scalar == 0xA0 { continue }
-                    } else {
-                        if scalar == 0x0A || scalar == 0x0D { continue }
+
+                if key == .backgroundColor && value != nil {
+                    // Word-like highlight: keep spaces BETWEEN words but skip
+                    // trailing whitespace on each line and blank lines entirely.
+                    // Uses a "pending whitespace" buffer: flush it only when real
+                    // content follows (inter-word), discard it on newline (trailing).
+                    var pendingWSStart = -1
+                    var i = safe.location
+                    let end = safe.location + safe.length
+                    while i < end {
+                        guard i < mutable.length else { break }
+                        let scalar = nsStr.character(at: i)
+                        // Covers \n, \r, Unicode line/paragraph separators
+                        let isNewline = scalar == 0x0A || scalar == 0x0D ||
+                                        scalar == 0x2028 || scalar == 0x2029
+                        // Covers space, tab, non-breaking space
+                        let isSpace   = scalar == 0x20 || scalar == 0x09 || scalar == 0xA0
+                        if isNewline {
+                            pendingWSStart = -1        // discard trailing whitespace
+                        } else if isSpace {
+                            if pendingWSStart < 0 { pendingWSStart = i }
+                        } else {
+                            // Real content — flush any buffered whitespace first
+                            if pendingWSStart >= 0 {
+                                let wsLen = i - pendingWSStart
+                                let wsRange = NSRange(location: pendingWSStart, length: wsLen)
+                                mutable.addAttribute(key, value: value!, range: wsRange)
+                                applied += wsLen
+                                pendingWSStart = -1
+                            }
+                            mutable.addAttribute(key, value: value!,
+                                                 range: NSRange(location: i, length: 1))
+                            applied += 1
+                        }
+                        i += 1
                     }
-                    if let v = value {
-                        mutable.addAttribute(key, value: v, range: charRange)
+                } else {
+                    // Font color: skip all whitespace.
+                    // Highlight removal: remove from entire range (removing a missing
+                    // attribute is harmless and simpler than character-walking).
+                    if key == .backgroundColor {
+                        mutable.removeAttribute(key, range: safe)
+                        applied = safe.length
                     } else {
-                        mutable.removeAttribute(key, range: charRange)
+                        for i in safe.location ..< (safe.location + safe.length) {
+                            guard i < mutable.length else { break }
+                            let charRange = NSRange(location: i, length: 1)
+                            let scalar    = nsStr.character(at: i)
+                            if scalar == 0x20 || scalar == 0x09 || scalar == 0x0A ||
+                               scalar == 0x0D || scalar == 0xA0 { continue }
+                            if let v = value {
+                                mutable.addAttribute(key, value: v, range: charRange)
+                            } else {
+                                mutable.removeAttribute(key, range: charRange)
+                            }
+                            applied += 1
+                        }
                     }
-                    applied += 1
                 }
                 tv.attributedText = mutable
                 tv.selectedRange  = range   // restore selection (setting attributedText resets it)
@@ -641,10 +701,13 @@ struct TaskDetailView: View {
             }
         }
 
-        // ALWAYS apply as typing attribute so new typed text inherits the color —
-        // this makes color work even with no selection (cursor-only) and continues
-        // the chosen color after a selection is colored and the user keeps typing.
-        if let v = value {
+        // Font color carries as a typing attribute — user expects to keep typing in red, etc.
+        // Highlight (.backgroundColor) does NOT carry: it must only apply to the selected
+        // text, never bleed onto new keystrokes (Enter, space, etc.) the user types after.
+        if key == .backgroundColor {
+            // Always clear highlight from typing attributes — apply was already done above.
+            tv.typingAttributes.removeValue(forKey: .backgroundColor)
+        } else if let v = value {
             tv.typingAttributes[key] = v
             // Track sticky font color so it survives cursor movement
             if key == .foregroundColor { activeFontColor = v as? UIColor }
@@ -1434,9 +1497,20 @@ struct TaskDetailView: View {
     private func saveBody() {
         // Always read from the live UITextView — the @State attributedText binding lags
         // behind normal typing because RichTextKit's updateUIView() is intentionally empty.
-        let liveText = richTextView?.attributedText ?? attributedText
+        // Fall back to richTextContext.attributedString (kept live by RichTextKit) before
+        // the stale @State copy, so saves triggered by scenePhase are still accurate.
+        let tvText = richTextView?.attributedText
+        let liveText = tvText ?? richTextContext.attributedString
+        log.info("saveBody: richTextView=\(self.richTextView == nil ? "NIL" : "ok"), tvChars=\(tvText?.length ?? -1), ctxChars=\(self.richTextContext.attributedString.length), stateChars=\(self.attributedText.length), using=\(liveText.length) chars for '\(self.task.title)'")
         NoteBodyBinding.save(liveText, into: task,
                              onSaveError: { saveError = $0 })
+        // Flush to the persistent store immediately so @Query(filter:) and CloudKit
+        // never see stale data when the view disappears.
+        do {
+            try modelContext.save()
+        } catch {
+            log.error("saveBody: modelContext.save() failed — \(error.localizedDescription)")
+        }
         // Issue #63: scan title + body for a date and sync to Apple Calendar.
         // Fire-and-forget — never blocks the UI.
         let bodyText = liveText.string

@@ -32,7 +32,7 @@ struct TaskListView: View {
         self._pendingDeepLinkTaskId = pendingDeepLinkTaskId
     }
 
-    @Query(filter: #Predicate<TaskItem> { !$0.isDeleted }, sort: \TaskItem.sortOrder, order: .forward)
+    @Query(filter: #Predicate<TaskItem> { $0.isDeleted == false }, sort: \TaskItem.sortOrder, order: .forward)
     private var allTasks: [TaskItem]
 
     @Environment(ThemeManager.self) private var themeManager
@@ -279,6 +279,8 @@ struct TaskListView: View {
             .onChange(of: filteredTasks.count) { _, _ in syncWidget() }
             .onChange(of: filteredTasks.map(\.priority)) { _, _ in syncWidget() }
             .onChange(of: filteredTasks.map(\.title)) { _, _ in syncWidget() }
+            // Watch body size so the widget asterisk updates immediately after content is saved.
+            .onChange(of: filteredTasks.map { $0.body?.count ?? 0 }) { _, _ in syncWidget() }
     }
 
     private func syncWidget() {
@@ -289,6 +291,7 @@ struct TaskListView: View {
                              (t.attachments != nil && !t.attachments!.isEmpty)
             return WidgetTask(id: t.id, title: t.title, priority: t.priority, hasContent: hasContent)
         }
+        log.debug("syncWidget: pushing \(widgetTasks.count) task(s) (total active=\(activeTasks.count)) to widget")
         ThemeManager.shared.syncActiveTasks(Array(widgetTasks), totalCount: activeTasks.count)
     }
 
@@ -341,7 +344,12 @@ struct TaskListView: View {
         let newTask = TaskItem(title: trimmed, taskList: taskList)
         newTask.sortOrder = maxOrder
         modelContext.insert(newTask)
-        log.info("commitNewTask: created '\(trimmed)' (sortOrder=\(maxOrder))")
+        do {
+            try modelContext.save()
+            log.info("commitNewTask: created '\(trimmed)' (sortOrder=\(maxOrder))")
+        } catch {
+            log.error("commitNewTask: modelContext.save() failed — \(error.localizedDescription)")
+        }
         // Detect any date/time in the title and create a calendar event immediately.
         // Fire-and-forget — never blocks the UI.
         let created = newTask
@@ -385,6 +393,13 @@ struct TaskListView: View {
             task.isCompleted = willComplete
             task.completedAt = willComplete ? Date() : nil
         }
+        // Persist immediately — SwiftData auto-save is deferred and can be lost if the
+        // process is killed before the run loop drains or the app goes to background.
+        do {
+            try modelContext.save()
+        } catch {
+            log.error("toggleComplete: modelContext.save() failed — \(error.localizedDescription)")
+        }
 
         if willComplete {
             recentlyCompletedIds.insert(task.id)
@@ -399,6 +414,11 @@ struct TaskListView: View {
         let newPriority = task.priority == priority ? "default" : priority
         log.info("setPriority: '\(task.title)' → \(newPriority)")
         task.priority = newPriority
+        do {
+            try modelContext.save()
+        } catch {
+            log.error("setPriority: modelContext.save() failed — \(error.localizedDescription)")
+        }
     }
 
     private func softDeleteTask(_ task: TaskItem) {
@@ -415,7 +435,11 @@ struct TaskListView: View {
             task.isDeleted = true
             task.deletedAt = Date()
         }
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            log.error("softDeleteTask: modelContext.save() failed — \(error.localizedDescription)")
+        }
     }
 
     private func moveTask(from source: IndexSet, to destination: Int) {
@@ -424,8 +448,12 @@ struct TaskListView: View {
         for (index, item) in reordered.enumerated() {
             item.sortOrder = index
         }
-        try? modelContext.save()
-        log.info("moveTask: reindexed \(reordered.count) tasks after move")
+        do {
+            try modelContext.save()
+            log.info("moveTask: reindexed \(reordered.count) tasks after move")
+        } catch {
+            log.error("moveTask: modelContext.save() failed — \(error.localizedDescription)")
+        }
     }
 
     private func indentLevel(for task: TaskItem) -> CGFloat {

@@ -45,7 +45,12 @@ struct Note_takingApp: App {
                 .preferredColorScheme(themeManager.current.preferredScheme)
                 .onChange(of: colorScheme, initial: true) { _, scheme in
                     guard themeManager.isAutoTheme else { return }
-                    themeManager.current = scheme == .dark ? .midnight : .defaultLight
+                    let newTheme: AppTheme = scheme == .dark ? .midnight : .defaultLight
+                    themeManager.current = newTheme
+                    // Push the new theme to the widget via the proper ThemeManager API so
+                    // syncToAppGroup() writes the resolved id ("midnight"/"defaultLight")
+                    // rather than "default", which no AppTheme matches.
+                    themeManager.applyWidget(newTheme)
                 }
                 .task {
                     // Request calendar permission once on first launch (Issue #60).
@@ -64,9 +69,19 @@ struct Note_takingApp: App {
         }
         .modelContainer(container)
         .onChange(of: scenePhase) { _, newPhase in
-            guard newPhase == .active else { return }
-            // Re-read iOS Settings toggles every time the app comes to foreground.
-            CalendarSelectionService.shared.refreshFromUserDefaults()
+            if newPhase == .active {
+                // Re-read iOS Settings toggles every time the app comes to foreground.
+                CalendarSelectionService.shared.refreshFromUserDefaults()
+            } else if newPhase == .background {
+                // Force-flush pending changes (e.g. soft-deletes) before iOS may kill the process.
+                // Prevents deleted tasks from reappearing if the app was killed before autosave ran.
+                do {
+                    try container.mainContext.save()
+                    log.info("scenePhase → background: mainContext.save() succeeded")
+                } catch {
+                    log.error("scenePhase → background: mainContext.save() FAILED — \(error.localizedDescription)")
+                }
+            }
         }
     }
 }
@@ -128,7 +143,7 @@ private actor StartupWorker {
 
     private func migrateOrphanedTasks() {
         let orphanDescriptor = FetchDescriptor<TaskItem>(
-            predicate: #Predicate<TaskItem> { $0.taskList == nil }
+            predicate: #Predicate<TaskItem> { $0.taskList == nil && !$0.isDeleted }
         )
         guard let orphans = try? modelContext.fetch(orphanDescriptor), !orphans.isEmpty else { return }
 

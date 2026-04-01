@@ -1,9 +1,12 @@
 import SwiftUI
 import WidgetKit
+import OSLog
 #if canImport(UIKit)
 import UIKit
 import ImageIO
 #endif
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "ThemeManager")
 
 // MARK: - ThemeManager
 // @Observable singleton that owns the active theme, custom background image, and persistence.
@@ -158,8 +161,16 @@ final class ThemeManager {
 
     // MARK: — App Group sync (widgets read from here)
     private func syncToAppGroup() {
-        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking") else { return }
-        defaults.set(widgetThemeId, forKey: "themeId")
+        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking") else {
+            log.error("syncToAppGroup: failed to open App Group UserDefaults — widget will not update")
+            return
+        }
+        // When auto-theme ("default"), widgetThemeId is "default" which AppTheme.all doesn't
+        // contain — the widget would always fall back to .defaultLight even in dark mode.
+        // Write the actual resolved theme id (e.g. "midnight") so the widget shows correctly.
+        let effectiveThemeId = isAutoTheme ? current.id : widgetThemeId
+        log.debug("syncToAppGroup: writing themeId='\(effectiveThemeId)' (autoTheme=\(self.isAutoTheme), current='\(self.current.id)', widgetThemeId='\(self.widgetThemeId)')")
+        defaults.set(effectiveThemeId, forKey: "themeId")
         #if canImport(UIKit)
         // Copy background image JPEG to shared container so the widget can read it
         let sharedURL = FileManager.default
@@ -357,10 +368,16 @@ extension ThemeManager {
     /// Writes the top tasks to the shared App Group so the widget can display them.
     /// Called from TaskListView whenever the task list changes.
     func syncActiveTasks(_ tasks: [WidgetTask], totalCount: Int) {
-        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking") else { return }
+        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking") else {
+            log.error("syncActiveTasks: failed to open App Group UserDefaults — widget task list will not update")
+            return
+        }
+        log.debug("syncActiveTasks: pushing \(tasks.count) task(s) (totalActive=\(totalCount)) to widget")
         defaults.set(totalCount, forKey: "activeTaskCount")
         if let encoded = try? JSONEncoder().encode(tasks) {
             defaults.set(encoded, forKey: "activeTasks")
+        } else {
+            log.error("syncActiveTasks: JSONEncoder failed to encode tasks — widget will show stale data")
         }
         // Force flush to disk — App Group UserDefaults may not sync immediately
         defaults.synchronize()

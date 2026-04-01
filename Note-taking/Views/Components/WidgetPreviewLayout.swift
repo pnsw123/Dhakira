@@ -10,44 +10,74 @@ import ProdNoteShared
 
 struct WidgetPreviewLayout: View {
     let theme: AppTheme
+    // When true, uses iPad widget proportions and shows the Extra Large section (iPad-exclusive).
+    var isIPad: Bool = false
     private let taskCount = 5
 
+    // iPad small/medium/large widgets are slightly larger than iPhone equivalents.
+    private var smallSize: CGFloat  { isIPad ? 130 : 118 }
+    private var mediumHeight: CGFloat { isIPad ? 130 : 118 }
+    private var largeHeight: CGFloat  { isIPad ? 240 : 220 }
+    private var cornerRadius: CGFloat { isIPad ? 22 : 20 }
+
     var body: some View {
-        VStack(spacing: 12) {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 12) {
 
-            // SMALL · 2×2
-            VStack(alignment: .leading, spacing: 6) {
-                sectionHeader("SMALL · 2×2")
-                SmallWidgetPreview(theme: theme, taskCount: taskCount)
-                    .frame(width: 118, height: 118)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+                // SMALL · 2×2
+                VStack(alignment: .leading, spacing: 6) {
+                    sectionHeader("SMALL · 2×2")
+                    SmallWidgetPreview(theme: theme, taskCount: taskCount)
+                        .frame(width: smallSize, height: smallSize)
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                        .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            // MEDIUM · 2×4
-            VStack(alignment: .leading, spacing: 6) {
-                sectionHeader("MEDIUM · 2×4")
-                MediumWidgetPreview(theme: theme, taskCount: taskCount)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 118)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
-            }
+                // MEDIUM · 2×4
+                VStack(alignment: .leading, spacing: 6) {
+                    sectionHeader("MEDIUM · 2×4")
+                    MediumWidgetPreview(theme: theme, taskCount: taskCount)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: mediumHeight)
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                        .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                }
 
-            // LARGE · 4×4
-            VStack(alignment: .leading, spacing: 6) {
-                sectionHeader("LARGE · 4×4")
-                LargeWidgetPreview(theme: theme, taskCount: taskCount)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                // LARGE · 4×4
+                VStack(alignment: .leading, spacing: 6) {
+                    sectionHeader("LARGE · 4×4")
+                    LargeWidgetPreview(theme: theme, taskCount: taskCount)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: largeHeight)
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                        .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                }
+
+                // EXTRA LARGE · 4×8 — iPad-exclusive widget size
+                if isIPad {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            sectionHeader("EXTRA LARGE · 4×8")
+                            Text("iPad only")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(theme.accentColor)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(theme.accentColor.opacity(0.15), in: Capsule())
+                        }
+                        ExtraLargeWidgetPreview(theme: theme, taskCount: taskCount)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 240)
+                            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                            .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                    }
+                }
             }
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
     }
 
     private func sectionHeader(_ label: String) -> some View {
@@ -278,6 +308,101 @@ private struct LargeWidgetPreview: View {
             .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .modifier(PreviewGlassModifier())
+        }
+    }
+}
+
+// MARK: - Extra Large Widget (4×8) — iPad-exclusive
+// Two-column layout matching what WidgetKit renders for .systemExtraLarge on iPadOS:
+// left side shows task count summary, right side shows the full task list.
+
+private struct ExtraLargeWidgetPreview: View {
+    let theme: AppTheme
+    let taskCount: Int
+
+    private struct Sample: Identifiable {
+        let id = UUID()
+        let title: String
+        let priority: String
+    }
+    private let samples: [Sample] = [
+        Sample(title: "Submit tax documents",   priority: "high"),
+        Sample(title: "Reply to Sarah's email", priority: "medium"),
+        Sample(title: "Book flight tickets",    priority: "default"),
+        Sample(title: "Water the plants",       priority: "default"),
+        Sample(title: "Call the dentist",       priority: "default"),
+        Sample(title: "Prepare presentation",   priority: "high"),
+        Sample(title: "Buy groceries",          priority: "default"),
+        Sample(title: "Gym session at 6pm",     priority: "medium"),
+    ]
+
+    var body: some View {
+        ZStack {
+            widgetBackground(theme: theme)
+            HStack(spacing: 0) {
+                // Left column — count summary (mirrors .systemSmall left half)
+                VStack(alignment: .leading, spacing: 4) {
+                    Image(systemName: "checklist")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(theme.accentColor)
+                    Spacer()
+                    Text("\(taskCount)")
+                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .foregroundStyle(theme.primaryText)
+                    Text("tasks today")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(theme.secondaryText)
+                }
+                .padding(16)
+                .frame(maxHeight: .infinity, alignment: .leading)
+
+                // Divider
+                Rectangle()
+                    .fill(theme.separatorColor.opacity(0.5))
+                    .frame(width: 0.5)
+                    .padding(.vertical, 12)
+
+                // Right column — task list (mirrors .systemLarge right half)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Today")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(theme.primaryText)
+                        Spacer()
+                        Text("\(taskCount) tasks")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(theme.secondaryText)
+                    }
+                    .padding(.bottom, 8)
+
+                    VStack(alignment: .leading, spacing: 7) {
+                        ForEach(samples) { task in
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
+                                    .frame(width: 11, height: 11)
+                                Text(task.title)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(theme.primaryText)
+                                    .lineLimit(1)
+                                Spacer()
+                                if task.priority == "high" {
+                                    LargePreviewPennant()
+                                        .fill(theme.priorityHigh)
+                                        .frame(width: 7, height: 11)
+                                } else if task.priority == "medium" {
+                                    LargePreviewPennant()
+                                        .fill(theme.priorityMedium)
+                                        .frame(width: 7, height: 11)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
         }
     }
 }

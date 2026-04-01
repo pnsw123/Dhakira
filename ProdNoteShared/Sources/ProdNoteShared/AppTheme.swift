@@ -90,7 +90,7 @@ public struct AppTheme: Equatable, Hashable, Identifiable {
         case "forest":       return "com.prodnote.theme.forest"
         case "ocean":        return "com.prodnote.theme.ocean"
         case "aurora":       return "com.prodnote.theme.aurora"
-        case "neon":         return "com.prodnote.theme.neon"
+
         case "midnight-blue": return "com.prodnote.theme.midnightblue"
         case "sakura":       return "com.prodnote.theme.sakura"
         case "arctic":       return "com.prodnote.theme.arctic"
@@ -342,53 +342,6 @@ extension AppTheme {
             [0.00, 1.00], [0.50, 1.00], [1.00, 1.00]    // void black from band down to bottom
         ]
     )
-
-    // ─────────────────────────────────────────────
-    // PAID — Neon (cyberpunk dark, electric pink + cyan)
-    // Target: Gen Z, gamers — bold & unapologetic
-    // ─────────────────────────────────────────────
-    public static let neon = AppTheme(
-        id: "neon",
-        name: "Neon",
-        subtitle: "Electric & bold",
-        tag: "Dark",
-        isPaid: true,
-        meshColors: [
-            Color(red: 0.015, green: 0.010, blue: 0.055),   // deep navy-purple TL
-            Color(red: 0.048, green: 0.028, blue: 0.120),   // dark violet TC
-            Color(red: 0.012, green: 0.010, blue: 0.045),   // deep navy TR
-            Color(red: 0.260, green: 0.060, blue: 0.620),   // soft electric violet ML
-            Color(red: 0.580, green: 0.080, blue: 0.760),   // violet-magenta bloom MC — softer than hot pink
-            Color(red: 0.060, green: 0.030, blue: 0.160),   // deep purple MR
-            Color(red: 0.010, green: 0.015, blue: 0.065),   // deep navy BL
-            Color(red: 0.050, green: 0.130, blue: 0.600),   // electric deep-blue BC — replaced harsh cyan
-            Color(red: 0.010, green: 0.010, blue: 0.042)    // deep navy BR
-        ],
-        backgroundStyle: .gradient,
-        screenBackground:   Color(red: 0.022, green: 0.015, blue: 0.075),
-        surfaceBackground:  Color(red: 0.038, green: 0.028, blue: 0.120),
-        editorBackground:   Color(red: 0.038, green: 0.028, blue: 0.120),
-        primaryText:        Color(red: 0.960, green: 0.940, blue: 0.985),
-        secondaryText:      Color(red: 0.680, green: 0.480, blue: 0.960),   // soft violet — more readable than cyan
-        placeholderText:    Color(red: 0.340, green: 0.290, blue: 0.480),
-        accentColor:        Color(red: 0.780, green: 0.200, blue: 0.960),   // electric violet accent
-        linkColor:          Color(red: 0.440, green: 0.360, blue: 0.980),   // electric blue-violet link
-        quoteBarColor:      Color(red: 0.680, green: 0.160, blue: 0.880),
-        priorityHigh:       Color(red: 1.000, green: 0.280, blue: 0.420),
-        priorityMedium:     Color(red: 1.000, green: 0.600, blue: 0.200),
-        fabBackground:      Color(red: 0.680, green: 0.140, blue: 0.920),
-        fabIcon:            .white,
-        separatorColor:     Color(red: 0.060, green: 0.042, blue: 0.180),
-        checkboxActive:     Color(red: 0.680, green: 0.380, blue: 0.980),
-        checkboxInactive:   Color(red: 0.220, green: 0.180, blue: 0.420),   // visible soft-purple ring
-        preferredScheme:    .dark,
-        meshPoints: [
-            [0.00, 0.00], [0.50, 0.00], [1.00, 0.00],
-            [0.00, 0.40], [0.55, 0.28], [1.00, 0.45],   // violet bloom upper-center
-            [0.00, 1.00], [0.35, 1.00], [1.00, 1.00]
-        ]
-    )
-
 
     // ─────────────────────────────────────────────
     // PAID — Midnight Blue (deep navy, cobalt blobs, premium dark)
@@ -739,7 +692,7 @@ extension AppTheme {
         // Hero row — best-looking themes front and center
         .sakura, .aurora, .crimson, .mint, .arctic,
         // Mid tier
-        .coral, .dusk, .neon,
+        .coral, .dusk,
         // Bottom
         .forest,
     ]

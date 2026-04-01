@@ -459,7 +459,7 @@ private struct MockFolderPage: View {
                 }
             }
         }
-        .glassEffect(.regular, in: .rect(cornerRadius: 10))
+        .background(theme.surfaceBackground, in: RoundedRectangle(cornerRadius: 10))
     }
 }
 
@@ -478,6 +478,464 @@ private struct MockPennant: Shape {
     }
 }
 
+// MARK: - iPadMockupView
+// Renders a tablet-shaped bezel for iPad theme previews.
+// Uses the same theme tokens as PhoneMockupView — only the frame shape
+// and content layout differ to match what the user actually sees on iPad.
+
+struct iPadMockupView: View {
+    let theme: AppTheme
+    let scope: ThemeScope
+    @Binding var currentPage: Int
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            // Tablet bezel — iPad has smaller corner radius than iPhone
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(.white.opacity(0.35), lineWidth: 1.5)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(.black.opacity(0.15))
+                )
+
+            Group {
+                if scope == .widgets {
+                    // isIPad: true → WidgetPreviewLayout shows iPad-sized widgets + Extra Large section
+                    WidgetPreviewLayout(theme: theme, isIPad: true)
+                } else {
+                    iPadAppScopePreview(theme: theme, currentPage: $currentPage)
+                }
+            }
+            .allowsHitTesting(false)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 8)
+    }
+}
+
+// MARK: - iPad App scope: same 3 pages, wider layout (matches isRegular real app behaviour)
+
+private struct iPadAppScopePreview: View {
+    let theme: AppTheme
+    @Binding var currentPage: Int
+
+    var body: some View {
+        TabView(selection: $currentPage) {
+            iPadMockTasksPage(theme: theme).tag(0)
+            iPadMockDetailPage(theme: theme).tag(1)
+            iPadMockFolderPage(theme: theme).tag(2)
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .environment(\.colorScheme, theme.backgroundIsDark ? .dark : .light)
+    }
+}
+
+// MARK: - iPad Page 1: Tasks (wider padding = isRegular real app)
+
+private struct iPadMockTasksPage: View {
+    let theme: AppTheme
+
+    private struct Row: Identifiable {
+        let id = UUID()
+        let title: String
+        let done: Bool
+        let priority: String
+    }
+
+    private let rows: [Row] = [
+        Row(title: "Morning standup",      done: true,  priority: "high"),
+        Row(title: "Review pull requests", done: true,  priority: "medium"),
+        Row(title: "Update documentation", done: false, priority: "none"),
+        Row(title: "Team lunch 12pm",      done: false, priority: "none"),
+        Row(title: "Write weekly report",  done: false, priority: "none"),
+        Row(title: "Check emails",         done: false, priority: "none"),
+        Row(title: "Plan next sprint",     done: false, priority: "none"),
+        Row(title: "Code review session",  done: false, priority: "high"),
+    ]
+
+    private static let defaultGrid: [SIMD2<Float>] = [
+        [0,0],[0.5,0],[1,0],[0,0.5],[0.5,0.5],[1,0.5],[0,1],[0.5,1],[1,1]
+    ]
+
+    @ViewBuilder
+    private var background: some View {
+        if theme.backgroundStyle == .gradient {
+            if #available(iOS 18, *) {
+                MeshGradient(
+                    width: 3, height: 3,
+                    points: theme.meshPoints ?? Self.defaultGrid,
+                    colors: theme.meshColors
+                )
+            } else {
+                ZStack {
+                    theme.meshColors[4]
+                    RadialGradient(colors: [theme.meshColors[0].opacity(0.85), .clear],
+                                   center: .topLeading, startRadius: 0, endRadius: 300)
+                    RadialGradient(colors: [theme.meshColors[8].opacity(0.80), .clear],
+                                   center: .bottomTrailing, startRadius: 0, endRadius: 280)
+                }
+            }
+        } else {
+            theme.screenBackground
+        }
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 16) // status bar
+
+                HStack(spacing: 0) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(theme.accentColor)
+                        .padding(.leading, 20) // isRegular wider padding
+
+                    Text("Tasks")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(theme.primaryText)
+                        .padding(.leading, 8)
+
+                    Spacer()
+
+                    HStack(spacing: 14) {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 13))
+                            .foregroundStyle(theme.accentColor)
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 13))
+                            .foregroundStyle(theme.accentColor)
+                    }
+                    .padding(.trailing, 20)
+                }
+                .padding(.vertical, 10)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(theme.separatorColor)
+                        .frame(height: 0.5)
+                }
+
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
+                        HStack(spacing: 10) {
+                            ZStack {
+                                if row.done {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundStyle(
+                                            row.priority == "high"   ? Color.priorityHighColor :
+                                            row.priority == "medium" ? Color.priorityMediumColor :
+                                            theme.secondaryText
+                                        )
+                                } else {
+                                    Circle()
+                                        .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
+                                        .frame(width: 18, height: 18)
+                                }
+                            }
+                            .frame(width: 24)
+
+                            Text(row.title)
+                                .font(.system(size: 13))
+                                .foregroundStyle(theme.primaryText)
+                                .strikethrough(row.done, color:
+                                    row.done ? (
+                                        row.priority == "high"   ? theme.priorityHigh :
+                                        row.priority == "medium" ? theme.priorityMedium :
+                                        theme.secondaryText
+                                    ) : theme.secondaryText
+                                )
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            if row.priority == "high" {
+                                MockPennant()
+                                    .fill(Color.priorityHighColor)
+                                    .frame(width: 9, height: 13)
+                            } else if row.priority == "medium" {
+                                MockPennant()
+                                    .fill(Color.priorityMediumColor)
+                                    .frame(width: 9, height: 13)
+                            }
+                        }
+                        .padding(.horizontal, 36) // isRegular wider inset
+                        .padding(.vertical, 14)   // isRegular taller row
+                        .opacity(row.done ? 0.35 : 1.0)
+
+                        Rectangle()
+                            .fill(theme.separatorColor)
+                            .frame(height: 0.5)
+                            .padding(.leading, 70)
+                    }
+                    Spacer()
+                }
+                .padding(.top, 6)
+            }
+
+            Circle()
+                .fill(theme.fabBackground)
+                .frame(width: 34, height: 34)
+                .overlay(
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(theme.fabIcon)
+                )
+                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                .padding(.trailing, 20)
+                .padding(.bottom, 16)
+        }
+        .background { background }
+    }
+}
+
+// MARK: - iPad Page 2: Task Detail (wider layout)
+
+private struct iPadMockDetailPage: View {
+    let theme: AppTheme
+
+    @ViewBuilder
+    private var background: some View {
+        if theme.backgroundStyle == .gradient {
+            if #available(iOS 18, *) {
+                MeshGradient(
+                    width: 3, height: 3,
+                    points: theme.meshPoints ?? [
+                        [0,0],[0.5,0],[1,0],
+                        [0,0.5],[0.5,0.5],[1,0.5],
+                        [0,1],[0.5,1],[1,1]
+                    ],
+                    colors: theme.meshColors
+                )
+            } else {
+                ZStack {
+                    theme.meshColors[4]
+                    RadialGradient(colors: [theme.meshColors[0].opacity(0.85), .clear], center: .topLeading, startRadius: 0, endRadius: 300)
+                    RadialGradient(colors: [theme.meshColors[8].opacity(0.80), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 280)
+                }
+            }
+        } else {
+            theme.editorBackground
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 16)
+
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(theme.surfaceBackground)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(theme.accentColor)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 14) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14))
+                            .foregroundStyle(theme.accentColor)
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 14))
+                            .foregroundStyle(theme.accentColor)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+
+                Text("29 Mar 2026 · 11:30PM")
+                    .font(.system(size: 10))
+                    .foregroundStyle(theme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 2)
+
+                Text("Reply to Sarah's email")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(theme.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+
+                Rectangle()
+                    .fill(theme.separatorColor)
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+
+                HStack(spacing: 0) {
+                    Rectangle()
+                        .fill(theme.accentColor)
+                        .frame(width: 2, height: 16)
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach([1.0, 0.88, 0.95, 0.72, 0.60], id: \.self) { widthFraction in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(theme.placeholderText.opacity(0.35))
+                            .frame(height: 7)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .scaleEffect(x: widthFraction, y: 1, anchor: .leading)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+
+                Spacer()
+
+                // Wider formatting toolbar for iPad
+                HStack(spacing: 0) {
+                    ForEach(["bold", "italic", "checklist", "list.bullet", "underline",
+                             "strikethrough", "textformat.size.smaller", "textformat.size.larger",
+                             "photo", "link"], id: \.self) { icon in
+                        Image(systemName: icon)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(theme.accentColor)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.vertical, 9)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 13))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 14)
+            }
+        }
+        .background { background }
+    }
+}
+
+// MARK: - iPad Page 3: Folders (wider layout)
+
+private struct iPadMockFolderPage: View {
+    let theme: AppTheme
+
+    @ViewBuilder
+    private var background: some View {
+        if theme.backgroundStyle == .gradient {
+            if #available(iOS 18, *) {
+                MeshGradient(
+                    width: 3, height: 3,
+                    points: theme.meshPoints ?? [
+                        [0,0],[0.5,0],[1,0],
+                        [0,0.5],[0.5,0.5],[1,0.5],
+                        [0,1],[0.5,1],[1,1]
+                    ],
+                    colors: theme.meshColors
+                )
+            } else {
+                ZStack {
+                    theme.meshColors[4]
+                    RadialGradient(colors: [theme.meshColors[0].opacity(0.85), .clear], center: .topLeading, startRadius: 0, endRadius: 300)
+                    RadialGradient(colors: [theme.meshColors[8].opacity(0.80), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 280)
+                }
+            }
+        } else {
+            theme.screenBackground
+        }
+    }
+
+    private struct FolderRow: Identifiable {
+        let id = UUID()
+        let icon: String
+        let iconColor: Color
+        let name: String
+        let count: Int?
+    }
+
+    private let mainFolders: [FolderRow] = [
+        FolderRow(icon: "folder.fill",       iconColor: Color(red: 0.0, green: 0.48, blue: 1.0),    name: "Default",    count: 5),
+        FolderRow(icon: "folder.badge.plus",  iconColor: Color(red: 0.56, green: 0.56, blue: 0.58), name: "Add Folder", count: nil),
+    ]
+
+    private let systemFolders: [FolderRow] = [
+        FolderRow(icon: "checkmark.circle", iconColor: Color(red: 0.56, green: 0.56, blue: 0.58), name: "Recently Completed", count: nil),
+        FolderRow(icon: "trash",            iconColor: Color(red: 0.56, green: 0.56, blue: 0.58), name: "Recently Deleted",   count: nil),
+    ]
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 16)
+
+                HStack {
+                    Text("Folders")
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundStyle(theme.primaryText)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(theme.secondaryText)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+
+                rowGroup(mainFolders)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+
+                rowGroup([FolderRow(icon: "calendar", iconColor: theme.accentColor, name: "Choose your Calendar", count: nil)])
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+
+                rowGroup(systemFolders)
+                    .padding(.horizontal, 16)
+
+                Spacer()
+            }
+        }
+        .background { background }
+    }
+
+    @ViewBuilder
+    private func rowGroup(_ rows: [FolderRow]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
+                HStack(spacing: 12) {
+                    Image(systemName: row.icon)
+                        .font(.system(size: 14))
+                        .foregroundStyle(row.iconColor)
+                        .frame(width: 26, height: 26)
+
+                    Text(row.name)
+                        .font(.system(size: 13))
+                        .foregroundStyle(theme.primaryText)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    if let count = row.count {
+                        Text("\(count)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(theme.secondaryText)
+                    }
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(theme.secondaryText.opacity(0.6))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+
+                if i < rows.count - 1 {
+                    Rectangle()
+                        .fill(theme.separatorColor)
+                        .frame(height: 0.5)
+                        .padding(.leading, 50)
+                }
+            }
+        }
+        .background(theme.surfaceBackground, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
@@ -487,6 +945,17 @@ private struct MockPennant: Shape {
         PhoneMockupView(theme: .forest, scope: .widgets, currentPage: .constant(0))
     }
     .frame(height: 490)
+    .padding()
+    .background(Color.gray)
+}
+
+#Preview("iPad Mockup") {
+    HStack(spacing: 20) {
+        iPadMockupView(theme: .sakura, scope: .app,     currentPage: .constant(0))
+            .frame(width: 360, height: 480)
+        iPadMockupView(theme: .forest, scope: .widgets, currentPage: .constant(0))
+            .frame(width: 360, height: 480)
+    }
     .padding()
     .background(Color.gray)
 }

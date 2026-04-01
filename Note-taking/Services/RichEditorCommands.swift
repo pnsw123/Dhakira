@@ -142,7 +142,7 @@ final class RichEditorCommands {
         let step: CGFloat = 2
         let minSize: CGFloat = 10
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
-        let range = NSRange(location: 0, length: mutable.length)
+        let range = selectedRange
         guard range.length > 0, range.location + range.length <= mutable.length else { return }
 
         mutable.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
@@ -454,6 +454,7 @@ final class RichEditorCommands {
 
     /// Apply background (highlight) colour to the given range.
     /// Pass UIColor.clear to remove the highlight.
+    /// Mimics Word/Pages behaviour: whitespace and newlines are not highlighted.
     static func applyHighlightColor(_ color: UIColor,
                                     attributedText: inout NSAttributedString,
                                     selectedRange: NSRange) {
@@ -464,10 +465,30 @@ final class RichEditorCommands {
         let mutable = attributedText.mutableCopy() as! NSMutableAttributedString
         let safe = clamp(selectedRange, to: mutable.length)
         guard safe.length > 0 else { return }
+
         if color == .clear {
             mutable.removeAttribute(.backgroundColor, range: safe)
         } else {
-            mutable.addAttribute(.backgroundColor, value: color, range: safe)
+            // Only highlight non-whitespace characters (Word/Pages behaviour).
+            // Use rangeOfComposedCharacterSequence so Arabic, emoji, and other
+            // multi-codeunit characters are never split mid-character.
+            let nsString = mutable.string as NSString
+            var i = safe.location
+            let end = safe.location + safe.length
+            while i < end {
+                let charRange = nsString.rangeOfComposedCharacterSequence(at: i)
+                // Safety: don't walk past the clamped selection
+                let clampedRange = NSRange(location: charRange.location,
+                                           length: min(charRange.length, end - charRange.location))
+                guard clampedRange.length > 0 else { break }
+                let char = nsString.substring(with: clampedRange)
+                if char.unicodeScalars.allSatisfy({ $0.properties.isWhitespace }) {
+                    mutable.removeAttribute(.backgroundColor, range: clampedRange)
+                } else {
+                    mutable.addAttribute(.backgroundColor, value: color, range: clampedRange)
+                }
+                i = clampedRange.location + clampedRange.length
+            }
         }
         attributedText = mutable
         log.debug("applyHighlightColor: applied \(color.description) to range \(safe.location)+\(safe.length)")

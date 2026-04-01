@@ -18,7 +18,7 @@ final class StoreKitManager {
         "com.prodnote.theme.ocean",
         "com.prodnote.theme.lavender",
         "com.prodnote.theme.aurora",
-        "com.prodnote.theme.neon",
+
         "com.prodnote.theme.terracotta",
         "com.prodnote.theme.matrix",
         "com.prodnote.theme.midnightblue",
