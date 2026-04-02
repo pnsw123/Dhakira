@@ -117,32 +117,32 @@ struct FolderRowView: View {
                 Spacer().frame(width: CGFloat(indentLevel * 20))
 
                 Image(systemName: "folder.fill")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(Color.themeAccent)
                     .frame(width: 22)
 
                 if isRenaming {
                     TextField("Folder name", text: $renameText, onCommit: commitRename)
-                        .font(.system(size: 16))
+                        .font(.system(size: 17))
                         .foregroundStyle(Color.primaryText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .focused($isRenameFocused)
                 } else {
                     Text(folder.name)
-                        .font(.system(size: 16))
+                        .font(.system(size: 17))
                         .foregroundStyle(Color.primaryText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 // Expand chevron — always shown so any folder can be opened
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.secondaryText)
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     .animation(.easeInOut(duration: 0.2), value: isExpanded)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.vertical, 16)
             .contentShape(Rectangle())
             .onTapGesture { onToggle() }
             .onAppear {
@@ -214,16 +214,16 @@ struct FolderRowView: View {
                     HStack(spacing: 10) {
                         Spacer().frame(width: CGFloat((indentLevel + 1) * 20))
                         Image(systemName: "plus.circle")
-                            .font(.system(size: 14))
+                            .font(.system(size: 16))
                             .foregroundStyle(Color.primaryText)
                             .frame(width: 22)
                         Text("Add List")
-                            .font(.system(size: 14))
+                            .font(.system(size: 17))
                             .foregroundStyle(Color.primaryText)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 15)
                 }
                 .buttonStyle(.plain)
             }
@@ -300,29 +300,29 @@ struct TaskListRowView: View {
             Spacer().frame(width: CGFloat(indentLevel * 20))
 
             Image(systemName: "list.bullet")
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(Color.secondaryText)
                 .frame(width: 22)
 
             if isRenaming {
                 TextField("List name", text: $renameText, onCommit: commitRename)
-                    .font(.system(size: 15))
+                    .font(.system(size: 17))
                     .foregroundStyle(Color.primaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .focused($isRenameFocused)
             } else {
                 Text(taskList.name)
-                    .font(.system(size: 15))
+                    .font(.system(size: 17))
                     .foregroundStyle(Color.primaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color.secondaryText.opacity(0.5))
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 11)
+        .padding(.vertical, 15)
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
         .onAppear {

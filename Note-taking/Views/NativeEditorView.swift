@@ -41,6 +41,7 @@ struct NativeEditorView: View {
                 DispatchQueue.main.async { onEditorReady?(tv) }
             }
         }
+        .padding(.horizontal, 16)
         .background(Color.clear)
     }
 }

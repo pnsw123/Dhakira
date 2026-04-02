@@ -109,11 +109,6 @@ struct TaskRowView: View {
             .padding(.horizontal, isRegular ? 36 : 20)
             .padding(.vertical, isRegular ? 14 : 10)
 
-            // Full-width separator — bypasses List's trailing inset gap
-            Rectangle()
-                .fill(Color.separatorColor)
-                .frame(maxWidth: .infinity)
-                .frame(height: 0.5)
         }
         .opacity(task.isCompleted ? 0.35 : 1.0)
         .sensoryFeedback(.success, trigger: task.isCompleted)

@@ -44,19 +44,19 @@ struct HomeView: View {
                             HStack(spacing: 10) {
                                 Spacer().frame(width: 0)
                                 Image(systemName: "checkmark.circle")
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(.system(size: 20, weight: .medium))
                                     .foregroundStyle(Color.primaryText)
                                     .frame(width: 22)
                                 Text("Recently Completed")
-                                    .font(.system(size: 16))
+                                    .font(.system(size: 17))
                                     .foregroundStyle(Color.primaryText)
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(Color.secondaryText)
                             }
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 16)
                         }
                         .buttonStyle(.plain)
 
@@ -66,19 +66,19 @@ struct HomeView: View {
                             HStack(spacing: 10) {
                                 Spacer().frame(width: 0)
                                 Image(systemName: "trash")
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(.system(size: 20, weight: .medium))
                                     .foregroundStyle(Color.primaryText)
                                     .frame(width: 22)
                                 Text("Recently Deleted")
-                                    .font(.system(size: 16))
+                                    .font(.system(size: 17))
                                     .foregroundStyle(Color.primaryText)
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(Color.secondaryText)
                             }
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 16)
                         }
                         .buttonStyle(.plain)
                     }
@@ -102,36 +102,42 @@ struct HomeView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top) {
-                HStack(spacing: 0) {
-                    // Invisible spacer — mirrors the < button on Tasks so "Folders" sits at the same x position
-                    Color.clear
-                        .frame(width: 36, height: 36)
-                        .padding(.leading, 8)
+                VStack(alignment: .leading, spacing: 0) {
+                    // Row 1: Nav buttons
+                    HStack(spacing: 0) {
+                        // Invisible spacer — mirrors the < button on Tasks
+                        Color.clear
+                            .frame(width: 36, height: 36)
+                            .padding(.leading, 8)
 
+                        Spacer()
+
+                        // > goes back to Tasks (the default page)
+                        Button(action: {
+                            log.info("HomeView: > button tapped → calling onClose()")
+                            onClose?()
+                        }) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                                .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 8)
+                        .accessibilityIdentifier("btn-go-to-tasks")
+                    }
+                    .padding(.top, 4)
+
+                    // Row 2: Title
                     Text("Folders")
                         .font(.system(size: 34, weight: .bold))
                         .foregroundStyle(Color.primaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, 16)
-
-                    // > goes back to Tasks (the default page)
-                    Button(action: {
-                        log.info("HomeView: > button tapped → calling onClose()")
-                        onClose?()
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color.themeAccent)
-                            .frame(width: 36, height: 36)
-                            .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, 8)
-                    .accessibilityIdentifier("btn-go-to-tasks")
+                        .padding(.horizontal, 20)
+                        .padding(.top, 4)
+                        .padding(.bottom, 8)
                 }
                 .contentShape(Rectangle())
-                .padding(.top, 4)
-                .padding(.bottom, 8)
                 .overlay(alignment: .bottom) {
                     Rectangle()
                         .fill(Color.separatorColor)
@@ -302,16 +308,16 @@ struct HomeView: View {
                     HStack(spacing: 10) {
                         Spacer().frame(width: 0)
                         Image(systemName: "folder.badge.plus")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 20, weight: .medium))
                             .foregroundStyle(Color.primaryText)
                             .frame(width: 22)
                         Text("Add Folder")
-                            .font(.system(size: 16))
+                            .font(.system(size: 17))
                             .foregroundStyle(Color.primaryText)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 16)
                 }
                 .buttonStyle(.plain)
             }

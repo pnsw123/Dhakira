@@ -120,19 +120,16 @@ struct TaskDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
 
-            TextField("Untitled", text: $task.title, axis: .vertical)
+            TextField("Untitled", text: $task.title)
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(Color.primaryText)
-                .lineLimit(1...4)
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
                 .accessibilityIdentifier("task-title-field")
                 .onSubmit {
-                    task.isCompleted = true
-                    task.completedAt = Date()
-                    saveBody()
-                    dismiss()
+                    // Dismiss keyboard — Enter commits the title, does not add a line
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 }
 
             Rectangle()
