@@ -346,6 +346,7 @@ struct TaskListView: View {
         modelContext.insert(newTask)
         do {
             try modelContext.save()
+            modelContext.processPendingChanges()
             log.info("commitNewTask: created '\(trimmed)' (sortOrder=\(maxOrder))")
         } catch {
             log.error("commitNewTask: modelContext.save() failed — \(error.localizedDescription)")
@@ -397,6 +398,7 @@ struct TaskListView: View {
         // process is killed before the run loop drains or the app goes to background.
         do {
             try modelContext.save()
+            modelContext.processPendingChanges()
         } catch {
             log.error("toggleComplete: modelContext.save() failed — \(error.localizedDescription)")
         }
@@ -437,6 +439,7 @@ struct TaskListView: View {
         }
         do {
             try modelContext.save()
+            modelContext.processPendingChanges()
         } catch {
             log.error("softDeleteTask: modelContext.save() failed — \(error.localizedDescription)")
         }
@@ -450,6 +453,7 @@ struct TaskListView: View {
         }
         do {
             try modelContext.save()
+            modelContext.processPendingChanges()
             log.info("moveTask: reindexed \(reordered.count) tasks after move")
         } catch {
             log.error("moveTask: modelContext.save() failed — \(error.localizedDescription)")

@@ -1,7 +1,5 @@
 import SwiftUI
-#if canImport(UIKit)
 import UIKit
-#endif
 
 // MARK: - NamedColor (Issue #51)
 // Single source of truth for all named text/highlight colors.
@@ -38,17 +36,17 @@ struct NamedColor {
     /// Black + White moved to extra — invisible on dark/light themes respectively.
     static var paletteMain: [NamedColor] {
         [
-            NamedColor(id: "paletteYellow", label: "Yellow", uiColor: UIColor(hex: "#FFCC02"), role: .paletteOnly),
+            NamedColor(id: "paletteBlack",  label: "Black",  uiColor: UIColor(hex: "#1C1C1E"), role: .paletteOnly),
             NamedColor(id: "paletteTeal",   label: "Teal",   uiColor: UIColor(hex: "#5AC8FA"), role: .paletteOnly),
             NamedColor(id: "colorPink",     label: "Pink",   uiColor: UIColor(hex: "#FF375F"), role: .shared),
-            NamedColor(id: "colorOrange",   label: "Orange", uiColor: UIColor(hex: "#FF6A00"), role: .shared),
+            NamedColor(id: "paletteYellow", label: "Yellow", uiColor: UIColor(hex: "#FFCC02"), role: .paletteOnly),
         ]
     }
 
     /// Extra colors behind the rainbow button
     static var paletteExtra: [NamedColor] {
         [
-            NamedColor(id: "paletteBlack",  label: "Black",  uiColor: UIColor(hex: "#1C1C1E"), role: .paletteOnly),
+            NamedColor(id: "colorOrange",   label: "Orange", uiColor: UIColor(hex: "#FF6A00"), role: .shared),
             NamedColor(id: "paletteWhite",  label: "White",  uiColor: UIColor(hex: "#FFFFFF"), role: .paletteOnly),
             NamedColor(id: "colorBlue",     label: "Blue",   uiColor: UIColor(hex: "#0A84FF"), role: .shared),
             NamedColor(id: "colorPurple",   label: "Purple", uiColor: UIColor(hex: "#BF5AF2"), role: .shared),

@@ -28,9 +28,20 @@ struct ThemeDetailView: View {
         UIDevice.current.userInterfaceIdiom == .pad
     }
 
-    // iPad mockup uses a wider, squarer frame to match the actual iPad screen proportions.
-    private var mockupSize: CGSize {
-        isIPad ? CGSize(width: 360, height: 480) : CGSize(width: 288, height: 624)
+    // iPhone mockup aspect ratio: 288 × 624 → ~0.46 wide per height unit
+    // iPad mockup aspect ratio:   360 × 480 → 0.75 wide per height unit
+    private let phoneAspect: CGFloat = 288 / 624
+    private let iPadAspect:  CGFloat = 360 / 480
+
+    /// Dynamically size the mockup based on available screen height so iPad fills the space.
+    private func mockupSize(availableHeight: CGFloat) -> CGSize {
+        if isIPad {
+            // Target ~65% of the available vertical space, capped for very large screens.
+            let h = min(availableHeight * 0.65, 720)
+            return CGSize(width: h * iPadAspect, height: h)
+        } else {
+            return CGSize(width: 288, height: 624)
+        }
     }
 
     var body: some View {
@@ -39,79 +50,81 @@ struct ThemeDetailView: View {
             themeBackground
                 .ignoresSafeArea()
 
-            VStack(spacing: 16) {
+            GeometryReader { geo in
+                VStack(spacing: 16) {
 
-                // Top bar: Cancel + Apply/Remove — sits below status bar in safe area
-                HStack {
-                    Button("Cancel") { dismiss() }
-                        .modifier(GlassButtonStyle(prominent: false))
+                    // Top bar: Cancel + Apply/Remove — sits below status bar in safe area
+                    HStack {
+                        Button("Cancel") { dismiss() }
+                            .modifier(GlassButtonStyle(prominent: false))
+
+                        Spacer()
+
+                        if themeManager.current.id == theme.id && !themeManager.isAutoTheme {
+                            Button("Remove Theme") {
+                                withAnimation(.easeInOut(duration: 0.35)) {
+                                    themeManager.resetToDefault()
+                                }
+                                dismiss()
+                            }
+                            .modifier(GlassButtonStyle(prominent: false))
+                        } else {
+                            Button("Apply") {
+                                withAnimation(.easeInOut(duration: 0.35)) {
+                                    themeManager.apply(theme)
+                                }
+                                dismiss()
+                            }
+                            .modifier(GlassButtonStyle(prominent: true))
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+
+                    // Device-aware mockup sized to fill available space on iPad.
+                    let size = mockupSize(availableHeight: geo.size.height)
+                    VStack(spacing: 10) {
+                        Group {
+                            if isIPad {
+                                iPadMockupView(theme: theme, scope: selectedScope, currentPage: $mockPage)
+                            } else {
+                                PhoneMockupView(theme: theme, scope: selectedScope, currentPage: $mockPage)
+                            }
+                        }
+                        .frame(width: size.width, height: size.height)
+                        .overlay(alignment: .leading) {
+                            if selectedScope == .app {
+                                mockNavArrow(forward: false)
+                                    .offset(x: isIPad ? -(size.width * 0.18) : -64)
+                            }
+                        }
+                        .overlay(alignment: .trailing) {
+                            if selectedScope == .app {
+                                mockNavArrow(forward: true)
+                                    .offset(x: isIPad ? (size.width * 0.18) : 64)
+                            }
+                        }
+
+                        // Page indicator dots — only for App scope
+                        if selectedScope == .app {
+                            HStack(spacing: 6) {
+                                ForEach(0..<3, id: \.self) { i in
+                                    Circle()
+                                        .fill(i == mockPage
+                                              ? theme.accentColor
+                                              : Color.white.opacity(0.5))
+                                        .frame(width: 6, height: 6)
+                                        .animation(.easeInOut(duration: 0.2), value: mockPage)
+                                }
+                            }
+                        }
+                    }
+
+                    // Scope selector: App / Widgets
+                    ScopeSelectorView(selected: $selectedScope)
 
                     Spacer()
-
-                    if themeManager.current.id == theme.id && !themeManager.isAutoTheme {
-                        // Already active — offer to remove and return to system default
-                        Button("Remove Theme") {
-                            withAnimation(.easeInOut(duration: 0.35)) {
-                                themeManager.resetToDefault()
-                            }
-                            dismiss()
-                        }
-                        .modifier(GlassButtonStyle(prominent: false))
-                    } else {
-                        Button("Apply") {
-                            withAnimation(.easeInOut(duration: 0.35)) {
-                                themeManager.apply(theme)
-                            }
-                            dismiss()
-                        }
-                        .modifier(GlassButtonStyle(prominent: true))
-                    }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-
-                // Device-aware mockup: iPad gets a wider tablet frame, iPhone keeps the phone frame.
-                VStack(spacing: 10) {
-                    Group {
-                        if isIPad {
-                            iPadMockupView(theme: theme, scope: selectedScope, currentPage: $mockPage)
-                        } else {
-                            PhoneMockupView(theme: theme, scope: selectedScope, currentPage: $mockPage)
-                        }
-                    }
-                    .frame(width: mockupSize.width, height: mockupSize.height)
-                    .overlay(alignment: .leading) {
-                        if selectedScope == .app {
-                            mockNavArrow(forward: false)
-                                .offset(x: isIPad ? -54 : -64)
-                        }
-                    }
-                    .overlay(alignment: .trailing) {
-                        if selectedScope == .app {
-                            mockNavArrow(forward: true)
-                                .offset(x: isIPad ? 54 : 64)
-                        }
-                    }
-
-                    // Page indicator dots — only for App scope
-                    if selectedScope == .app {
-                        HStack(spacing: 6) {
-                            ForEach(0..<3, id: \.self) { i in
-                                Circle()
-                                    .fill(i == mockPage
-                                          ? theme.accentColor
-                                          : Color.white.opacity(0.5))
-                                    .frame(width: 6, height: 6)
-                                    .animation(.easeInOut(duration: 0.2), value: mockPage)
-                            }
-                        }
-                    }
-                }
-
-                // Scope selector: App / Widgets
-                ScopeSelectorView(selected: $selectedScope)
-
-                Spacer()
             }
         }
         .navigationBarHidden(true)

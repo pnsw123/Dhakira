@@ -72,11 +72,20 @@ struct Note_takingApp: App {
             if newPhase == .active {
                 // Re-read iOS Settings toggles every time the app comes to foreground.
                 CalendarSelectionService.shared.refreshFromUserDefaults()
+            } else if newPhase == .inactive {
+                // iOS can kill apps from inactive without going through background —
+                // flush changes here too so nothing is lost.
+                do {
+                    try container.mainContext.save()
+                } catch {
+                    log.error("scenePhase → inactive: save failed — \(error.localizedDescription)")
+                }
             } else if newPhase == .background {
                 // Force-flush pending changes (e.g. soft-deletes) before iOS may kill the process.
                 // Prevents deleted tasks from reappearing if the app was killed before autosave ran.
                 do {
                     try container.mainContext.save()
+                    container.mainContext.processPendingChanges()
                     log.info("scenePhase → background: mainContext.save() succeeded")
                 } catch {
                     log.error("scenePhase → background: mainContext.save() FAILED — \(error.localizedDescription)")

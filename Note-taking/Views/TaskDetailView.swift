@@ -127,6 +127,12 @@ struct TaskDetailView: View {
                 .padding(.top, 4)
                 .padding(.bottom, 8)
                 .accessibilityIdentifier("task-title-field")
+                .onSubmit {
+                    task.isCompleted = true
+                    task.completedAt = Date()
+                    saveBody()
+                    dismiss()
+                }
 
             Rectangle()
                 .fill(Color.primaryText.opacity(0.15))
@@ -202,7 +208,23 @@ struct TaskDetailView: View {
                         }
                         .buttonStyle(.plain)
 
-                        Button { showToolbar.toggle() } label: {
+                        Button {
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        } label: {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                                .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            showToolbar.toggle()
+                            if !showToolbar {
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                            }
+                        } label: {
                             Image(systemName: showToolbar ? "keyboard.chevron.compact.down" : "keyboard")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Color.themeAccent)
@@ -305,6 +327,22 @@ struct TaskDetailView: View {
                         tv.selectedRange = NSRange(location: endLoc, length: 0)
                         tv.typingAttributes[.foregroundColor] = UIColor.label
                         prevTextLength = attributedText.length
+                    }
+                    // Strip highlight (backgroundColor) typing attribute after pressing Enter.
+                    // UITextView inherits all attributes — including highlight colour — onto the
+                    // next line, so without this fix every new paragraph appears highlighted.
+                    NotificationCenter.default.addObserver(
+                        forName: UITextView.textDidChangeNotification,
+                        object: tv,
+                        queue: .main
+                    ) { _ in
+                        let sel = tv.selectedRange
+                        guard sel.length == 0, sel.location > 0 else { return }
+                        let nsStr = tv.text as NSString
+                        let prevChar = nsStr.substring(with: NSRange(location: sel.location - 1, length: 1))
+                        if prevChar == "\n" {
+                            tv.typingAttributes.removeValue(forKey: .backgroundColor)
+                        }
                     }
                     let tap = UITapGestureRecognizer(
                         target: checkboxCoordinator,
