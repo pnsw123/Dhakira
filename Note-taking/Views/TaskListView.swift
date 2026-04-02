@@ -241,7 +241,7 @@ struct TaskListView: View {
             }
             .navigationDestination(item: $selectedTask) { task in
                 TaskDetailView(task: task)
-                    .withEditorBackground()
+                    .withAppBackground()
             }
             .navigationDestination(isPresented: $showTheme) {
                 ThemeView()
