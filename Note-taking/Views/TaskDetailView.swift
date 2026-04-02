@@ -138,7 +138,7 @@ struct TaskDetailView: View {
 
             editorArea
 
-            if showToolbar && !isDrawingMode {
+            if showToolbar && !isDrawingMode && !slashCoordinator.isMenuVisible {
                 editorToolbar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -511,11 +511,8 @@ struct TaskDetailView: View {
                 let localX: CGFloat = slashCursorGlobalRect == .zero
                     ? 16
                     : max(0, min(slashCursorGlobalRect.minX - gf.minX, geo.size.width - 264))
-                let menuMaxH: CGFloat = 320
-                let belowY = caretMaxY - gf.minY + 6
-                let wouldClip = belowY + menuMaxH > geo.size.height
-                let localY: CGFloat = wouldClip ? caretMinY - gf.minY - menuMaxH - 6 : belowY
-                if localY > -menuMaxH && localY < geo.size.height {
+                let localY: CGFloat = caretMaxY - gf.minY + 6
+                if localY < geo.size.height {
                     SlashCommandMenuView(
                         commands: slashCoordinator.filteredCommands,
                         selectedIndex: slashCoordinator.selectedIndex,
