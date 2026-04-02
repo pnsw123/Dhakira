@@ -1,6 +1,6 @@
 # Pre-Launch Requirements — V1 (iPhone + iPad)
-> Last updated: March 30, 2026
-> Status: **95% Complete** — 2–3 days to launch
+> Last updated: April 2, 2026
+> Status: **97% Complete** — final testing + branding remaining
 > Testing first. Themes second. Branding and publishing last.
 
 ---
@@ -13,8 +13,8 @@
 | Calendar Integration | ✅ Done | Events save at correct time, 5pm → 5pm in Apple Calendar |
 | Widget System | ✅ Done | Fully compatible, theme syncs almost instantly |
 | Theme System | ✅ Done | Applies across app and widgets live |
-| Export | ✅ Done | PDF, RTF, plain text |
-| Attachments | ✅ Done | Photos, files, voice, scan |
+| Export | ✅ Done | PDF (images render, dark theme fixed), plain text share |
+| Attachments | ✅ Done | Photos, files (with icon + cursor placement + tap-to-open), scan |
 | Reminders Import | ✅ Done | |
 | More Themes (paid) | 🔲 Remaining | Need to add more theme designs |
 | Paywall | 🔲 Remaining | StoreKit integration |
@@ -59,17 +59,18 @@ Test everything below. If anything breaks, fix it before moving on.
 
 ### Export
 - [x] PDF export: tap export → share sheet appears with .pdf file
-- [x] PDF file opens correctly and contains title + body content
-- [x] Word/RTF export: share sheet appears with .rtf file
-- [x] RTF file opens in Pages or Word correctly
+- [x] PDF renders text AND inline images correctly
+- [x] PDF uses black text regardless of active theme (dark theme fix)
 - [x] Plain text share works
+- [x] Word/RTF export removed (iOS cannot produce .docx natively)
 
 ### Attachments
-- [x] Attach a photo from photo library
-- [x] Attach a file (PDF, doc, etc.)
-- [x] Record and attach a voice message
+- [x] Attach a photo from photo library — inserts at cursor
+- [x] Attach a file — inserts at cursor with SF Symbol icon + tappable filename
+- [x] Tap attached file — opens native Apple preview (UIDocumentInteractionController)
 - [x] Scan a document with camera (text scan)
 - [x] Attached items appear inline in the note
+- [x] Voice recording removed
 
 ### Reminders Import
 - [x] Grant Reminders permission
@@ -426,18 +427,23 @@ Duplicate the frame for each device size and adjust layout:
 
 
 
-## progres:
-app seems to be ready:
-currently phasing the following issues:
-1-2 are fixed !.
+## Progress Notes (April 2, 2026)
+- Editor lag fixed — UITextView handles its own scrolling now
+- File attach fixed — cursor placement + icon + tap-to-open
+- PDF export fixed — images render, dark theme text visible
+- Export as Word removed — iOS limitation, no native .docx
+- Share menu — iOS 26 native dropdown with glass effect
+- Image resize — tap image → +/- pill to grow/shrink
+- Keyboard dismiss icon updated to keyboard.chevron.compact.down
+- Theme mock data updated — icons now show circles matching real UI
 
-
-3- i don't know yet if widget theme matches actual phone widgets yet. 
-4- icloud is working, but not tested yet
-5- need to set up a simple price for each theme, no seperate price page is needed. ( keep it simple)
-6- screenshots + logo + name for branding  ( will have to use samples + will use Figma and sample designe for that. )
-7- full end to end test ( on a local device ) before shipping
-8- finally shipping on apple store + making a landing page for it later -> marketing.
+Remaining before launch:
+3- Widget theme vs real device widgets — not tested yet
+4- iCloud — works but not fully tested on two devices
+5- Simple per-theme pricing — no separate page needed
+6- Screenshots + logo + branding (Figma)
+7- Full end-to-end test on real device
+8- App Store submission + landing page (dhakira.app)
 
 ## Current Sprint
 | # | Task | Status |

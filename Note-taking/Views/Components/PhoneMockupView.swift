@@ -267,12 +267,16 @@ private struct MockDetailPage: View {
                     Spacer()
 
                     HStack(spacing: 10) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13))
-                            .foregroundStyle(theme.accentColor)
-                        Image(systemName: "keyboard")
-                            .font(.system(size: 13))
-                            .foregroundStyle(theme.accentColor)
+                        ForEach(["square.and.arrow.up", "rectangle.and.pencil.and.ellipsis"], id: \.self) { icon in
+                            ZStack {
+                                Circle()
+                                    .fill(theme.surfaceBackground)
+                                    .frame(width: 28, height: 28)
+                                Image(systemName: icon)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(theme.accentColor)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 12)
@@ -760,13 +764,17 @@ private struct iPadMockDetailPage: View {
 
                     Spacer()
 
-                    HStack(spacing: 14) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 14))
-                            .foregroundStyle(theme.accentColor)
-                        Image(systemName: "keyboard")
-                            .font(.system(size: 14))
-                            .foregroundStyle(theme.accentColor)
+                    HStack(spacing: 10) {
+                        ForEach(["square.and.arrow.up", "rectangle.and.pencil.and.ellipsis"], id: \.self) { icon in
+                            ZStack {
+                                Circle()
+                                    .fill(theme.surfaceBackground)
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: icon)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(theme.accentColor)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 20)

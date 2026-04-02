@@ -187,9 +187,12 @@ struct TaskDetailView: View {
                     .padding(.trailing, 8)
                 } else {
                     HStack(spacing: 8) {
-                        Button {
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                showExportOptions.toggle()
+                        Menu {
+                            Button { shareTask() } label: {
+                                Label("Share", systemImage: "square.and.arrow.up")
+                            }
+                            Button { exportAsPDF() } label: {
+                                Label("Export as PDF", systemImage: "doc.richtext")
                             }
                         } label: {
                             Image(systemName: "square.and.arrow.up")
@@ -227,6 +230,7 @@ struct TaskDetailView: View {
                                 .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
                         .buttonStyle(.plain)
+                        .padding(.trailing, 4)
                     }
                     .padding(.trailing, 8)
                 }
