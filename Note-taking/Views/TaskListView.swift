@@ -117,10 +117,9 @@ struct TaskListView: View {
                             .frame(width: 28, height: 28)
                             .padding(.top, 1)
 
-                        TextField("New Task", text: $newTaskTitle, axis: .vertical)
+                        TextField("New Task", text: $newTaskTitle)
                             .font(.system(size: 17, weight: .regular))
                             .foregroundStyle(Color.primaryText)
-                            .lineLimit(1...3)
                             .focused($newTaskFieldFocused)
                             .onSubmit { commitNewTask() }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -220,11 +219,7 @@ struct TaskListView: View {
                     }
                 }
                 .contentShape(Rectangle())
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(Color.separatorColor)
-                        .frame(height: 0.5)
-                }
+                .background(.ultraThinMaterial)
             }
             .safeAreaInset(edge: .bottom, alignment: .trailing) {
                 Button(action: addTask) {

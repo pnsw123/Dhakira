@@ -91,11 +91,7 @@ struct RecentlyCompletedView: View {
             .padding(.trailing, 16)
             .padding(.top, 4)
             .padding(.bottom, 8)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(Color.separatorColor)
-                    .frame(height: 0.5)
-            }
+            .background(.ultraThinMaterial)
         }
         .background(Color.clear)
         .navigationBarBackButtonHidden(true)

@@ -138,11 +138,7 @@ struct HomeView: View {
                         .padding(.bottom, 8)
                 }
                 .contentShape(Rectangle())
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(Color.separatorColor)
-                        .frame(height: 0.5)
-                }
+                .background(.ultraThinMaterial)
             }
             } // ScrollViewReader
     }
