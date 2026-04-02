@@ -179,9 +179,11 @@ struct FolderRowView: View {
             } message: {
                 Text("All task lists and tasks inside this folder will be permanently removed.")
             }
-            #if os(iOS)
-            .swipeToDelete { showDeleteConfirm = true }
-            #endif
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button(role: .destructive) { showDeleteConfirm = true } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
 
             // Expanded content: subfolders + task lists
             if isExpanded {
@@ -346,9 +348,11 @@ struct TaskListRowView: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-        #if os(iOS)
-        .swipeToDelete(perform: deleteTaskList)
-        #endif
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive, action: deleteTaskList) {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     private func startRename() {
@@ -384,78 +388,3 @@ struct TaskListRowView: View {
     }
 }
 
-// MARK: - Swipe to Delete
-
-private struct SwipeToDeleteModifier: ViewModifier {
-    let onDelete: () -> Void
-
-    /// Live drag delta — auto-resets to 0 when gesture ends.
-    @GestureState private var dragDelta: CGFloat = 0
-    /// Settled offset after each gesture completes.
-    @State private var settled: CGFloat = 0
-
-    private let snapWidth: CGFloat = 80
-
-    private var currentOffset: CGFloat {
-        max(min(0, settled + dragDelta), -snapWidth * 2.5)
-    }
-
-    func body(content: Content) -> some View {
-        ZStack(alignment: .trailing) {
-            // Red delete button — fixed on the right, revealed as content slides left
-            Color(uiColor: .systemRed)
-                .frame(width: snapWidth)
-                .overlay(
-                    Image(systemName: "trash")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                )
-                .opacity(currentOffset < -10 ? 1 : 0)
-                .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.2)) { settled = -500 }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { onDelete() }
-                }
-
-            // Row content — slides left on swipe
-            content
-                .offset(x: currentOffset)
-                .gesture(
-                    DragGesture(minimumDistance: 15, coordinateSpace: .local)
-                        .updating($dragDelta) { value, state, _ in
-                            state = value.translation.width
-                        }
-                        .onEnded { value in
-                            let tentative = settled + value.translation.width
-                            let predicted = settled + value.predictedEndTranslation.width
-                            let isFullSwipe = predicted < -300 || tentative < -snapWidth * 1.3
-
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                settled = isFullSwipe ? -500 :
-                                          tentative < -snapWidth * 0.4 ? -snapWidth : 0
-                            }
-                            if isFullSwipe {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { onDelete() }
-                            }
-                        }
-                )
-
-            // Transparent overlay on top of content when button is showing —
-            // absorbs taps to reset the swipe without triggering the row action.
-            if settled < -snapWidth * 0.3 {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .offset(x: currentOffset)
-                    .onTapGesture {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { settled = 0 }
-                    }
-            }
-        }
-        .clipped()
-    }
-}
-
-private extension View {
-    func swipeToDelete(perform action: @escaping () -> Void) -> some View {
-        modifier(SwipeToDeleteModifier(onDelete: action))
-    }
-}
