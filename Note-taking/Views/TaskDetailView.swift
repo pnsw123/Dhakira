@@ -48,6 +48,8 @@ struct TaskDetailView: View {
     @StateObject private var audioTapCoordinator = AudioTapCoordinator()
     /// Non-nil when the user tapped an audio chip — drives the playback sheet.
     @State private var playingAudioLink: AudioLink? = nil
+    // Image resize coordinator — shows corner handles when user taps an inline image.
+    @StateObject private var imageResizeCoordinator = ImageResizeCoordinator()
     // Key interceptor — takes first responder on iPad/Mac when slash menu is visible
     // so arrow keys navigate menu rows instead of moving the text cursor.
     @State private var keyInterceptor = SlashMenuKeyInterceptor()
@@ -82,7 +84,8 @@ struct TaskDetailView: View {
         .init(id: "checklist",        icon: "checklist"),                 // 3 — to-do list
         .init(id: "bold",             icon: "bold"),                      // 4 — bold
         .init(id: "pencil",           icon: "pencil.tip.crop.circle"),   // 5 — drawing
-        .init(id: "italic",           icon: "italic"),
+        .init(id: "italic",           icon: "italic"),                   // 6
+        .init(id: "paperclip",        icon: "paperclip"),                // 7 — attach file
         .init(id: "underline",        icon: "underline"),
         .init(id: "list.bullet",      icon: "list.bullet"),
         .init(id: "strikethrough",    icon: "strikethrough"),
@@ -90,7 +93,6 @@ struct TaskDetailView: View {
         .init(id: "text.aligncenter", icon: "text.aligncenter"),
         .init(id: "text.alignright",  icon: "text.alignright"),
         .init(id: "photo",            icon: "photo"),
-        .init(id: "paperclip",        icon: "paperclip"),
     ]
     @State private var toolbarItems: [EditorTool] = TaskDetailView.defaultToolbarItems
     @AppStorage("editorToolbarOrder") private var savedToolbarOrder: String = ""
@@ -282,6 +284,12 @@ struct TaskDetailView: View {
                 attributedText = toggled
             }
         }
+        // Sync attributedText after the user resizes an image so the new size is persisted on save
+        .onChange(of: imageResizeCoordinator.didResize) { _, _ in
+            if let tv = richTextView {
+                attributedText = tv.attributedText ?? attributedText
+            }
+        }
         // Present audio playback sheet when an audio chip is tapped
         .onChange(of: audioTapCoordinator.pendingAudioLink) { _, link in
             if let link {
@@ -363,6 +371,7 @@ struct TaskDetailView: View {
                     )
                     audioTap.delegate = audioTapCoordinator
                     tv.addGestureRecognizer(audioTap)
+                    imageResizeCoordinator.attach(to: tv)
                     let longPress = UILongPressGestureRecognizer(
                         target: colorLongPressCoordinator,
                         action: #selector(ColorLongPressCoordinator.handleLongPress(_:))
@@ -386,14 +395,16 @@ struct TaskDetailView: View {
             .onReceive(NotificationCenter.default.publisher(for: .attachmentAppended)) { note in
                 guard let newText = note.object as? NSAttributedString,
                       let tv = richTextView else { return }
+                log.debug("attachmentAppended: received \(newText.length) chars")
                 tv.attributedText = newText
                 attributedText = newText
                 prevTextLength = newText.length
-                // Setting attributedText programmatically resets UITextView's typingAttributes
-                // to UIKit's default (black). Restore adaptive colour so text typed after an
-                // image/file attachment stays visible on dark/themed backgrounds.
-                let endLoc = newText.length
-                tv.selectedRange = NSRange(location: endLoc, length: 0)
+                // Place cursor right after the inserted attachment (not at end)
+                let cursorPos = (note.userInfo?["cursorPosition"] as? Int) ?? newText.length
+                let safeCursor = min(cursorPos, newText.length)
+                tv.selectedRange = NSRange(location: safeCursor, length: 0)
+                log.debug("attachmentAppended: cursor placed at \(safeCursor)")
+                // Restore typing attributes — programmatic attributedText reset clears them
                 tv.typingAttributes[.foregroundColor] = UIColor.label
                 tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
                 DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
@@ -565,6 +576,8 @@ struct TaskDetailView: View {
         // Special-case non-dispatcher actions first
         switch id {
         case "photo":
+            attachmentService.savedCursorPosition = richTextView?.selectedRange.location
+            log.debug("handleToolbarTap: photo — saved cursor at \(attachmentService.savedCursorPosition.map(String.init) ?? "nil")")
             attachmentService.choosePhotoOrVideo()
             return
         case "pencil":
@@ -1454,6 +1467,10 @@ struct TaskDetailView: View {
     }
 
     private func triggerAttachment(_ id: String) {
+        // Capture cursor position BEFORE opening the sheet — the sheet
+        // dismisses the keyboard which moves the cursor to 0.
+        attachmentService.savedCursorPosition = richTextView?.selectedRange.location
+        log.debug("triggerAttachment: saved cursor at \(attachmentService.savedCursorPosition.map(String.init) ?? "nil")")
         switch id {
         case "scanText":      attachmentService.scanText()
         case "scanDocuments": attachmentService.scanDocuments()
@@ -1499,6 +1516,33 @@ struct TaskDetailView: View {
 
     private func onSelectionChanged(_ range: NSRange) {
         let hasSelection = range.length > 0
+
+        // Check if the selection contains an attachment (image, audio, etc.)
+        // If so: hide palette + dismiss keyboard — no text formatting applies to attachments.
+        var selectionIsAttachment = false
+        if hasSelection, let tv = richTextView {
+            let nsText = tv.attributedText ?? NSAttributedString()
+            let safeLen = min(range.location + range.length, nsText.length) - range.location
+            let safeRange = NSRange(location: min(range.location, nsText.length), length: max(0, safeLen))
+            if safeRange.length > 0 {
+                nsText.enumerateAttribute(.attachment, in: safeRange, options: []) { val, _, stop in
+                    if val != nil {
+                        selectionIsAttachment = true
+                        stop.pointee = true
+                    }
+                }
+            }
+        }
+
+        if selectionIsAttachment {
+            log.debug("onSelectionChanged: selection contains attachment — hiding palette, dismissing keyboard")
+            withAnimation(.easeInOut(duration: 0.2)) { showColorPalette = false }
+            selectionGlobalRect = .zero
+            // Dismiss keyboard — no reason to type when an image/audio is selected
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            return
+        }
+
         if hasSelection, let tv = richTextView {
             let nsLen = (tv.text as NSString).length
             let loc = min(range.location, max(0, nsLen))
@@ -1507,8 +1551,6 @@ struct TaskDetailView: View {
                let start = tv.position(from: tv.beginningOfDocument, offset: loc),
                let end   = tv.position(from: start, offset: len),
                let tRange = tv.textRange(from: start, to: end) {
-                // Use all selection rects so the bounding box covers the full
-                // multi-line selection, not just the first line.
                 let selRects = tv.selectionRects(for: tRange)
                     .map { tv.convert($0.rect, to: nil) }
                     .filter { $0.height > 0 }
@@ -1533,7 +1575,6 @@ struct TaskDetailView: View {
         withAnimation(.easeInOut(duration: 0.2)) { showColorPalette = hasSelection }
 
         // UIKit resets typingAttributes to match text at new cursor position on every move.
-        // Re-apply the sticky font color so the user's chosen color survives cursor movement.
         if let color = activeFontColor, let tv = richTextView {
             tv.typingAttributes[.foregroundColor] = color
         }

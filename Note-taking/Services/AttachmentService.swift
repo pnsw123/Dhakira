@@ -70,6 +70,10 @@ final class AttachmentService: NSObject {
     /// Non-nil when an error should be shown to the user as an alert.
     var alertItem: AttachmentError? = nil
 
+    /// Cursor position captured when the user taps a toolbar button.
+    /// Used to insert attachments at the cursor instead of at the end.
+    var savedCursorPosition: Int? = nil
+
     // MARK: - Actions
 
     func scanText()           { log.info("AttachmentService: scanText");       activeSheet = .dataScanner }
@@ -81,8 +85,9 @@ final class AttachmentService: NSObject {
 
     // MARK: - Image Append (with typed errors)
 
-    func appendImage(_ data: Data, to attributedText: inout NSAttributedString, taskId: UUID) {
-        log.info("AttachmentService.appendImage: \(data.count) bytes")
+    /// Insert image at the given cursor position (or end if nil).
+    func appendImage(_ data: Data, to attributedText: inout NSAttributedString, taskId: UUID, at cursorPosition: Int? = nil) {
+        log.info("AttachmentService.appendImage: \(data.count) bytes, cursor=\(cursorPosition.map(String.init) ?? "end")")
         guard let image = UIImage(data: data) else {
             log.error("AttachmentService.appendImage: UIImage decode failed (\(data.count) bytes)")
             alertItem = .imageDecodeFailed(data.count)
@@ -97,19 +102,19 @@ final class AttachmentService: NSObject {
             log.debug("AttachmentService.appendImage: scaled \(image.size.width)pt → \(maxWidth)pt")
         }
         // Persist image to disk and tag with UUID via custom attribute
-        // (NOT fileType — that's a UTI; setting it to a UUID breaks image rendering)
         let attachmentId = AttachmentStore.shared.save(imageData: data, taskId: taskId)
+        let attachStr = NSMutableAttributedString(string: "\n")
+        let imgStr = NSMutableAttributedString(attachment: attachment)
+        imgStr.addAttribute(.imageAttachmentId, value: attachmentId.uuidString, range: NSRange(location: 0, length: imgStr.length))
+        attachStr.append(imgStr)
+
         let mutable = NSMutableAttributedString(attributedString: attributedText)
-        mutable.append(NSAttributedString(string: "\n"))
-        let attachStr = NSMutableAttributedString(attachment: attachment)
-        attachStr.addAttribute(.imageAttachmentId, value: attachmentId.uuidString, range: NSRange(location: 0, length: attachStr.length))
-        mutable.append(attachStr)
+        let insertAt = min(cursorPosition ?? mutable.length, mutable.length)
+        mutable.insert(attachStr, at: insertAt)
         attributedText = mutable
-        log.info("AttachmentService.appendImage: appended \(Int(image.size.width))×\(Int(image.size.height))")
-        // Notify the editor to push the new text into UITextView directly.
-        // RichTextKit's updateUIView is intentionally empty, so the SwiftUI
-        // binding update above never reaches the live UITextView on its own.
-        NotificationCenter.default.post(name: .attachmentAppended, object: mutable)
+        log.info("AttachmentService.appendImage: inserted \(Int(image.size.width))×\(Int(image.size.height)) at position \(insertAt)")
+        NotificationCenter.default.post(name: .attachmentAppended, object: mutable,
+                                        userInfo: ["cursorPosition": insertAt + attachStr.length])
     }
 
     func appendFile(url: URL, to attributedText: inout NSAttributedString) {
@@ -124,61 +129,85 @@ final class AttachmentService: NSObject {
         log.info("AttachmentService.appendFile: '\(url.lastPathComponent)'")
     }
 
-    /// Persist `url` (temp M4A from AVAudioRecorder) and insert a tappable audio chip into the note.
+    /// Persist `url` (temp M4A from AVAudioRecorder) and insert an Apple-Notes-style
+    /// audio card into the note body.
+    ///
+    /// Why we use a rendered UIImage card instead of NSTextAttachmentViewProvider:
+    ///   RichTextKit forces TextKit 1 (accesses NSLayoutManager on init), so
+    ///   NSTextAttachmentViewProvider (TextKit 2 only) silently does nothing.
+    ///   We render the card to a UIImage via AudioCardRenderer and embed it as a
+    ///   standard NSTextAttachment — TextKit 1 compatible and survives RTF round-trips
+    ///   via the strip/restore pattern in NoteBodyCodec.
+    ///
     /// - Parameters:
-    ///   - url: The temporary file URL returned by AVAudioRecorder.
-    ///   - duration: The recording length in seconds (pass `elapsedSeconds` from AudioRecorderView).
-    ///   - attributedText: The note's attributed string — the chip is appended on a new line.
-    func appendAudio(url: URL, duration: TimeInterval, to attributedText: inout NSAttributedString) {
+    ///   - url:      Temporary M4A file returned by AVAudioRecorder.
+    ///   - duration: Recording length in seconds (from AudioRecorderView.elapsedSeconds).
+    ///   - attributedText: Note body — card is appended on a new line.
+    /// Insert audio card at the given cursor position (or end if nil).
+    func appendAudio(url: URL, duration: TimeInterval, to attributedText: inout NSAttributedString, at cursorPosition: Int? = nil) {
+        log.info("AttachmentService.appendAudio: starting — duration=\(duration)s url=\(url.lastPathComponent)")
         let uuid = UUID()
 
-        // Copy from temp → permanent Application Support/audio/{uuid}.m4a
+        // ── Step 1: Persist M4A from temp → permanent storage ────────────────
         do {
             try AudioStorageService.persistRecording(from: url, uuid: uuid)
+            log.debug("AttachmentService.appendAudio: persisted \(uuid.uuidString).m4a")
         } catch {
-            log.error("AttachmentService.appendAudio: \(error.localizedDescription)")
+            log.error("AttachmentService.appendAudio: persist failed — \(error.localizedDescription)")
             alertItem = .audioSaveFailed(error.localizedDescription)
             return
         }
 
-        // Build the prodnote-audio:// URL that encodes all metadata.
-        let audioURL = AudioLinkBuilder.buildURL(
-            uuid: uuid,
-            name: "Recording",
-            duration: duration,
-            date: Date()
-        )
+        // ── Step 2: Build prodnote-audio:// metadata URL ──────────────────────
+        let recordingDate = Date()
+        let audioURL  = AudioLinkBuilder.buildURL(uuid: uuid, name: "Recording",
+                                                  duration: duration, date: recordingDate)
+        let urlStr    = audioURL.absoluteString
+        let link      = AudioLink(uuid: uuid, name: "Recording",
+                                  duration: duration, date: recordingDate)
+        log.debug("AttachmentService.appendAudio: metadata URL = \(urlStr)")
 
-        // Build the inline audio row. The .link attribute survives RTF serialization.
-        // Padding spaces make the row feel full-width; the mic icon + duration mirror Apple Notes.
-        let durationStr = formattedDuration(duration)
-        let rowText = "  🎙  Recording        \(durationStr)  "
-        let rowAttr = NSMutableAttributedString(
-            string: rowText,
-            attributes: [
-                .link:            audioURL as NSURL,
-                .font:            UIFont.monospacedSystemFont(ofSize: 15, weight: .medium),
-                .foregroundColor: UIColor.label,
-                .backgroundColor: UIColor.secondarySystemFill,
-            ]
-        )
+        // ── Step 3: Render Apple-Notes-style card as UIImage ──────────────────
+        // Width = screen width minus the editor's horizontal insets (16 pt each side
+        // in NativeEditorView + 8 pt list row inset ≈ 48 pt total).
+        let cardWidth = UIScreen.main.bounds.width - 48
+        let cardImage = AudioCardRenderer.render(link: link, width: cardWidth)
+        log.debug("AttachmentService.appendAudio: card image = \(Int(cardImage.size.width))×\(Int(cardImage.size.height))@\(cardImage.scale)x")
+
+        // ── Step 4: Build NSTextAttachment ────────────────────────────────────
+        let attachment        = NSTextAttachment()
+        attachment.image      = cardImage
+        // y: -4 nudges the card baseline to align with surrounding text lines
+        attachment.bounds     = CGRect(x: 0, y: -4,
+                                       width:  cardImage.size.width,
+                                       height: cardImage.size.height)
+
+        // ── Step 5: Tag with custom key + .link ───────────────────────────────
+        // .audioAttachmentLink → NoteBodyCodec strips/restores this on save/load
+        // .link                → AudioTapCoordinator detects taps and opens AudioPlayerView
+        let attachStr   = NSMutableAttributedString(attachment: attachment)
+        let attachRange = NSRange(location: 0, length: attachStr.length)
+        attachStr.addAttribute(.audioAttachmentLink, value: urlStr, range: attachRange)
+        attachStr.addAttribute(.link,                value: urlStr, range: attachRange)
+        log.debug("AttachmentService.appendAudio: tagged attachment with audioAttachmentLink + .link")
+
+        // ── Step 6: Insert card at cursor position ─────────────────────────────
+        let cardBlock = NSMutableAttributedString(string: "\n")
+        cardBlock.append(attachStr)
+        cardBlock.append(NSAttributedString(string: "\n"))
 
         let mutable = NSMutableAttributedString(attributedString: attributedText)
-        mutable.append(NSAttributedString(string: "\n"))
-        mutable.append(rowAttr)
-        mutable.append(NSAttributedString(string: "\n"))
+        let insertAt = min(cursorPosition ?? mutable.length, mutable.length)
+        mutable.insert(cardBlock, at: insertAt)
         attributedText = mutable
-        log.info("AttachmentService.appendAudio: saved \(uuid.uuidString).m4a, duration \(duration)s")
-        // Push the updated text into the live UITextView immediately.
-        // RichTextKit's updateUIView() is intentionally empty, so without this notification
-        // the chip never appears on screen even though the SwiftUI @State was updated.
-        NotificationCenter.default.post(name: .attachmentAppended, object: mutable)
+        log.info("AttachmentService.appendAudio: inserted card for uuid=\(uuid.uuidString) at position \(insertAt)")
+
+        // ── Step 7: Push updated text into live UITextView ───────────────────────
+        NotificationCenter.default.post(name: .attachmentAppended, object: mutable,
+                                        userInfo: ["cursorPosition": insertAt + cardBlock.length])
+        log.debug("AttachmentService.appendAudio: posted .attachmentAppended notification")
     }
 
-    private func formattedDuration(_ seconds: TimeInterval) -> String {
-        let total = Int(max(0, seconds))
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
 
     func appendScannedText(_ text: String, to attributedText: inout NSAttributedString) {
         let mutable = NSMutableAttributedString(attributedString: attributedText)
@@ -233,13 +262,13 @@ struct AttachmentServicePresenters: View {
         switch sheet {
         case .photoLibrary:
             PhotoPickerView { data in
-                service.appendImage(data, to: &attributedText, taskId: taskId)
+                service.appendImage(data, to: &attributedText, taskId: taskId, at: service.savedCursorPosition)
                 service.activeSheet = nil
             }
         case .camera:
             #if os(iOS)
             CameraPickerView { data in
-                service.appendImage(data, to: &attributedText, taskId: taskId)
+                service.appendImage(data, to: &attributedText, taskId: taskId, at: service.savedCursorPosition)
                 service.activeSheet = nil
             }
             #else
@@ -255,7 +284,7 @@ struct AttachmentServicePresenters: View {
             DocumentScannerView { images in
                 for img in images {
                     if let d = img.pngData() {
-                        service.appendImage(d, to: &attributedText, taskId: taskId)
+                        service.appendImage(d, to: &attributedText, taskId: taskId, at: service.savedCursorPosition)
                     }
                 }
                 service.activeSheet = nil
@@ -265,7 +294,7 @@ struct AttachmentServicePresenters: View {
             #endif
         case .audioRecorder:
             AudioRecorderView { url, duration in
-                service.appendAudio(url: url, duration: duration, to: &attributedText)
+                service.appendAudio(url: url, duration: duration, to: &attributedText, at: service.savedCursorPosition)
                 service.activeSheet = nil
             }
         case .dataScanner:
