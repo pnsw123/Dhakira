@@ -31,6 +31,7 @@ struct TaskDetailView: View {
     @State private var richTextView: UITextView?
 
     @State private var showToolbar = true
+    @State private var showExportOptions = false
     @State private var isKeyboardVisible = false
     @State private var isDrawingMode = false
     /// References to PencilKit objects — obtained via onCanvasReady, managed here.
@@ -45,6 +46,8 @@ struct TaskDetailView: View {
     @StateObject private var colorLongPressCoordinator = ColorLongPressCoordinator()
     // Image size coordinator — tap an image to show ➖/➕ pill for resizing.
     @StateObject private var imageSizeCoordinator = ImageSizeCoordinator()
+    // Link tap coordinator — opens file/URL attachments when tapped inside the editable text view.
+    @StateObject private var linkTapCoordinator = LinkTapCoordinator()
     // Key interceptor — takes first responder on iPad/Mac when slash menu is visible
     // so arrow keys navigate menu rows instead of moving the text cursor.
     @State private var keyInterceptor = SlashMenuKeyInterceptor()
@@ -110,41 +113,30 @@ struct TaskDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Date + title + divider + editor all scroll together so the title
-            // disappears as the user scrolls down, matching Apple Notes behaviour.
-            GeometryReader { geo in
-                ScrollView {
-                    VStack(spacing: 0) {
-                        Text(formattedDate)
-                            .font(.caption)
-                            .foregroundStyle(Color.secondaryText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 8)
+            Text(formattedDate)
+                .font(.caption)
+                .foregroundStyle(Color.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
 
-                        TextField("Untitled", text: $task.title)
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(Color.primaryText)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 4)
-                            .padding(.bottom, 8)
-                            .accessibilityIdentifier("task-title-field")
-                            .onSubmit {
-                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                            }
-
-                        Rectangle()
-                            .fill(Color.primaryText.opacity(0.15))
-                            .frame(height: 1)
-                            .padding(.horizontal, 20)
-
-                        // Give the editor at least the full visible height so
-                        // the user can tap anywhere on the blank area to type.
-                        editorArea
-                            .frame(minHeight: geo.size.height)
-                    }
+            TextField("Untitled", text: $task.title)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(Color.primaryText)
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+                .accessibilityIdentifier("task-title-field")
+                .onSubmit {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 }
-            }
+
+            Rectangle()
+                .fill(Color.primaryText.opacity(0.15))
+                .frame(height: 1)
+                .padding(.horizontal, 20)
+
+            editorArea
 
             if showToolbar && !isDrawingMode {
                 editorToolbar
@@ -157,6 +149,7 @@ struct TaskDetailView: View {
         .toolbar(.hidden, for: .navigationBar)
         #endif
         .tint(Color.themeAccent)
+        .overlay(alignment: .topTrailing) { shareMenuOverlay }
         .safeAreaInset(edge: .top, spacing: 0) {
             HStack(spacing: 0) {
                 // Back button — same glass circle as TaskListView
@@ -194,15 +187,9 @@ struct TaskDetailView: View {
                     .padding(.trailing, 8)
                 } else {
                     HStack(spacing: 8) {
-                        Menu {
-                            Button { shareTask() } label: {
-                                Label("Share", systemImage: "square.and.arrow.up")
-                            }
-                            Button { exportAsPDF() } label: {
-                                Label("Export as PDF", systemImage: "doc.richtext")
-                            }
-                            Button { exportAsWord() } label: {
-                                Label("Export as Word", systemImage: "doc.text")
+                        Button {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                showExportOptions.toggle()
                             }
                         } label: {
                             Image(systemName: "square.and.arrow.up")
@@ -217,7 +204,7 @@ struct TaskDetailView: View {
                             Button {
                                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                             } label: {
-                                Image(systemName: "checkmark")
+                                Image(systemName: "keyboard.chevron.compact.down")
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundStyle(Color.themeAccent)
                                     .frame(width: 36, height: 36)
@@ -367,6 +354,7 @@ struct TaskDetailView: View {
                     longPress.delegate = colorLongPressCoordinator
                     tv.addGestureRecognizer(longPress)
                     imageSizeCoordinator.attach(to: tv)
+                    linkTapCoordinator.attach(to: tv)
                     DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
                 }
             )
@@ -414,7 +402,7 @@ struct TaskDetailView: View {
             .opacity(isDrawingMode || task.drawingData != nil ? 1 : 0)
             .allowsHitTesting(isDrawingMode)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .topLeading) { colorPaletteOverlay }
         .overlay(alignment: .topLeading) { slashMenuOverlay }
     }
@@ -457,6 +445,56 @@ struct TaskDetailView: View {
                 }
             }
             .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder private var shareMenuOverlay: some View {
+        if showExportOptions {
+            // Dismiss on outside tap
+            Color.clear
+                .contentShape(Rectangle())
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        showExportOptions = false
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Button {
+                            withAnimation { showExportOptions = false }
+                            shareTask()
+                        } label: {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Color.primaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 13)
+                        }
+                        .buttonStyle(.plain)
+
+                        Divider().padding(.horizontal, 12)
+
+                        Button {
+                            withAnimation { showExportOptions = false }
+                            exportAsPDF()
+                        } label: {
+                            Label("Export as PDF", systemImage: "doc.richtext")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Color.primaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 13)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .frame(width: 210)
+                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.25)), in: .rect(cornerRadius: 14))
+                    .padding(.top, 56)
+                    .padding(.trailing, 8)
+                    .transition(.scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity))
+                }
         }
     }
 

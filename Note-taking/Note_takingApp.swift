@@ -53,14 +53,8 @@ struct Note_takingApp: App {
                     themeManager.applyWidget(newTheme)
                 }
                 .task {
-                    // For users who already completed onboarding, re-check the live
-                    // EventKit status on each launch (handles Settings app changes).
-                    // New users skip this — PermissionOnboardingView handles the request
-                    // with a proper explanation screen before the system dialog fires.
-                    let onboardingDone = UserDefaults.standard.bool(forKey: "onboardingV1Complete")
-                    if onboardingDone {
-                        await CalendarPermissionService.shared.requestIfNeeded()
-                    }
+                    // Request calendar permission once on first launch (Issue #60).
+                    await CalendarPermissionService.shared.requestIfNeeded()
                     // Run all startup work on a background actor so the UI renders immediately.
                     let worker = StartupWorker(modelContainer: container)
                     await worker.run()

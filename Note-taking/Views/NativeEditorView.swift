@@ -31,6 +31,7 @@ struct NativeEditorView: View {
                 log.debug("NativeEditorView: UITextView ready")
                 // Use adaptive .label color so text is visible in both light and dark mode.
                 // Without this, UIKit defaults to black which disappears on dark backgrounds.
+                tv.isScrollEnabled = true
                 tv.textColor = .label
                 tv.typingAttributes[.foregroundColor] = UIColor.label
                 // Match the editor area background to the active theme so bright / dark

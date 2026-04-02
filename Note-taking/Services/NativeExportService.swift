@@ -14,61 +14,42 @@ final class NativeExportService {
     static func exportAsPDF(title: String, content: NSAttributedString, from viewController: UIViewController) {
         log.info("exportAsPDF: starting for '\(title)', \(content.length) chars")
 
-        let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 595, height: 842)) // A4
+        let pageRect  = CGRect(x: 0, y: 0, width: 595.2, height: 841.8) // A4
+        let margin: CGFloat = 40
+        let printableRect = pageRect.insetBy(dx: margin, dy: margin + 20)
 
-        let data = renderer.pdfData { ctx in
-            ctx.beginPage()
-            let titleAttrs: [NSAttributedString.Key: Any] = [
+        // Prepend title as bold heading
+        let full = NSMutableAttributedString()
+        if !title.isEmpty {
+            full.append(NSAttributedString(string: title + "\n\n", attributes: [
                 .font: UIFont.systemFont(ofSize: 20, weight: .bold),
-                .foregroundColor: UIColor.label
-            ]
-            let titleStr = NSAttributedString(string: title, attributes: titleAttrs)
-
-            let margin: CGFloat = 40
-            let pageWidth = ctx.pdfContextBounds.width - margin * 2
-            let pageHeight = ctx.pdfContextBounds.height - margin * 2
-
-            var yOffset: CGFloat = margin
-
-            // Draw title
-            let titleSize = titleStr.boundingRect(
-                with: CGSize(width: pageWidth, height: .greatestFiniteMagnitude),
-                options: .usesLineFragmentOrigin,
-                context: nil
-            )
-            titleStr.draw(in: CGRect(x: margin, y: yOffset, width: pageWidth, height: titleSize.height))
-            yOffset += titleSize.height + 12
-
-            // Divider
-            UIColor.separator.setStroke()
-            let path = UIBezierPath()
-            path.move(to: CGPoint(x: margin, y: yOffset))
-            path.addLine(to: CGPoint(x: margin + pageWidth, y: yOffset))
-            path.lineWidth = 0.5
-            path.stroke()
-            yOffset += 12
-
-            // Body content
-            let framesetter = CTFramesetterCreateWithAttributedString(content)
-            let remainingHeight = pageHeight - yOffset + margin
-
-            let cgCtx = ctx.cgContext
-            cgCtx.saveGState()
-            // Flip coordinate system for CoreText
-            cgCtx.translateBy(x: 0, y: ctx.pdfContextBounds.height)
-            cgCtx.scaleBy(x: 1, y: -1)
-            let flippedRect = CGRect(x: margin, y: ctx.pdfContextBounds.height - yOffset - remainingHeight, width: pageWidth, height: remainingHeight)
-            let flippedPath = CGPath(rect: flippedRect, transform: nil)
-            let flippedFrame = CTFramesetterCreateFrame(framesetter, CFRangeMake(0, 0), flippedPath, nil)
-            CTFrameDraw(flippedFrame, cgCtx)
-            cgCtx.restoreGState()
+                .foregroundColor: UIColor.black
+            ]))
         }
+        full.append(normalizeForPDF(content))
+
+        // UISimpleTextPrintFormatter uses TextKit — correctly renders NSTextAttachment images.
+        // CoreText (CTFrameDraw) does not render image attachments, hence the empty PDF before.
+        let formatter = UISimpleTextPrintFormatter(attributedText: full)
+        let renderer  = UIPrintPageRenderer()
+        renderer.addPrintFormatter(formatter, startingAtPageAt: 0)
+        renderer.setValue(NSValue(cgRect: pageRect),     forKey: "paperRect")
+        renderer.setValue(NSValue(cgRect: printableRect), forKey: "printableRect")
+
+        let pdfData = NSMutableData()
+        UIGraphicsBeginPDFContextToData(pdfData, pageRect, nil)
+        renderer.prepare(forDrawingPages: NSRange(location: 0, length: renderer.numberOfPages))
+        for i in 0..<renderer.numberOfPages {
+            UIGraphicsBeginPDFPage()
+            renderer.drawPage(at: i, in: pageRect)
+        }
+        UIGraphicsEndPDFContext()
 
         let fileName = sanitizeFilename(title.isEmpty ? "Note" : title) + ".pdf"
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         do {
-            try data.write(to: tempURL)
-            log.info("exportAsPDF: written \(data.count) bytes to \(tempURL.lastPathComponent)")
+            try (pdfData as Data).write(to: tempURL)
+            log.info("exportAsPDF: written \(pdfData.length) bytes to \(tempURL.lastPathComponent)")
             presentShareSheet(items: [tempURL], from: viewController)
         } catch {
             log.error("exportAsPDF: write failed — \(error.localizedDescription)")
@@ -86,14 +67,14 @@ final class NativeExportService {
             .font: UIFont.systemFont(ofSize: 20, weight: .bold)
         ]
         full.append(NSAttributedString(string: title + "\n\n", attributes: titleAttrs))
-        full.append(content)
+        full.append(normalizeForWord(content))
 
         guard let data = full.rtfData() else {
             log.error("exportAsRTF: RTF conversion failed")
             return
         }
 
-        let fileName = sanitizeFilename(title.isEmpty ? "Note" : title) + ".rtf"
+        let fileName = sanitizeFilename(title.isEmpty ? "Note" : title) + ".doc"
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         do {
             try data.write(to: tempURL)
@@ -115,6 +96,44 @@ final class NativeExportService {
     }
 
     // MARK: - Helpers
+
+    /// Replaces dynamic (theme-aware) colors with static print-safe equivalents.
+    /// Prevents dark-theme white text from becoming invisible on a white PDF page.
+    private static func normalizeForPDF(_ source: NSAttributedString) -> NSAttributedString {
+        let mutable = NSMutableAttributedString(attributedString: source)
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        mutable.enumerateAttributes(in: fullRange, options: []) { attrs, range, _ in
+            // Force all text to black so it's visible on a white page
+            mutable.addAttribute(.foregroundColor, value: UIColor.black, range: range)
+            // Remove dark background highlights — they'd appear as black blocks on white
+            if let bg = attrs[.backgroundColor] as? UIColor {
+                var white: CGFloat = 0
+                bg.getWhite(&white, alpha: nil)
+                if white < 0.5 { mutable.removeAttribute(.backgroundColor, range: range) }
+            }
+        }
+        return mutable
+    }
+
+    /// Prepares content for RTF/Word export:
+    /// - Forces text color to black (dark-theme white text is invisible in Word)
+    /// - Replaces NSTextAttachment images with "[Image]" — RTF encoder can't handle
+    ///   inline image attachments and produces malformed output (each letter on a new page).
+    private static func normalizeForWord(_ source: NSAttributedString) -> NSAttributedString {
+        let mutable = NSMutableAttributedString(attributedString: normalizeForPDF(source))
+        var attachmentRanges: [NSRange] = []
+        mutable.enumerateAttribute(.attachment, in: NSRange(location: 0, length: mutable.length), options: []) { value, range, _ in
+            if value != nil { attachmentRanges.append(range) }
+        }
+        for range in attachmentRanges.reversed() {
+            let placeholder = NSAttributedString(string: "[Image]", attributes: [
+                .font: UIFont.italicSystemFont(ofSize: 12),
+                .foregroundColor: UIColor.darkGray
+            ])
+            mutable.replaceCharacters(in: range, with: placeholder)
+        }
+        return mutable
+    }
 
     private static func sanitizeFilename(_ name: String) -> String {
         let invalid = CharacterSet(charactersIn: "/\\:*?\"<>|")

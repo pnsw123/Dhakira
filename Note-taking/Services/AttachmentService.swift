@@ -108,16 +108,42 @@ final class AttachmentService: NSObject {
                                         userInfo: ["cursorPosition": insertAt + attachStr.length])
     }
 
-    func appendFile(url: URL, to attributedText: inout NSAttributedString) {
-        let link = NSAttributedString(
-            string: url.lastPathComponent,
-            attributes: [.link: url, .font: UIFont.preferredFont(forTextStyle: .body)]
-        )
-        let mutable = NSMutableAttributedString(attributedString: attributedText)
-        mutable.append(NSAttributedString(string: "\n"))
-        mutable.append(link)
+    func appendFile(url: URL, to attributedText: inout NSAttributedString, at cursorPosition: Int? = nil) {
+        // File icon — pick an SF Symbol based on extension, same as Apple Files app style
+        let ext = url.pathExtension.lowercased()
+        let symbolName: String
+        switch ext {
+        case "pdf":               symbolName = "doc.richtext"
+        case "doc", "docx":       symbolName = "doc.text"
+        case "xls", "xlsx":       symbolName = "tablecells"
+        case "ppt", "pptx":       symbolName = "rectangle.on.rectangle"
+        case "zip", "rar", "gz":  symbolName = "archivebox"
+        case "mp3", "m4a", "wav": symbolName = "music.note"
+        case "mp4", "mov":        symbolName = "video"
+        case "jpg", "jpeg", "png", "heic": symbolName = "photo"
+        default:                  symbolName = "doc"
+        }
+        let iconConfig = UIImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        let iconImage  = UIImage(systemName: symbolName, withConfiguration: iconConfig)?
+            .withTintColor(.systemBlue, renderingMode: .alwaysOriginal)
+        let iconAttachment = NSTextAttachment()
+        iconAttachment.image = iconImage
+        iconAttachment.bounds = CGRect(x: 0, y: -3, width: 18, height: 20)
+
+        let result = NSMutableAttributedString(string: "\n")
+        result.append(NSAttributedString(attachment: iconAttachment))
+        result.append(NSAttributedString(string: "\u{00A0}" + url.lastPathComponent, attributes: [
+            .link: url,
+            .font: UIFont.preferredFont(forTextStyle: .body)
+        ]))
+
+        let mutable  = NSMutableAttributedString(attributedString: attributedText)
+        let insertAt = min(cursorPosition ?? mutable.length, mutable.length)
+        mutable.insert(result, at: insertAt)
         attributedText = mutable
-        log.info("AttachmentService.appendFile: '\(url.lastPathComponent)'")
+        log.info("AttachmentService.appendFile: '\(url.lastPathComponent)' at \(insertAt)")
+        NotificationCenter.default.post(name: .attachmentAppended, object: mutable,
+                                        userInfo: ["cursorPosition": insertAt + result.length])
     }
 
     func appendScannedText(_ text: String, to attributedText: inout NSAttributedString) {
@@ -187,7 +213,7 @@ struct AttachmentServicePresenters: View {
             #endif
         case .documentPicker:
             DocumentFilePickerView { url in
-                service.appendFile(url: url, to: &attributedText)
+                service.appendFile(url: url, to: &attributedText, at: service.savedCursorPosition)
                 service.activeSheet = nil
             }
         case .documentScanner:

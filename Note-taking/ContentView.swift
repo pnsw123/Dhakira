@@ -19,9 +19,6 @@ struct ContentView: View {
 
     @Binding var pendingDeepLinkTaskId: UUID?
 
-    /// Tracks whether the first-launch onboarding has been completed.
-    /// Versioned key ("V1") so future onboarding updates can re-show for existing users.
-    @AppStorage("onboardingV1Complete") private var onboardingComplete: Bool = false
 
     @AppStorage("activeTaskListId") private var activeTaskListIdString: String = ""
     @Query(sort: \TaskList.createdAt) private var allTaskLists: [TaskList]
@@ -41,22 +38,10 @@ struct ContentView: View {
     @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
-        Group {
-            if hSizeClass == .compact {
-                iPhoneLayout
-            } else {
-                iPadLayout
-            }
-        }
-        // Show onboarding on first install. Sheet adapts per device inside PermissionOnboardingView.
-        .sheet(isPresented: Binding(
-            get:  { !onboardingComplete },
-            set:  { if !$0 { onboardingComplete = true } }
-        )) {
-            PermissionOnboardingView {
-                onboardingComplete = true
-            }
-            .environment(ThemeManager.shared)
+        if hSizeClass == .compact {
+            iPhoneLayout
+        } else {
+            iPadLayout
         }
     }
 
