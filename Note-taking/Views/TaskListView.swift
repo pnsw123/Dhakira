@@ -13,7 +13,7 @@ struct TaskListView: View {
     /// Called when the root view's < button is tapped. Owned by ContentView so
     /// HomeView is only registered once in the NavigationStack (avoids crashes).
     var onShowHome: (() -> Void)? = nil
-    /// Task UUID delivered by a deep link (prodnote://task/{uuid}).
+    /// Task UUID delivered by a deep link (dhakira://task/{uuid}).
     /// When non-nil this view locates the matching task and navigates to its detail page.
     /// Only the root ContentView passes a real binding; secondary appearances use a constant.
     @Binding var pendingDeepLinkTaskId: UUID?
@@ -256,7 +256,7 @@ struct TaskListView: View {
                 }
             }
             // Deep link navigation — Issue #61
-            // When Note_takingApp receives prodnote://task/{uuid}, it stores the UUID here.
+            // When Note_takingApp receives dhakira://task/{uuid}, it stores the UUID here.
             // We find the matching TaskItem and open its detail page. If the UUID is not
             // found (task deleted, or from another device), we stay on the current screen.
             .onChange(of: pendingDeepLinkTaskId) { _, taskId in

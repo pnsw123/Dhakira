@@ -5,8 +5,8 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "DeepLink")
 
 /// Encodes task UUIDs into deep-link URLs and decodes incoming URLs back to UUIDs.
 ///
-/// URL scheme:  prodnote://task/{uuid}
-/// Example:     prodnote://task/550e8400-e29b-41d4-a716-446655440000
+/// URL scheme:  dhakira://task/{uuid}
+/// Example:     dhakira://task/550e8400-e29b-41d4-a716-446655440000
 ///
 /// Registration: the scheme is declared in project.pbxproj via
 /// INFOPLIST_KEY_CFBundleURLTypes (added alongside the calendar permission keys).
@@ -14,12 +14,12 @@ enum DeepLinkHandler {
 
     // MARK: - Constants
 
-    static let scheme = "prodnote"
+    static let scheme = "dhakira"
     static let taskHost = "task"
 
     // MARK: - Encoding
 
-    /// Produces a `prodnote://task/{uuid}` URL for the given task ID.
+    /// Produces a `dhakira://task/{uuid}` URL for the given task ID.
     static func taskURL(for taskId: UUID) -> URL {
         var components = URLComponents()
         components.scheme = scheme
@@ -35,7 +35,7 @@ enum DeepLinkHandler {
 
     // MARK: - Decoding
 
-    /// Extracts the task UUID from a `prodnote://task/{uuid}` URL.
+    /// Extracts the task UUID from a `dhakira://task/{uuid}` URL.
     /// Returns `nil` for any unrecognised or malformed URL without throwing.
     static func handleIncomingURL(_ url: URL) -> UUID? {
         guard url.scheme?.lowercased() == scheme else {

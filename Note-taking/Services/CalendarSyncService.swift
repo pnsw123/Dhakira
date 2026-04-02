@@ -30,7 +30,7 @@ final class CalendarSyncService {
     ///   - title: The task title — used as the event title.
     ///   - date: The detected start date for the event.
     ///   - existingEventId: The previously stored EKEvent identifier, if any.
-    ///   - deepLinkURL: Optional `prodnote://task/{uuid}` URL attached to the event
+    ///   - deepLinkURL: Optional `dhakira://task/{uuid}` URL attached to the event
     ///                  so tapping it in Calendar opens the app at the right task.
     /// - Returns: The EKEvent identifier to store back on the task, or `nil` if the
     ///            operation was skipped or failed.

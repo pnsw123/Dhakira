@@ -9,7 +9,7 @@ struct Note_takingApp: App {
 
     private let log = Logger(subsystem: "notes.Note-taking", category: "App")
 
-    /// Task UUID received via deep link (prodnote://task/{uuid}).
+    /// Task UUID received via deep link (dhakira://task/{uuid}).
     /// Passed into ContentView so it can navigate to the correct task detail page.
     @State private var pendingDeepLinkTaskId: UUID? = nil
 

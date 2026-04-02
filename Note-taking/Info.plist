@@ -8,8 +8,10 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleDisplayName</key>
+	<string>Dhakira</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>Dhakira</string>
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
@@ -21,7 +23,7 @@
 			<string>com.prodnote.notetaking</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>prodnote</string>
+				<string>dhakira</string>
 			</array>
 		</dict>
 		<dict>
@@ -36,17 +38,17 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSAppDataUsageDescription</key>
-	<string>ProdNote uses app data to sync your notes and tasks.</string>
+	<string>Dhakira uses app data to sync your notes and tasks.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>ProdNote uses your calendar to automatically create events for tasks that have dates in their titles.</string>
+	<string>Dhakira uses your calendar to automatically create events for tasks that have dates in their titles.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>ProdNote uses your calendar to automatically create events for tasks that have dates in their titles.</string>
+	<string>Dhakira uses your calendar to automatically create events for tasks that have dates in their titles.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>ProdNote uses the camera to take photos that you can attach to your tasks.</string>
+	<string>Dhakira uses the camera to take photos that you can attach to your tasks.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>ProdNote accesses your photo library so you can attach images to your tasks.</string>
+	<string>Dhakira accesses your photo library so you can attach images to your tasks.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>ProdNote uses the microphone to record voice notes that you can attach to your tasks.</string>
+	<string>Dhakira uses the microphone to record voice notes that you can attach to your tasks.</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
