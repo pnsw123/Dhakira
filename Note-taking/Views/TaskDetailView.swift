@@ -11,7 +11,6 @@ import Combine
 import PencilKit
 import PhotosUI
 import VisionKit
-import AVFoundation
 import UniformTypeIdentifiers
 
 // MARK: - TaskDetailView
@@ -44,12 +43,6 @@ struct TaskDetailView: View {
     @StateObject private var checkboxCoordinator = CheckboxTapCoordinator()
     // Long press coordinator — shows color palette when user holds without selecting text.
     @StateObject private var colorLongPressCoordinator = ColorLongPressCoordinator()
-    // Audio tap coordinator — detects taps on prodnote-audio:// chips and triggers playback sheet.
-    @StateObject private var audioTapCoordinator = AudioTapCoordinator()
-    /// Non-nil when the user tapped an audio chip — drives the playback sheet.
-    @State private var playingAudioLink: AudioLink? = nil
-    // Image resize coordinator — shows corner handles when user taps an inline image.
-    @StateObject private var imageResizeCoordinator = ImageResizeCoordinator()
     // Key interceptor — takes first responder on iPad/Mac when slash menu is visible
     // so arrow keys navigate menu rows instead of moving the text cursor.
     @State private var keyInterceptor = SlashMenuKeyInterceptor()
@@ -284,28 +277,12 @@ struct TaskDetailView: View {
                 attributedText = toggled
             }
         }
-        // Sync attributedText after the user resizes an image so the new size is persisted on save
-        .onChange(of: imageResizeCoordinator.didResize) { _, _ in
-            if let tv = richTextView {
-                attributedText = tv.attributedText ?? attributedText
-            }
-        }
-        // Present audio playback sheet when an audio chip is tapped
-        .onChange(of: audioTapCoordinator.pendingAudioLink) { _, link in
-            if let link {
-                playingAudioLink = link
-                audioTapCoordinator.clear()
-            }
-        }
         // Show color palette on long press (no text selection needed)
         .onChange(of: colorLongPressCoordinator.pressGlobalRect) { _, rect in
             guard let rect else { return }
             selectionGlobalRect = rect
             showColorPalette = true
             colorLongPressCoordinator.clear()
-        }
-        .sheet(item: $playingAudioLink) { link in
-            AudioPlayerView(audioLink: link)
         }
         // Keyboard navigation: on iPad/Mac give first responder to interceptor so
         // arrow keys route to the slash menu instead of moving the text cursor.
@@ -365,13 +342,6 @@ struct TaskDetailView: View {
                     )
                     tap.delegate = checkboxCoordinator
                     tv.addGestureRecognizer(tap)
-                    let audioTap = UITapGestureRecognizer(
-                        target: audioTapCoordinator,
-                        action: #selector(AudioTapCoordinator.handleTap(_:))
-                    )
-                    audioTap.delegate = audioTapCoordinator
-                    tv.addGestureRecognizer(audioTap)
-                    imageResizeCoordinator.attach(to: tv)
                     let longPress = UILongPressGestureRecognizer(
                         target: colorLongPressCoordinator,
                         action: #selector(ColorLongPressCoordinator.handleLongPress(_:))
@@ -1460,7 +1430,6 @@ struct TaskDetailView: View {
         #endif
         items += [
             .init(id: "choosePhoto",   icon: "photo",            label: "Choose Photo"),
-            .init(id: "recordAudio",   icon: "mic",              label: "Record Audio"),
             .init(id: "attachFile",    icon: "paperclip",        label: "Attach File"),
         ]
         return items
@@ -1476,7 +1445,6 @@ struct TaskDetailView: View {
         case "scanDocuments": attachmentService.scanDocuments()
         case "takePhoto":     attachmentService.takePhotoOrVideo()
         case "choosePhoto":   attachmentService.choosePhotoOrVideo()
-        case "recordAudio":   attachmentService.recordAudio()
         case "attachFile":    attachmentService.attachFile()
         default: break
         }
@@ -1517,7 +1485,7 @@ struct TaskDetailView: View {
     private func onSelectionChanged(_ range: NSRange) {
         let hasSelection = range.length > 0
 
-        // Check if the selection contains an attachment (image, audio, etc.)
+        // Check if the selection contains an attachment (image, etc.)
         // If so: hide palette + dismiss keyboard — no text formatting applies to attachments.
         var selectionIsAttachment = false
         if hasSelection, let tv = richTextView {
@@ -1837,348 +1805,6 @@ struct DocumentScannerView: UIViewControllerRepresentable {
     }
 }
 #endif // os(iOS) — DocumentScannerView
-
-// MARK: - AudioRecorderView (Apple Notes-style with waveform + timer + playback)
-
-struct AudioRecorderView: View {
-    let onSave: (URL, TimeInterval) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    // Recording state
-    @State private var recorder: AVAudioRecorder?
-    @State private var audioURL: URL?
-    @State private var isRecording = false
-    @State private var isPaused = false
-    @State private var showMicPermissionAlert = false
-
-    // Playback state
-    @State private var player: AVAudioPlayer?
-    @State private var isPlaying = false
-
-    // Timer
-    @State private var elapsedSeconds: TimeInterval = 0
-    @State private var timer: Timer?
-
-    // Waveform — live amplitude samples
-    @State private var waveformSamples: [CGFloat] = []
-    @State private var meteringTimer: Timer?
-
-    // State machine: idle → recording → stopped (ready to play/save)
-    private enum RecorderState { case idle, recording, paused, stopped }
-    private var state: RecorderState {
-        if isRecording && !isPaused { return .recording }
-        if isRecording && isPaused { return .paused }
-        if audioURL != nil && !isRecording { return .stopped }
-        return .idle
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Drag handle
-            Capsule()
-                .fill(Color.secondary.opacity(0.3))
-                .frame(width: 36, height: 5)
-                .padding(.top, 10)
-                .padding(.bottom, 20)
-
-            // Timer display
-            Text(formattedTime(elapsedSeconds))
-                .font(.system(size: 54, weight: .light, design: .monospaced))
-                .foregroundStyle(isRecording ? Color(uiColor: .systemRed) : Color.primary)
-                .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.1), value: elapsedSeconds)
-                .padding(.bottom, 20)
-
-            // Waveform visualization
-            waveformView
-                .frame(height: 60)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 28)
-
-            // Controls
-            controlsBar
-                .padding(.horizontal, 32)
-                .padding(.bottom, 20)
-        }
-        .presentationDetents([.height(340)])
-        .presentationDragIndicator(.hidden)
-        .presentationBackground(.regularMaterial)
-        .alert("Microphone Access Required", isPresented: $showMicPermissionAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Please enable microphone access in Settings to record audio.")
-        }
-        .onDisappear { cleanup() }
-    }
-
-    // MARK: - Waveform
-
-    private var waveformView: some View {
-        GeometryReader { geo in
-            HStack(alignment: .center, spacing: 2.5) {
-                ForEach(Array(displaySamples(width: geo.size.width).enumerated()), id: \.offset) { _, amplitude in
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(isRecording ? Color(uiColor: .systemRed) : Color.primary.opacity(0.35))
-                        .frame(width: 3, height: max(4, amplitude * geo.size.height))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        }
-    }
-
-    private func displaySamples(width: CGFloat) -> [CGFloat] {
-        let barCount = max(1, Int(width / 5.5))
-        if waveformSamples.isEmpty {
-            return Array(repeating: 0.05, count: barCount)
-        }
-        if waveformSamples.count <= barCount {
-            let padding = Array(repeating: CGFloat(0.05), count: barCount - waveformSamples.count)
-            return padding + waveformSamples
-        }
-        return Array(waveformSamples.suffix(barCount))
-    }
-
-    // MARK: - Controls bar
-
-    private var controlsBar: some View {
-        HStack {
-            // Cancel / Delete
-            Button {
-                cleanup()
-                dismiss()
-            } label: {
-                Text(state == .stopped ? "Delete" : "Cancel")
-                    .font(.system(size: 17))
-                    .foregroundStyle(state == .stopped ? Color(uiColor: .systemRed) : Color.primary)
-            }
-
-            Spacer()
-
-            // Center button — Record / Pause / Play
-            centerButton
-
-            Spacer()
-
-            // Save button (only after recording stops)
-            if state == .stopped {
-                Button {
-                    if let url = audioURL { onSave(url, elapsedSeconds) }
-                    dismiss()
-                } label: {
-                    Text("Save")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color.themeAccent)
-                }
-                .accessibilityIdentifier("btn-save-recording")
-            } else {
-                // Invisible spacer for alignment
-                Text("Save")
-                    .font(.system(size: 17, weight: .semibold))
-                    .hidden()
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var centerButton: some View {
-        switch state {
-        case .idle:
-            // Big red record button
-            Button { requestAndRecord() } label: {
-                Circle()
-                    .fill(Color(uiColor: .systemRed))
-                    .frame(width: 64, height: 64)
-                    .overlay {
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-            }
-            .accessibilityIdentifier("btn-record")
-        case .recording:
-            // Stop button (red square inside circle) — matches Apple Notes
-            Button { stopRecording() } label: {
-                Circle()
-                    .fill(Color(uiColor: .systemRed))
-                    .frame(width: 64, height: 64)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.white)
-                            .frame(width: 22, height: 22)
-                    }
-            }
-            .accessibilityIdentifier("btn-stop-recording")
-        case .paused:
-            // Resume recording
-            Button { resumeRecording() } label: {
-                Circle()
-                    .fill(Color(uiColor: .systemRed))
-                    .frame(width: 64, height: 64)
-                    .overlay {
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-            }
-        case .stopped:
-            // Play/pause playback
-            Button { togglePlayback() } label: {
-                Circle()
-                    .fill(Color.themeAccent)
-                    .frame(width: 64, height: 64)
-                    .overlay {
-                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .offset(x: isPlaying ? 0 : 2) // Optical center for play icon
-                    }
-            }
-        }
-    }
-
-    // MARK: - Time formatting
-
-    private func formattedTime(_ seconds: TimeInterval) -> String {
-        let mins = Int(seconds) / 60
-        let secs = Int(seconds) % 60
-        let frac = Int((seconds.truncatingRemainder(dividingBy: 1)) * 100)
-        return String(format: "%d:%02d.%02d", mins, secs, frac)
-    }
-
-    // MARK: - Recording logic
-
-    private func requestAndRecord() {
-        switch AVAudioApplication.shared.recordPermission {
-        case .denied:
-            showMicPermissionAlert = true
-        case .undetermined:
-            AVAudioApplication.requestRecordPermission { granted in
-                DispatchQueue.main.async {
-                    if granted { beginRecording() }
-                    else { showMicPermissionAlert = true }
-                }
-            }
-        case .granted:
-            beginRecording()
-        @unknown default:
-            beginRecording()
-        }
-    }
-
-    private func beginRecording() {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("recording-\(Date().timeIntervalSince1970).m4a")
-        let settings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 44100,
-            AVNumberOfChannelsKey: 1,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
-        ]
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.record, mode: .default)
-            try AVAudioSession.sharedInstance().setActive(true)
-            let rec = try AVAudioRecorder(url: url, settings: settings)
-            rec.isMeteringEnabled = true
-            rec.record()
-            recorder = rec
-            audioURL = url
-            isRecording = true
-            isPaused = false
-            elapsedSeconds = 0
-            waveformSamples = []
-            startTimers()
-        } catch {
-            log.error("AudioRecorder: failed to start — \(error.localizedDescription)")
-        }
-    }
-
-    private func resumeRecording() {
-        recorder?.record()
-        isPaused = false
-        startTimers()
-    }
-
-    private func stopRecording() {
-        recorder?.stop()
-        stopTimers()
-        isRecording = false
-        isPaused = false
-        do {
-            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        } catch {
-            log.error("AudioRecorder: deactivate failed — \(error.localizedDescription)")
-        }
-    }
-
-    // MARK: - Playback
-
-    private func togglePlayback() {
-        if isPlaying {
-            player?.pause()
-            isPlaying = false
-            stopTimers()
-            return
-        }
-        guard let url = audioURL else { return }
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-            try AVAudioSession.sharedInstance().setActive(true)
-            let p = try AVAudioPlayer(contentsOf: url)
-            p.isMeteringEnabled = true
-            p.play()
-            player = p
-            isPlaying = true
-            elapsedSeconds = 0
-            // Playback timer
-            timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
-                guard let p = player else { return }
-                if p.isPlaying {
-                    elapsedSeconds = p.currentTime
-                    p.updateMeters()
-                    let power = p.averagePower(forChannel: 0)
-                    let normalized = CGFloat(max(0, (power + 50) / 50)) // -50dB…0dB → 0…1
-                    waveformSamples.append(max(0.05, normalized))
-                } else {
-                    isPlaying = false
-                    timer?.invalidate()
-                }
-            }
-        } catch {
-            log.error("AudioRecorder: playback failed — \(error.localizedDescription)")
-        }
-    }
-
-    // MARK: - Timers
-
-    private func startTimers() {
-        // Elapsed time timer
-        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
-            elapsedSeconds += 0.05
-        }
-        // Metering timer for waveform
-        meteringTimer = Timer.scheduledTimer(withTimeInterval: 0.07, repeats: true) { _ in
-            guard let rec = recorder, rec.isRecording else { return }
-            rec.updateMeters()
-            let power = rec.averagePower(forChannel: 0)
-            let normalized = CGFloat(max(0, (power + 50) / 50))
-            waveformSamples.append(max(0.05, normalized))
-        }
-    }
-
-    private func stopTimers() {
-        timer?.invalidate()
-        timer = nil
-        meteringTimer?.invalidate()
-        meteringTimer = nil
-    }
-
-    private func cleanup() {
-        stopTimers()
-        recorder?.stop()
-        player?.stop()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-    }
-}
 
 // MARK: - CheckboxTapCoordinator
 // Handles taps on CheckboxAttachment characters inside the UITextView.

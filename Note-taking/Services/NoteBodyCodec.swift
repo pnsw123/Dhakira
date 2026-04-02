@@ -8,7 +8,8 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "NoteBodyCode
 // Stored on the NSAttributedString character, NOT on NSTextAttachment.fileType
 // (which is a UTI — setting it to a UUID breaks image rendering).
 extension NSAttributedString.Key {
-    static let imageAttachmentId = NSAttributedString.Key("com.prodnote.imageAttachmentId")
+    static let imageAttachmentId   = NSAttributedString.Key("com.prodnote.imageAttachmentId")
+
 }
 
 // MARK: - NoteBodyError (Issue #53)
@@ -46,8 +47,8 @@ enum NoteBodyCodec {
     // MARK: Encode
 
     static func encode(_ text: NSAttributedString) -> Result<Data, NoteBodyError> {
-        // Replace image attachments with [img:UUID] placeholders so the RTF blob
-        // contains only text — actual images live on disk via AttachmentStore.
+        // Strip image attachments so the RTF blob contains only text + placeholder markers.
+        // Actual image content lives on disk.
         let stripped = stripImages(from: text)
         let range = NSRange(location: 0, length: stripped.length)
         guard let rtf = try? stripped.data(
@@ -98,7 +99,7 @@ enum NoteBodyCodec {
             rtfResult = result
         }
 
-        // Restore [img:UUID] placeholders back to real image attachments from disk
+        // Restore image placeholders from disk.
         return rtfResult.map { restoreImages(in: $0, taskId: taskId) }
     }
 

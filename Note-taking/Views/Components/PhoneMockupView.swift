@@ -108,31 +108,40 @@ private struct MockTasksPage: View {
             VStack(spacing: 0) {
                 Color.clear.frame(height: 18) // status bar spacer
 
-                // Nav bar — .background{} so ultraThinMaterial blurs gradient backdrop
+                // Nav row — back button (glass circle) + settings — matches real TaskListView
                 HStack(spacing: 0) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.accentColor)
-                        .padding(.leading, 10)
-
-                    Text("Tasks")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(theme.primaryText)
-                        .padding(.leading, 6)
+                    ZStack {
+                        Circle()
+                            .fill(theme.accentColor.opacity(0.15))
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(theme.accentColor)
+                    }
+                    .padding(.leading, 8)
 
                     Spacer()
 
                     Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 12))
+                        .font(.system(size: 11))
                         .foregroundStyle(theme.accentColor)
-                        .padding(.trailing, 12)
+                        .padding(.trailing, 10)
                 }
-                .padding(.vertical, 9)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(theme.separatorColor)
-                        .frame(height: 0.5)
-                }
+                .padding(.vertical, 4)
+
+                // Large title — matches real TaskListView (34pt bold, left-aligned)
+                Text("Tasks")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(theme.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 2)
+                    .padding(.bottom, 6)
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(theme.separatorColor)
+                            .frame(height: 0.5)
+                    }
 
                 // Task rows — transparent, float directly on gradient (matches real app)
                 VStack(spacing: 0) {
@@ -317,9 +326,9 @@ private struct MockDetailPage: View {
 
                 Spacer()
 
-                // Formatting toolbar — floating pill matching real BottomCustomisationBar
+                // Formatting toolbar — matches current defaultToolbarItems order
                 HStack(spacing: 0) {
-                    ForEach(["bold", "italic", "checklist", "list.bullet", "underline", "strikethrough", "textformat.size.smaller", "textformat.size.larger"], id: \.self) { icon in
+                    ForEach(["textformat.size.larger", "textformat.size.smaller", "checklist", "bold", "pencil.tip.crop.circle", "italic", "paperclip", "underline"], id: \.self) { icon in
                         Image(systemName: icon)
                             .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(theme.accentColor)
@@ -390,29 +399,44 @@ private struct MockFolderPage: View {
             VStack(spacing: 0) {
                 Color.clear.frame(height: 18) // status bar spacer
 
-                // Header
-                HStack {
-                    Text("Folders")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(theme.primaryText)
+                // Nav row — spacer left + chevron.right (glass circle) right
+                // Matches real HomeView which has no title in nav bar
+                HStack(spacing: 0) {
+                    Color.clear.frame(width: 22, height: 22)
+
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(theme.secondaryText)
+
+                    ZStack {
+                        Circle()
+                            .fill(theme.accentColor.opacity(0.15))
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(theme.accentColor)
+                    }
+                    .padding(.trailing, 8)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.vertical, 4)
 
-                rowGroup(mainFolders)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
+                // Large title — matches real HomeView (34pt bold scrolls with content)
+                Text("Folders")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(theme.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 2)
+                    .padding(.bottom, 8)
 
-                rowGroup([FolderRow(icon: "calendar", iconColor: theme.accentColor, name: "Choose your Calendar", count: nil)])
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
+                VStack(spacing: 8) {
+                    rowGroup(mainFolders)
+                        .padding(.horizontal, 12)
 
-                rowGroup(systemFolders)
-                    .padding(.horizontal, 12)
+                    rowGroup([FolderRow(icon: "calendar", iconColor: theme.accentColor, name: "Choose your Calendar", count: nil)])
+                        .padding(.horizontal, 12)
+
+                    rowGroup(systemFolders)
+                        .padding(.horizontal, 12)
+                }
 
                 Spacer()
             }

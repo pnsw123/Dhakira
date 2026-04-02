@@ -117,7 +117,6 @@ struct HomeView: View {
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
                     .padding(.horizontal, 16)
                 }
-                .padding(.top, 12)
                 .padding(.bottom, 32)
             }
             .background(Color.clear)
@@ -149,21 +148,21 @@ struct HomeView: View {
                 HStack(spacing: 10) {
                     Spacer().frame(width: 0)
                     Image(systemName: "calendar.badge.checkmark")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(Color.themeAccent)
                         .frame(width: 22)
                     Text("Choose your Calendar")
-                        .font(.system(size: 16))
+                        .font(.system(size: 17))
                         .foregroundStyle(Color.primaryText)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.secondaryText)
                         .rotationEffect(.degrees(calendarExpanded ? 90 : 0))
                         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: calendarExpanded)
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.vertical, 16)
             }
             .buttonStyle(.plain)
 
