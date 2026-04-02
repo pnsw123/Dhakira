@@ -81,7 +81,7 @@ final class AttachmentService: NSObject {
 
     // MARK: - Image Append (with typed errors)
 
-    func appendImage(_ data: Data, to attributedText: inout NSAttributedString) {
+    func appendImage(_ data: Data, to attributedText: inout NSAttributedString, taskId: UUID) {
         log.info("AttachmentService.appendImage: \(data.count) bytes")
         guard let image = UIImage(data: data) else {
             log.error("AttachmentService.appendImage: UIImage decode failed (\(data.count) bytes)")
@@ -96,6 +96,9 @@ final class AttachmentService: NSObject {
             attachment.bounds = CGRect(x: 0, y: 0, width: maxWidth, height: image.size.height * scale)
             log.debug("AttachmentService.appendImage: scaled \(image.size.width)pt → \(maxWidth)pt")
         }
+        // Persist image to disk and tag the attachment with its UUID
+        let attachmentId = AttachmentStore.shared.save(imageData: data, taskId: taskId)
+        attachment.fileType = attachmentId.uuidString
         let mutable = NSMutableAttributedString(attributedString: attributedText)
         mutable.append(NSAttributedString(string: "\n"))
         mutable.append(NSAttributedString(attachment: attachment))
@@ -178,8 +181,8 @@ final class AttachmentService: NSObject {
 
     /// Returns a zero-size view that drives all sheet presentations for this service.
     /// Attach via .background() on the parent view.
-    func presentationHooks(attributedText: Binding<NSAttributedString>) -> some View {
-        AttachmentServicePresenters(service: self, attributedText: attributedText)
+    func presentationHooks(attributedText: Binding<NSAttributedString>, taskId: UUID) -> some View {
+        AttachmentServicePresenters(service: self, attributedText: attributedText, taskId: taskId)
     }
 }
 
@@ -190,6 +193,7 @@ final class AttachmentService: NSObject {
 struct AttachmentServicePresenters: View {
     var service: AttachmentService
     @Binding var attributedText: NSAttributedString
+    var taskId: UUID
 
     var body: some View {
         Color.clear
@@ -219,13 +223,13 @@ struct AttachmentServicePresenters: View {
         switch sheet {
         case .photoLibrary:
             PhotoPickerView { data in
-                service.appendImage(data, to: &attributedText)
+                service.appendImage(data, to: &attributedText, taskId: taskId)
                 service.activeSheet = nil
             }
         case .camera:
             #if os(iOS)
             CameraPickerView { data in
-                service.appendImage(data, to: &attributedText)
+                service.appendImage(data, to: &attributedText, taskId: taskId)
                 service.activeSheet = nil
             }
             #else
@@ -241,7 +245,7 @@ struct AttachmentServicePresenters: View {
             DocumentScannerView { images in
                 for img in images {
                     if let d = img.pngData() {
-                        service.appendImage(d, to: &attributedText)
+                        service.appendImage(d, to: &attributedText, taskId: taskId)
                     }
                 }
                 service.activeSheet = nil

@@ -231,6 +231,9 @@ private actor StartupWorker {
                 let idToDelete = googleEventId
                 Task.detached { await CalendarSyncService.shared.deleteGoogleEvent(idToDelete) }
             }
+            // Clean up attachment files from disk
+            let taskIdToClean = task.id
+            Task.detached { AttachmentStore.shared.deleteAll(taskId: taskIdToClean) }
             modelContext.delete(task)
         }
         try? modelContext.save()

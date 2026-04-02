@@ -145,6 +145,7 @@ struct RecentlyDeletedView: View {
             Task { await CalendarSyncService.shared.deleteGoogleEvent(googleEventId) }
         }
         LocalStateLedger.shared.purge(task.id)
+        AttachmentStore.shared.deleteAll(taskId: task.id)
         withAnimation(.smooth(duration: 0.3)) {
             modelContext.delete(task)
         }

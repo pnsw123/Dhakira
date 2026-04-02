@@ -27,7 +27,7 @@ struct NoteBodyBinding {
             return
         }
 
-        switch NoteBodyCodec.decode(data) {
+        switch NoteBodyCodec.decode(data, taskId: task.id) {
         case .success(let str):
             logger.info("NoteBodyBinding.load: loaded \(str.length) chars for task '\(task.title)'")
             // RTF hardcodes black as the default text color. Strip it so the text view's

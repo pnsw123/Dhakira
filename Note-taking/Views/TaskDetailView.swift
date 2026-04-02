@@ -77,20 +77,20 @@ struct TaskDetailView: View {
 
     // Default toolbar order — most-used items first. User can drag-reorder; saved to UserDefaults.
     static let defaultToolbarItems: [EditorTool] = [
-        .init(id: "bold",             icon: "bold"),
+        .init(id: "fontSizeUp",       icon: "textformat.size.larger"),   // 1 — increase text size
+        .init(id: "fontSizeDown",     icon: "textformat.size.smaller"),  // 2 — decrease text size
+        .init(id: "checklist",        icon: "checklist"),                 // 3 — to-do list
+        .init(id: "bold",             icon: "bold"),                      // 4 — bold
+        .init(id: "pencil",           icon: "pencil.tip.crop.circle"),   // 5 — drawing
         .init(id: "italic",           icon: "italic"),
-        .init(id: "checklist",        icon: "checklist"),           // to-do list
-        .init(id: "list.bullet",      icon: "list.bullet"),         // bullet list
         .init(id: "underline",        icon: "underline"),
+        .init(id: "list.bullet",      icon: "list.bullet"),
         .init(id: "strikethrough",    icon: "strikethrough"),
-        .init(id: "fontSizeUp",       icon: "textformat.size.larger"),
-        .init(id: "fontSizeDown",     icon: "textformat.size.smaller"),
         .init(id: "text.alignleft",   icon: "text.alignleft"),
         .init(id: "text.aligncenter", icon: "text.aligncenter"),
         .init(id: "text.alignright",  icon: "text.alignright"),
         .init(id: "photo",            icon: "photo"),
         .init(id: "paperclip",        icon: "paperclip"),
-        .init(id: "pencil",           icon: "pencil.tip.crop.circle"),
     ]
     @State private var toolbarItems: [EditorTool] = TaskDetailView.defaultToolbarItems
     @AppStorage("editorToolbarOrder") private var savedToolbarOrder: String = ""
@@ -241,7 +241,7 @@ struct TaskDetailView: View {
             .padding(.bottom, 8)
         }
         // AttachmentService drives all picker sheets via a single enum (Issue #49)
-        .background(attachmentService.presentationHooks(attributedText: $attributedText))
+        .background(attachmentService.presentationHooks(attributedText: $attributedText, taskId: task.id))
         // Zero-size hidden view that becomes first responder on iPad/Mac so arrow keys
         // navigate the slash menu without disrupting the UITextView's soft keyboard.
         .background(

@@ -120,7 +120,7 @@ struct TaskRowView: View {
             let drawingData = task.drawingData
             let attachments = task.attachments
             let result: Bool
-            if let bodyData, case .success(let attr) = NoteBodyCodec.decode(bodyData) {
+            if let bodyData, case .success(let attr) = NoteBodyCodec.decode(bodyData, taskId: task.id) {
                 result = !attr.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             } else if let drawingData, !drawingData.isEmpty {
                 result = true
