@@ -96,12 +96,14 @@ final class AttachmentService: NSObject {
             attachment.bounds = CGRect(x: 0, y: 0, width: maxWidth, height: image.size.height * scale)
             log.debug("AttachmentService.appendImage: scaled \(image.size.width)pt → \(maxWidth)pt")
         }
-        // Persist image to disk and tag the attachment with its UUID
+        // Persist image to disk and tag with UUID via custom attribute
+        // (NOT fileType — that's a UTI; setting it to a UUID breaks image rendering)
         let attachmentId = AttachmentStore.shared.save(imageData: data, taskId: taskId)
-        attachment.fileType = attachmentId.uuidString
         let mutable = NSMutableAttributedString(attributedString: attributedText)
         mutable.append(NSAttributedString(string: "\n"))
-        mutable.append(NSAttributedString(attachment: attachment))
+        let attachStr = NSMutableAttributedString(attachment: attachment)
+        attachStr.addAttribute(.imageAttachmentId, value: attachmentId.uuidString, range: NSRange(location: 0, length: attachStr.length))
+        mutable.append(attachStr)
         attributedText = mutable
         log.info("AttachmentService.appendImage: appended \(Int(image.size.width))×\(Int(image.size.height))")
         // Notify the editor to push the new text into UITextView directly.
@@ -147,22 +149,30 @@ final class AttachmentService: NSObject {
             date: Date()
         )
 
-        // Build the inline chip text. The .link attribute survives RTF serialization.
-        let chipText = "🎙 Recording  •  \(formattedDuration(duration))"
-        let chipAttr = NSAttributedString(
-            string: chipText,
+        // Build the inline audio row. The .link attribute survives RTF serialization.
+        // Padding spaces make the row feel full-width; the mic icon + duration mirror Apple Notes.
+        let durationStr = formattedDuration(duration)
+        let rowText = "  🎙  Recording        \(durationStr)  "
+        let rowAttr = NSMutableAttributedString(
+            string: rowText,
             attributes: [
                 .link:            audioURL as NSURL,
-                .font:            UIFont.preferredFont(forTextStyle: .callout),
-                .foregroundColor: UIColor.systemBlue,
+                .font:            UIFont.monospacedSystemFont(ofSize: 15, weight: .medium),
+                .foregroundColor: UIColor.label,
+                .backgroundColor: UIColor.secondarySystemFill,
             ]
         )
 
         let mutable = NSMutableAttributedString(attributedString: attributedText)
         mutable.append(NSAttributedString(string: "\n"))
-        mutable.append(chipAttr)
+        mutable.append(rowAttr)
+        mutable.append(NSAttributedString(string: "\n"))
         attributedText = mutable
         log.info("AttachmentService.appendAudio: saved \(uuid.uuidString).m4a, duration \(duration)s")
+        // Push the updated text into the live UITextView immediately.
+        // RichTextKit's updateUIView() is intentionally empty, so without this notification
+        // the chip never appears on screen even though the SwiftUI @State was updated.
+        NotificationCenter.default.post(name: .attachmentAppended, object: mutable)
     }
 
     private func formattedDuration(_ seconds: TimeInterval) -> String {

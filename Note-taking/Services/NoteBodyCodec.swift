@@ -4,6 +4,13 @@ import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "NoteBodyCodec")
 
+// Custom attribute key for tagging image attachments with their disk UUID.
+// Stored on the NSAttributedString character, NOT on NSTextAttachment.fileType
+// (which is a UTI — setting it to a UUID breaks image rendering).
+extension NSAttributedString.Key {
+    static let imageAttachmentId = NSAttributedString.Key("com.prodnote.imageAttachmentId")
+}
+
 // MARK: - NoteBodyError (Issue #53)
 
 enum NoteBodyError: Error, LocalizedError {
@@ -118,17 +125,16 @@ enum NoteBodyCodec {
         let mutable = NSMutableAttributedString(attributedString: source)
         let fullRange = NSRange(location: 0, length: mutable.length)
         var ranges: [(NSRange, String)] = []
-        mutable.enumerateAttribute(.attachment, in: fullRange, options: []) { value, range, _ in
-            if let attachment = value as? NSTextAttachment,
-               let fileType = attachment.fileType,
-               UUID(uuidString: fileType) != nil {
-                ranges.append((range, fileType))
+        mutable.enumerateAttribute(.imageAttachmentId, in: fullRange, options: []) { value, range, _ in
+            if let uuid = value as? String, UUID(uuidString: uuid) != nil {
+                ranges.append((range, uuid))
             }
         }
         // Replace in reverse order so indices stay valid
         for (range, uuid) in ranges.reversed() {
             mutable.replaceCharacters(in: range, with: "[img:\(uuid)]")
         }
+        log.debug("stripImages: replaced \(ranges.count) image(s) with placeholders")
         return mutable
     }
 
@@ -150,15 +156,16 @@ enum NoteBodyCodec {
 
             let attachment = NSTextAttachment()
             attachment.image = image
-            attachment.fileType = attachmentId.uuidString
             // Scale to fit editor width (max ~280pt, matching AttachmentService)
             let maxWidth: CGFloat = 280
             if image.size.width > maxWidth {
                 let scale = maxWidth / image.size.width
                 attachment.bounds = CGRect(x: 0, y: 0, width: maxWidth, height: image.size.height * scale)
             }
-            let attachStr = NSAttributedString(attachment: attachment)
-            mutable.replaceCharacters(in: match.range, with: attachStr)
+            let attachStr = NSMutableAttributedString(attachment: attachment)
+            attachStr.addAttribute(.imageAttachmentId, value: attachmentId.uuidString, range: NSRange(location: 0, length: attachStr.length))
+            mutable.replaceCharacters(in: match.range, with: attachStr as NSAttributedString)
+            log.debug("restoreImages: restored image \(attachmentId.uuidString)")
         }
         return mutable
     }
