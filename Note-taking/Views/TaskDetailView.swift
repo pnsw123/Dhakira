@@ -110,31 +110,41 @@ struct TaskDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(formattedDate)
-                .font(.caption)
-                .foregroundStyle(Color.secondaryText)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
+            // Date + title + divider + editor all scroll together so the title
+            // disappears as the user scrolls down, matching Apple Notes behaviour.
+            GeometryReader { geo in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Text(formattedDate)
+                            .font(.caption)
+                            .foregroundStyle(Color.secondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
 
-            TextField("Untitled", text: $task.title)
-                .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(Color.primaryText)
-                .padding(.horizontal, 20)
-                .padding(.top, 4)
-                .padding(.bottom, 8)
-                .accessibilityIdentifier("task-title-field")
-                .onSubmit {
-                    // Dismiss keyboard — Enter commits the title, does not add a line
-                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        TextField("Untitled", text: $task.title)
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(Color.primaryText)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 4)
+                            .padding(.bottom, 8)
+                            .accessibilityIdentifier("task-title-field")
+                            .onSubmit {
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                            }
+
+                        Rectangle()
+                            .fill(Color.primaryText.opacity(0.15))
+                            .frame(height: 1)
+                            .padding(.horizontal, 20)
+
+                        // Give the editor at least the full visible height so
+                        // the user can tap anywhere on the blank area to type.
+                        editorArea
+                            .frame(minHeight: geo.size.height)
+                    }
                 }
-
-            Rectangle()
-                .fill(Color.primaryText.opacity(0.15))
-                .frame(height: 1)
-                .padding(.horizontal, 20)
-
-            editorArea
+            }
 
             if showToolbar && !isDrawingMode {
                 editorToolbar
@@ -223,7 +233,7 @@ struct TaskDetailView: View {
                                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                             }
                         } label: {
-                            Image(systemName: "ellipsis.circle")
+                            Image(systemName: "rectangle.and.pencil.and.ellipsis")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Color.themeAccent)
                                 .frame(width: 36, height: 36)
@@ -317,11 +327,6 @@ struct TaskDetailView: View {
                 context: richTextContext,
                 onEditorReady: { tv in
                     richTextView = tv
-                    // Enable internal scrolling so only the note body scrolls —
-                    // the title/date header above stays fixed in the VStack.
-                    // RichTextKit defaults isScrollEnabled = false for SwiftUI sizing,
-                    // which causes the whole page to scroll instead of just the editor.
-                    tv.isScrollEnabled = true
                     // RichTextKit's updateUIView() is intentionally empty, so changes to
                     // attributedText after makeUIView don't reach the UITextView automatically.
                     // onAppear → loadBody() runs before onEditorReady fires (async dispatch),
@@ -409,7 +414,7 @@ struct TaskDetailView: View {
             .opacity(isDrawingMode || task.drawingData != nil ? 1 : 0)
             .allowsHitTesting(isDrawingMode)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
         .overlay(alignment: .topLeading) { colorPaletteOverlay }
         .overlay(alignment: .topLeading) { slashMenuOverlay }
     }
