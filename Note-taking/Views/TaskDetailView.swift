@@ -223,7 +223,7 @@ struct TaskDetailView: View {
                                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                             }
                         } label: {
-                            Image(systemName: "textformat")
+                            Image(systemName: "ellipsis.circle")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Color.themeAccent)
                                 .frame(width: 36, height: 36)
