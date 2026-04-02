@@ -275,7 +275,10 @@ struct TaskListView: View {
             }
             // Keep widget snapshot up-to-date whenever the task list changes.
             // Watch count (add/delete), priorities (flag changes), and titles (edits).
-            .onAppear { syncWidget() }
+            .onAppear { reconcileWithCloudKit(); syncWidget() }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                reconcileWithCloudKit()
+            }
             .onChange(of: filteredTasks.count) { _, _ in syncWidget() }
             .onChange(of: filteredTasks.map(\.priority)) { _, _ in syncWidget() }
             .onChange(of: filteredTasks.map(\.title)) { _, _ in syncWidget() }
@@ -404,11 +407,14 @@ struct TaskListView: View {
         }
 
         if willComplete {
+            LocalStateLedger.shared.markCompleted(task.id)
             recentlyCompletedIds.insert(task.id)
             let taskId = task.id
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 recentlyCompletedIds.remove(taskId)
             }
+        } else {
+            LocalStateLedger.shared.unmarkCompleted(task.id)
         }
     }
 
@@ -437,6 +443,7 @@ struct TaskListView: View {
             task.isDeleted = true
             task.deletedAt = Date()
         }
+        LocalStateLedger.shared.markDeleted(task.id)
         do {
             try modelContext.save()
             modelContext.processPendingChanges()
@@ -457,6 +464,34 @@ struct TaskListView: View {
             log.info("moveTask: reindexed \(reordered.count) tasks after move")
         } catch {
             log.error("moveTask: modelContext.save() failed — \(error.localizedDescription)")
+        }
+    }
+
+    private func reconcileWithCloudKit() {
+        let ledger = LocalStateLedger.shared
+        var needsSave = false
+        for task in allTasks {
+            if ledger.isMarkedDeleted(task.id) && !task.isDeleted {
+                log.warning("reconcile: CloudKit restored deleted task '\(task.title)' — re-deleting")
+                task.isDeleted = true
+                task.deletedAt = task.deletedAt ?? Date()
+                needsSave = true
+            }
+            if ledger.isMarkedCompleted(task.id) && !task.isCompleted {
+                log.warning("reconcile: CloudKit restored completed task '\(task.title)' — re-completing")
+                task.isCompleted = true
+                task.completedAt = task.completedAt ?? Date()
+                needsSave = true
+            }
+        }
+        if needsSave {
+            do {
+                try modelContext.save()
+                modelContext.processPendingChanges()
+                log.info("reconcile: re-applied \(allTasks.filter { $0.isDeleted }.count) deletes, \(allTasks.filter { $0.isCompleted }.count) completions")
+            } catch {
+                log.error("reconcile: save failed — \(error.localizedDescription)")
+            }
         }
     }
 

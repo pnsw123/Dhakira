@@ -129,6 +129,7 @@ struct RecentlyDeletedView: View {
 
     private func restoreTask(_ task: TaskItem) {
         log.info("restoreTask: '\(task.title)'")
+        LocalStateLedger.shared.unmarkDeleted(task.id)
         withAnimation(.smooth(duration: 0.3)) {
             task.isDeleted = false
             task.deletedAt = nil
@@ -143,6 +144,7 @@ struct RecentlyDeletedView: View {
         if let googleEventId = task.googleCalendarEventId {
             Task { await CalendarSyncService.shared.deleteGoogleEvent(googleEventId) }
         }
+        LocalStateLedger.shared.purge(task.id)
         withAnimation(.smooth(duration: 0.3)) {
             modelContext.delete(task)
         }
