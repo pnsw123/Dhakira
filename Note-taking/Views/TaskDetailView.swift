@@ -43,6 +43,8 @@ struct TaskDetailView: View {
     @StateObject private var checkboxCoordinator = CheckboxTapCoordinator()
     // Long press coordinator — shows color palette when user holds without selecting text.
     @StateObject private var colorLongPressCoordinator = ColorLongPressCoordinator()
+    // Image size coordinator — tap an image to show ➖/➕ pill for resizing.
+    @StateObject private var imageSizeCoordinator = ImageSizeCoordinator()
     // Key interceptor — takes first responder on iPad/Mac when slash menu is visible
     // so arrow keys navigate menu rows instead of moving the text cursor.
     @State private var keyInterceptor = SlashMenuKeyInterceptor()
@@ -221,7 +223,7 @@ struct TaskDetailView: View {
                                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                             }
                         } label: {
-                            Image(systemName: showToolbar ? "keyboard.chevron.compact.down" : "keyboard")
+                            Image(systemName: "textformat")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Color.themeAccent)
                                 .frame(width: 36, height: 36)
@@ -277,6 +279,12 @@ struct TaskDetailView: View {
                 attributedText = toggled
             }
         }
+        // Sync attributedText after image resize so the new size is saved on next write.
+        .onChange(of: imageSizeCoordinator.didResize) { _, _ in
+            if let tv = richTextView {
+                attributedText = tv.attributedText ?? attributedText
+            }
+        }
         // Show color palette on long press (no text selection needed)
         .onChange(of: colorLongPressCoordinator.pressGlobalRect) { _, rect in
             guard let rect else { return }
@@ -309,6 +317,11 @@ struct TaskDetailView: View {
                 context: richTextContext,
                 onEditorReady: { tv in
                     richTextView = tv
+                    // Enable internal scrolling so only the note body scrolls —
+                    // the title/date header above stays fixed in the VStack.
+                    // RichTextKit defaults isScrollEnabled = false for SwiftUI sizing,
+                    // which causes the whole page to scroll instead of just the editor.
+                    tv.isScrollEnabled = true
                     // RichTextKit's updateUIView() is intentionally empty, so changes to
                     // attributedText after makeUIView don't reach the UITextView automatically.
                     // onAppear → loadBody() runs before onEditorReady fires (async dispatch),
@@ -348,6 +361,7 @@ struct TaskDetailView: View {
                     )
                     longPress.delegate = colorLongPressCoordinator
                     tv.addGestureRecognizer(longPress)
+                    imageSizeCoordinator.attach(to: tv)
                     DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
                 }
             )
