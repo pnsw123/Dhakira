@@ -436,14 +436,52 @@ Duplicate the frame for each device size and adjust layout:
 - Image resize — tap image → +/- pill to grow/shrink
 - Keyboard dismiss icon updated to keyboard.chevron.compact.down
 - Theme mock data updated — icons now show circles matching real UI
+- Slash menu always below cursor — flip-above logic removed
+- Toolbar hides automatically when slash menu is open, restores on dismiss
 
-Remaining before launch:
-3- Widget theme vs real device widgets — not tested yet
-4- iCloud — works but not fully tested on two devices
-5- Simple per-theme pricing — no separate page needed
-6- Screenshots + logo + branding (Figma)
-7- Full end-to-end test on real device
-8- App Store submission + landing page (dhakira.app)
+---
+
+## 🔴 Google Calendar — Broken, Must Fix Before Launch
+
+### What is broken
+1. **Wrong OAuth domain** — the Google Cloud project is registered under a different domain than the app's bundle ID / redirect URI. Login appears to succeed but nothing happens. You need to create a new Google Cloud project with the correct bundle ID (`com.prodnote.notetaking`) and update the OAuth client ID in the app.
+2. **No confirmation after login** — after the user signs in with Google, the Folders page shows nothing: no checkmark, no "Connected" state, no feedback at all. The UI must reflect the linked state.
+3. **Toggle behavior untested** — enabling/disabling Google Calendar sync has never been verified end-to-end on a real device with Google Calendar installed.
+
+### What you need to do (in order)
+| # | Task |
+|---|------|
+| 1 | Go to [console.cloud.google.com](https://console.cloud.google.com) → create a **new project** named `Dhakira` |
+| 2 | Enable the **Google Calendar API** on the new project |
+| 3 | Create an **OAuth 2.0 client ID** → type: iOS → bundle ID: `com.prodnote.notetaking` |
+| 4 | Download the new `GoogleService-Info.plist` and replace the one in Xcode |
+| 5 | Update the `REVERSED_CLIENT_ID` URL scheme in `Info.plist` to match the new client |
+| 6 | Fix the Folders page UI — after successful login show a checkmark / "Connected to Google Calendar" label |
+| 7 | Install **Google Calendar** app on your iPhone |
+| 8 | Sign in → create a task with a date in the title → verify the event appears in Google Calendar |
+| 9 | Toggle Google Calendar sync OFF → verify the event is removed or no new events are created |
+| 10 | Toggle back ON → verify sync resumes |
+
+### Definition of done
+- [ ] Login completes and Folders page shows a clear "Connected" indicator
+- [ ] Creating a dated note creates an event in Google Calendar on device
+- [ ] Toggling sync off stops new events from being created
+- [ ] No crash on login failure or permission denial
+
+---
+
+## Remaining Before Launch
+| # | Item | Status |
+|---|------|--------|
+| 1 | Google Calendar fix (see above) | 🔴 Broken |
+| 2 | Widget theme vs real device widgets | 🔲 Test manually |
+| 3 | iCloud sync on two real devices | 🔲 Test manually |
+| 4 | Simple per-theme pricing (no separate page) | 🔲 |
+| 5 | Screenshots (Figma) | 🔲 |
+| 6 | Logo (1024×1024) | 🔲 |
+| 7 | Paywall (StoreKit) | 🔲 |
+| 8 | Full end-to-end test on real device | 🔲 |
+| 9 | App Store submission + dhakira.app landing page | 🔲 |
 
 ## Current Sprint
 | # | Task | Status |
