@@ -8,7 +8,7 @@ struct RecentlyCompletedView: View {
     @Environment(\.dismiss) private var dismiss
 
     @Query(
-        filter: #Predicate<TaskItem> { $0.isCompleted == true && $0.isDeleted == false },
+        filter: #Predicate<TaskItem> { $0.isCompleted == true && $0.isTrashed == false },
         sort: \TaskItem.createdAt,
         order: .reverse
     )

@@ -1,0 +1,144 @@
+import Foundation
+import OSLog
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "GoogleCalendarAPI")
+
+/// Creates, updates, and deletes Google Calendar events via the REST API.
+///
+/// Requires the user to be authenticated via GoogleAuthService.
+/// Handles token expiry transparently — auto-retries once after a 401.
+final class GoogleCalendarAPIService {
+
+    static let shared = GoogleCalendarAPIService()
+
+    private static let baseURL = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+
+    // MARK: - Create / Update
+
+    /// Creates a new event or updates an existing one.
+    ///
+    /// - Parameters:
+    ///   - title: The event title (task name with date text stripped).
+    ///   - date: The event start time.
+    ///   - existingId: The Google Calendar event ID if previously created.
+    ///   - deepLinkURL: Optional link back to the task in the app.
+    /// - Returns: The Google Calendar event ID to store on the task, or nil on failure.
+    func syncEvent(
+        title: String,
+        date: Date,
+        existingId: String?,
+        deepLinkURL: URL? = nil
+    ) async -> String? {
+        guard let token = await GoogleAuthService.shared.validToken() else {
+            log.warning("syncEvent: no valid token — user not connected")
+            return existingId
+        }
+
+        let body = makeEventBody(title: title, date: date, deepLinkURL: deepLinkURL)
+
+        if let existingId {
+            // Try to update the existing event.
+            let result = await request(
+                method: "PUT",
+                url: URL(string: "\(Self.baseURL)/\(existingId)")!,
+                body: body,
+                token: token
+            )
+            if let id = result { return id }
+            // Fall through to create a new event if update fails (event may have been deleted).
+        }
+
+        // Create a new event.
+        return await request(method: "POST", url: URL(string: Self.baseURL)!, body: body, token: token)
+    }
+
+    // MARK: - Delete
+
+    /// Deletes a Google Calendar event by its ID.
+    /// Safe to call with a stale ID — does nothing if the event no longer exists.
+    func deleteEvent(id: String) async {
+        guard let token = await GoogleAuthService.shared.validToken() else { return }
+        guard let url = URL(string: "\(Self.baseURL)/\(id)") else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 204 || status == 404 {
+                log.info("deleteEvent: '\(id)' removed (status \(status)) ✓")
+            } else {
+                log.warning("deleteEvent: unexpected status \(status) for '\(id)'")
+            }
+        } catch {
+            log.error("deleteEvent: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Private
+
+    private func request(method: String, url: URL, body: Data, token: String) async -> String? {
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = body
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+            // 401 = token expired — refresh and retry once.
+            if status == 401 {
+                log.warning("\(method) \(url): 401 — refreshing token and retrying")
+                GoogleAuthService.shared.disconnect() // clears stale access token
+                guard let freshToken = await GoogleAuthService.shared.validToken() else { return nil }
+                return await request(method: method, url: url, body: body, token: freshToken)
+            }
+
+            guard (200..<300).contains(status) else {
+                log.error("\(method) \(url): HTTP \(status)")
+                return nil
+            }
+
+            let event = try JSONDecoder().decode(EventResponse.self, from: data)
+            log.info("\(method) event ✓ id='\(event.id)'")
+            return event.id
+        } catch {
+            log.error("\(method) \(url): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func makeEventBody(title: String, date: Date, deepLinkURL: URL?) -> Data {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+
+        let start = formatter.string(from: date)
+        let end   = formatter.string(from: date.addingTimeInterval(3600))
+
+        var event: [String: Any] = [
+            "summary": title,
+            "start": ["dateTime": start],
+            "end":   ["dateTime": end],
+            "reminders": [
+                "useDefault": false,
+                "overrides":  [["method": "popup", "minutes": 15]],
+            ],
+        ]
+
+        if let url = deepLinkURL {
+            event["source"] = ["title": "ProdNote", "url": url.absoluteString]
+        }
+
+        return (try? JSONSerialization.data(withJSONObject: event)) ?? Data()
+    }
+}
+
+// MARK: - Response model
+
+private struct EventResponse: Decodable {
+    let id: String
+}

@@ -32,7 +32,7 @@ struct TaskListView: View {
         self._pendingDeepLinkTaskId = pendingDeepLinkTaskId
     }
 
-    @Query(filter: #Predicate<TaskItem> { $0.isDeleted == false }, sort: \TaskItem.sortOrder, order: .forward)
+    @Query(filter: #Predicate<TaskItem> { $0.isTrashed == false }, sort: \TaskItem.sortOrder, order: .forward)
     private var allTasks: [TaskItem]
 
     @Environment(ThemeManager.self) private var themeManager
@@ -440,7 +440,7 @@ struct TaskListView: View {
             task.googleCalendarEventId = nil
         }
         withAnimation(.smooth(duration: 0.3)) {
-            task.isDeleted = true
+            task.isTrashed = true
             task.deletedAt = Date()
         }
         LocalStateLedger.shared.markDeleted(task.id)
@@ -471,9 +471,9 @@ struct TaskListView: View {
         let ledger = LocalStateLedger.shared
         var needsSave = false
         for task in allTasks {
-            if ledger.isMarkedDeleted(task.id) && !task.isDeleted {
+            if ledger.isMarkedDeleted(task.id) && !task.isTrashed {
                 log.warning("reconcile: CloudKit restored deleted task '\(task.title)' — re-deleting")
-                task.isDeleted = true
+                task.isTrashed = true
                 task.deletedAt = task.deletedAt ?? Date()
                 needsSave = true
             }
@@ -488,7 +488,7 @@ struct TaskListView: View {
             do {
                 try modelContext.save()
                 modelContext.processPendingChanges()
-                log.info("reconcile: re-applied \(allTasks.filter { $0.isDeleted }.count) deletes, \(allTasks.filter { $0.isCompleted }.count) completions")
+                log.info("reconcile: re-applied \(allTasks.filter { $0.isTrashed }.count) deletes, \(allTasks.filter { $0.isCompleted }.count) completions")
             } catch {
                 log.error("reconcile: save failed — \(error.localizedDescription)")
             }

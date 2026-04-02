@@ -254,8 +254,8 @@ struct FolderRowView: View {
         let now = Date()
         // Soft-delete all tasks so they appear in Recently Deleted
         for list in taskListsForFolder {
-            for task in (list.tasks ?? []) where !task.isDeleted {
-                task.isDeleted = true
+            for task in (list.tasks ?? []) where !task.isTrashed {
+                task.isTrashed = true
                 task.deletedAt = now
             }
             modelContext.delete(list)
@@ -376,8 +376,8 @@ struct TaskListRowView: View {
         let taskCount = taskList.tasks?.count ?? 0
         log.info("TaskListRowView.deleteTaskList: '\(taskList.name)' with \(taskCount) task(s)")
         let now = Date()
-        for task in (taskList.tasks ?? []) where !task.isDeleted {
-            task.isDeleted = true
+        for task in (taskList.tasks ?? []) where !task.isTrashed {
+            task.isTrashed = true
             task.deletedAt = now
         }
         modelContext.delete(taskList)

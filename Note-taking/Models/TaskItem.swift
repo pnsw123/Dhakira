@@ -24,7 +24,7 @@ final class TaskItem {
     var taskList: TaskList?
 
     // Soft-delete fields
-    var isDeleted: Bool = false
+    var isTrashed: Bool = false
     var deletedAt: Date?
 
     @Relationship(deleteRule: .nullify, inverse: \Attachment.task)
@@ -45,7 +45,7 @@ final class TaskItem {
         self.parentTask = parentTask
         self.folder = folder
         self.taskList = taskList
-        self.isDeleted = false
+        self.isTrashed = false
         self.deletedAt = nil
     }
 }

@@ -152,7 +152,7 @@ private actor StartupWorker {
 
     private func migrateOrphanedTasks() {
         let orphanDescriptor = FetchDescriptor<TaskItem>(
-            predicate: #Predicate<TaskItem> { $0.taskList == nil && !$0.isDeleted }
+            predicate: #Predicate<TaskItem> { $0.taskList == nil && !$0.isTrashed }
         )
         guard let orphans = try? modelContext.fetch(orphanDescriptor), !orphans.isEmpty else { return }
 
@@ -171,7 +171,7 @@ private actor StartupWorker {
     private func syncWidgetData() {
         log.debug("syncWidgetData: syncing ALL active tasks to widget")
         let descriptor = FetchDescriptor<TaskItem>(
-            predicate: #Predicate<TaskItem> { $0.isDeleted == false && $0.isCompleted == false }
+            predicate: #Predicate<TaskItem> { $0.isTrashed == false && $0.isCompleted == false }
         )
         guard let tasks = try? modelContext.fetch(descriptor) else {
             log.debug("syncWidgetData: no tasks found")
@@ -202,7 +202,7 @@ private actor StartupWorker {
     private func cleanup30DayDeletedTasks() {
         let cutoff = Date().addingTimeInterval(-30 * 24 * 60 * 60)
         let descriptor = FetchDescriptor<TaskItem>(
-            predicate: #Predicate<TaskItem> { $0.isDeleted == true }
+            predicate: #Predicate<TaskItem> { $0.isTrashed == true }
         )
         guard let deletedTasks = try? modelContext.fetch(descriptor), !deletedTasks.isEmpty else { return }
 

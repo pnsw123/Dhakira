@@ -41,7 +41,7 @@ final class SwiftDataModelTests: XCTestCase {
     func testDeleteTaskSoftDeletes() throws {
         let active  = TaskItem(title: "Active task")
         let deleted = TaskItem(title: "Deleted task")
-        deleted.isDeleted = true
+        deleted.isTrashed = true
         deleted.deletedAt = Date()
 
         context.insert(active)
@@ -50,13 +50,13 @@ final class SwiftDataModelTests: XCTestCase {
 
         // Matches the predicate pattern used in production (Note_takingApp.swift)
         let activeResults = try context.fetch(FetchDescriptor<TaskItem>(
-            predicate: #Predicate<TaskItem> { $0.isDeleted == false }
+            predicate: #Predicate<TaskItem> { $0.isTrashed == false }
         ))
         XCTAssertEqual(activeResults.count, 1)
         XCTAssertEqual(activeResults.first?.title, "Active task")
 
         let deletedResults = try context.fetch(FetchDescriptor<TaskItem>(
-            predicate: #Predicate<TaskItem> { $0.isDeleted == true }
+            predicate: #Predicate<TaskItem> { $0.isTrashed == true }
         ))
         XCTAssertEqual(deletedResults.count, 1)
         XCTAssertEqual(deletedResults.first?.title, "Deleted task")
@@ -136,11 +136,11 @@ final class SwiftDataModelTests: XCTestCase {
         let cutoff = Date().addingTimeInterval(-30 * 24 * 60 * 60)
 
         let expired = TaskItem(title: "Expired task")
-        expired.isDeleted = true
+        expired.isTrashed = true
         expired.deletedAt = Date().addingTimeInterval(-31 * 24 * 60 * 60) // 31 days ago
 
         let recent = TaskItem(title: "Recent deleted")
-        recent.isDeleted = true
+        recent.isTrashed = true
         recent.deletedAt = Date().addingTimeInterval(-10 * 24 * 60 * 60)  // 10 days ago
 
         context.insert(expired)
@@ -148,7 +148,7 @@ final class SwiftDataModelTests: XCTestCase {
         try context.save()
 
         let allDeleted = try context.fetch(FetchDescriptor<TaskItem>(
-            predicate: #Predicate<TaskItem> { $0.isDeleted == true }
+            predicate: #Predicate<TaskItem> { $0.isTrashed == true }
         ))
         XCTAssertEqual(allDeleted.count, 2)
 

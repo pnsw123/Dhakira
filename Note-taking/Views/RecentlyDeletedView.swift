@@ -9,7 +9,7 @@ struct RecentlyDeletedView: View {
     @Environment(\.modelContext) private var modelContext
 
     @Query(
-        filter: #Predicate<TaskItem> { $0.isDeleted == true },
+        filter: #Predicate<TaskItem> { $0.isTrashed == true },
         sort: \TaskItem.createdAt,
         order: .reverse
     )
@@ -131,7 +131,7 @@ struct RecentlyDeletedView: View {
         log.info("restoreTask: '\(task.title)'")
         LocalStateLedger.shared.unmarkDeleted(task.id)
         withAnimation(.smooth(duration: 0.3)) {
-            task.isDeleted = false
+            task.isTrashed = false
             task.deletedAt = nil
         }
     }
@@ -181,7 +181,7 @@ private func previewDeleted(theme: AppTheme? = nil) -> some View {
     let list = TaskList(name: "Tasks", folder: folder)
     ctx.insert(list)
     let t = TaskItem(title: "Old task", taskList: list)
-    t.isDeleted = true; t.deletedAt = Date()
+    t.isTrashed = true; t.deletedAt = Date()
     ctx.insert(t)
     return ZStack {
         previewGradient(tm)
