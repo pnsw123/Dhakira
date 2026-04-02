@@ -31,6 +31,38 @@ struct HomeView: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 16) {
+                    // Header — scrolls with content
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 0) {
+                            Color.clear
+                                .frame(width: 36, height: 36)
+
+                            Spacer()
+
+                            Button(action: {
+                                log.info("HomeView: > button tapped → calling onClose()")
+                                onClose?()
+                            }) {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(Color.themeAccent)
+                                    .frame(width: 36, height: 36)
+                                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("btn-go-to-tasks")
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
+
+                        Text("Folders")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(Color.primaryText)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 4)
+                            .padding(.bottom, 8)
+                    }
+
                     // Folders section
                     foldersSection
                         .id("folders-section")
@@ -101,45 +133,6 @@ struct HomeView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            .safeAreaInset(edge: .top) {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Row 1: Nav buttons
-                    HStack(spacing: 0) {
-                        // Invisible spacer — mirrors the < button on Tasks
-                        Color.clear
-                            .frame(width: 36, height: 36)
-                            .padding(.leading, 8)
-
-                        Spacer()
-
-                        // > goes back to Tasks (the default page)
-                        Button(action: {
-                            log.info("HomeView: > button tapped → calling onClose()")
-                            onClose?()
-                        }) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(Color.themeAccent)
-                                .frame(width: 36, height: 36)
-                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.trailing, 8)
-                        .accessibilityIdentifier("btn-go-to-tasks")
-                    }
-                    .padding(.top, 4)
-
-                    // Row 2: Title
-                    Text("Folders")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(Color.primaryText)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 4)
-                        .padding(.bottom, 8)
-                }
-                .contentShape(Rectangle())
-                .background(.ultraThinMaterial)
-            }
             } // ScrollViewReader
     }
 

@@ -27,7 +27,30 @@ struct RecentlyCompletedView: View {
                 emptyState
                     .onAppear { log.info("RecentlyCompletedView: empty state shown") }
             } else {
-                List(completedTasks) { task in
+                List {
+                    // Header — scrolls with content
+                    VStack(alignment: .leading, spacing: 0) {
+                        Button(action: { dismiss() }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                                .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
+
+                        Text("Recently Completed")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(Color.primaryText)
+                            .padding(.top, 4)
+                            .padding(.bottom, 8)
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                    .listRowBackground(Color.clear)
+
+                    ForEach(completedTasks) { task in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(task.title.isEmpty ? "Untitled" : task.title)
                             .font(.system(size: 15))
@@ -64,6 +87,7 @@ struct RecentlyCompletedView: View {
                     }
                     .padding(.vertical, 4)
                     .listRowBackground(Color.clear)
+                    }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -71,28 +95,6 @@ struct RecentlyCompletedView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .top) {
-            HStack(spacing: 0) {
-                Button(action: { dismiss() }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.themeAccent)
-                        .frame(width: 36, height: 36)
-                }
-                .buttonStyle(.plain)
-
-                Text("Recently Completed")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(Color.primaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 4)
-            }
-            .contentShape(Rectangle())
-            .padding(.trailing, 16)
-            .padding(.top, 4)
-            .padding(.bottom, 8)
-            .background(.ultraThinMaterial)
-        }
         .background(Color.clear)
         .navigationBarBackButtonHidden(true)
     }

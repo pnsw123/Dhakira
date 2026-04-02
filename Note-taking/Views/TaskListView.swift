@@ -69,6 +69,73 @@ struct TaskListView: View {
 
     var body: some View {
         List {
+                // Header — scrolls with content, not sticky
+                Section {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 0) {
+                            if onShowHome != nil {
+                                Button(action: {
+                                    log.info("TaskListView: < button tapped (root), calling onShowHome")
+                                    onShowHome?()
+                                }) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .foregroundStyle(Color.themeAccent)
+                                        .frame(width: 36, height: 36)
+                                        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("btn-go-to-folders")
+                            } else {
+                                Button(action: {
+                                    log.info("TaskListView: < button tapped (pushed list=\(taskList?.name ?? "?")), calling dismiss()")
+                                    dismiss()
+                                }) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .foregroundStyle(Color.themeAccent)
+                                        .frame(width: 36, height: 36)
+                                        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            Spacer()
+
+                            settingsButton
+                            if isAddingTask || isEditingName {
+                                doneButton
+                                    .padding(.leading, 8)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
+                        }
+                        .padding(.top, 4)
+
+                        if isEditingName {
+                            TextField("List name", text: $editedName, onCommit: commitNameEdit)
+                                .font(.system(size: 34, weight: .bold))
+                                .foregroundStyle(Color.primaryText)
+                                .padding(.top, 4)
+                                .padding(.bottom, 8)
+                        } else {
+                            Text(displayName)
+                                .font(.system(size: 34, weight: .bold))
+                                .foregroundStyle(Color.primaryText)
+                                .padding(.top, 4)
+                                .padding(.bottom, 8)
+                                .onTapGesture {
+                                    if let taskList {
+                                        editedName = taskList.name
+                                        isEditingName = true
+                                    }
+                                }
+                        }
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                    .listRowBackground(Color.clear)
+                }
+
                 ForEach(filteredTasks) { task in
                     TaskRowView(
                         task: task,
@@ -148,79 +215,6 @@ struct TaskListView: View {
             }
             .background(Color.clear)
             .toolbar(.hidden, for: .navigationBar)
-            .safeAreaInset(edge: .top) {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Row 1: Nav buttons
-                    HStack(spacing: 0) {
-                        if onShowHome != nil {
-                            // Root view — back chevron navigates to HomeView (via ContentView)
-                            Button(action: {
-                                log.info("TaskListView: < button tapped (root), calling onShowHome")
-                                onShowHome?()
-                            }) {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundStyle(Color.themeAccent)
-                                    .frame(width: 36, height: 36)
-                                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.leading, 8)
-                            .accessibilityIdentifier("btn-go-to-folders")
-                        } else {
-                            // Pushed view — chevron goes back in navigation stack
-                            Button(action: {
-                                log.info("TaskListView: < button tapped (pushed list=\(taskList?.name ?? "?")), calling dismiss()")
-                                dismiss()
-                            }) {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundStyle(Color.themeAccent)
-                                    .frame(width: 36, height: 36)
-                                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.leading, 8)
-                        }
-
-                        Spacer()
-
-                        settingsButton
-                        if isAddingTask || isEditingName {
-                            doneButton
-                                .padding(.leading, 8)
-                                .transition(.scale.combined(with: .opacity))
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.top, 4)
-
-                    // Row 2: Title
-                    if isEditingName {
-                        TextField("List name", text: $editedName, onCommit: commitNameEdit)
-                            .font(.system(size: 34, weight: .bold))
-                            .foregroundStyle(Color.primaryText)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 4)
-                            .padding(.bottom, 8)
-                    } else {
-                        Text(displayName)
-                            .font(.system(size: 34, weight: .bold))
-                            .foregroundStyle(Color.primaryText)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 4)
-                            .padding(.bottom, 8)
-                            .onTapGesture {
-                                if let taskList {
-                                    editedName = taskList.name
-                                    isEditingName = true
-                                }
-                            }
-                    }
-                }
-                .contentShape(Rectangle())
-                .background(.ultraThinMaterial)
-            }
             .safeAreaInset(edge: .bottom, alignment: .trailing) {
                 Button(action: addTask) {
                     Image(systemName: "plus")
