@@ -41,6 +41,10 @@
 	<string>ProdNote uses your calendar to automatically create events for tasks that have dates in their titles.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>ProdNote uses your calendar to automatically create events for tasks that have dates in their titles.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>ProdNote uses the camera to take photos that you can attach to your tasks.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>ProdNote accesses your photo library so you can attach images to your tasks.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ProdNote uses the microphone to record voice notes that you can attach to your tasks.</string>
 	<key>CFBundleIconName</key>

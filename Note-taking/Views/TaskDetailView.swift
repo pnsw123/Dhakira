@@ -1455,11 +1455,11 @@ struct TaskDetailView: View {
         items += [
             .init(id: "scanText",      icon: "text.viewfinder", label: "Scan Text"),
             .init(id: "scanDocuments", icon: "doc.viewfinder",  label: "Scan Documents"),
-            .init(id: "takePhoto",     icon: "camera",           label: "Take Photo or Video"),
+            .init(id: "takePhoto",     icon: "camera",           label: "Take Photo"),
         ]
         #endif
         items += [
-            .init(id: "choosePhoto",   icon: "photo",            label: "Choose Photo or Video"),
+            .init(id: "choosePhoto",   icon: "photo",            label: "Choose Photo"),
             .init(id: "recordAudio",   icon: "mic",              label: "Record Audio"),
             .init(id: "attachFile",    icon: "paperclip",        label: "Attach File"),
         ]
@@ -1535,11 +1535,15 @@ struct TaskDetailView: View {
         }
 
         if selectionIsAttachment {
-            log.debug("onSelectionChanged: selection contains attachment — hiding palette, dismissing keyboard")
+            log.debug("onSelectionChanged: selection contains attachment — clearing selection, hiding palette")
             withAnimation(.easeInOut(duration: 0.2)) { showColorPalette = false }
             selectionGlobalRect = .zero
-            // Dismiss keyboard — no reason to type when an image/audio is selected
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            // Clear selection to remove blue handles — place cursor after the attachment instead
+            if let tv = richTextView {
+                let afterAttachment = min(range.location + range.length, (tv.text as NSString).length)
+                tv.selectedRange = NSRange(location: afterAttachment, length: 0)
+                log.debug("onSelectionChanged: cleared selection, cursor at \(afterAttachment)")
+            }
             return
         }
 
@@ -1670,7 +1674,7 @@ struct DataScannerWrapperView: UIViewControllerRepresentable {
 }
 #endif // os(iOS) — DataScannerWrapperView
 
-// MARK: - PhotoPickerView (Photos + Videos, multi-select — matches Apple Notes)
+// MARK: - PhotoPickerView (Images only, multi-select)
 
 struct PhotoPickerView: UIViewControllerRepresentable {
     let onPick: (Data) -> Void
@@ -1679,7 +1683,7 @@ struct PhotoPickerView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration(photoLibrary: .shared())
-        config.filter = .any(of: [.images, .videos])
+        config.filter = .images
         config.selectionLimit = 0 // 0 = unlimited, like Apple Notes
         config.preferredAssetRepresentationMode = .current
         let picker = PHPickerViewController(configuration: config)
@@ -1697,33 +1701,11 @@ struct PhotoPickerView: UIViewControllerRepresentable {
             picker.dismiss(animated: true)
             for result in results {
                 let provider = result.itemProvider
-                // Try image first
                 if provider.canLoadObject(ofClass: UIImage.self) {
                     provider.loadObject(ofClass: UIImage.self) { object, _ in
                         if let image = object as? UIImage,
                            let data = image.jpegData(compressionQuality: 0.85) {
                             DispatchQueue.main.async { self.onPick(data) }
-                        }
-                    }
-                } else if provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
-                    // Video — load file representation and read data
-                    provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, _ in
-                        guard let url else { return }
-                        // Copy to temp so it survives provider cleanup
-                        let tmp = FileManager.default.temporaryDirectory
-                            .appendingPathComponent(url.lastPathComponent)
-                        try? FileManager.default.removeItem(at: tmp)
-                        try? FileManager.default.copyItem(at: url, to: tmp)
-                        // Generate thumbnail for inline display
-                        Task { @MainActor in
-                            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: tmp))
-                            generator.appliesPreferredTrackTransform = true
-                            if let cgImage = try? await generator.image(at: .zero).image {
-                                let thumb = UIImage(cgImage: cgImage)
-                                if let data = thumb.jpegData(compressionQuality: 0.85) {
-                                    self.onPick(data)
-                                }
-                            }
                         }
                     }
                 }
@@ -1732,7 +1714,7 @@ struct PhotoPickerView: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - CameraPickerView (Photo + Video — matches Apple Notes)
+// MARK: - CameraPickerView (Photo only)
 // Camera hardware — iOS only
 
 #if os(iOS)
@@ -1745,9 +1727,7 @@ struct CameraPickerView: UIViewControllerRepresentable {
         let picker = UIImagePickerController()
         if UIImagePickerController.isSourceTypeAvailable(.camera) {
             picker.sourceType = .camera
-            // Allow both photo and video — same as Apple Notes
-            picker.mediaTypes = [UTType.image.identifier, UTType.movie.identifier]
-            picker.videoQuality = .typeHigh
+            picker.mediaTypes = [UTType.image.identifier]
             picker.cameraCaptureMode = .photo
         } else {
             picker.sourceType = .photoLibrary
