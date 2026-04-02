@@ -32,6 +32,7 @@ struct TaskDetailView: View {
     @State private var richTextView: UITextView?
 
     @State private var showToolbar = true
+    @State private var isKeyboardVisible = false
     @State private var isDrawingMode = false
     /// References to PencilKit objects — obtained via onCanvasReady, managed here.
     @State private var pkCanvasView: PKCanvasView?
@@ -208,16 +209,19 @@ struct TaskDetailView: View {
                         }
                         .buttonStyle(.plain)
 
-                        Button {
-                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                        } label: {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.themeAccent)
-                                .frame(width: 36, height: 36)
-                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                        if isKeyboardVisible {
+                            Button {
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                            } label: {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Color.themeAccent)
+                                    .frame(width: 36, height: 36)
+                                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                            }
+                            .buttonStyle(.plain)
+                            .transition(.scale.combined(with: .opacity))
                         }
-                        .buttonStyle(.plain)
 
                         Button {
                             showToolbar.toggle()
@@ -264,6 +268,12 @@ struct TaskDetailView: View {
         )
         .onAppear { loadToolbarOrder(); loadBody() }
         .onDisappear { saveBody() }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.2)) { isKeyboardVisible = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.2)) { isKeyboardVisible = false }
+        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .inactive || newPhase == .background {
                 saveBody()
