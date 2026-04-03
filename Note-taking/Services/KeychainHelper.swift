@@ -1,25 +1,39 @@
 import Foundation
+import OSLog
 import Security
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "Keychain")
 
 /// Minimal Keychain wrapper for storing and retrieving string tokens securely.
 /// Used by GoogleAuthService to persist OAuth access and refresh tokens.
 enum KeychainHelper {
 
-    static func save(key: String, value: String) {
+    @discardableResult
+    static func save(key: String, value: String) -> Bool {
         let data = Data(value.utf8)
         let query: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
             kSecAttrAccount: key,
         ]
         // Delete any existing item first, then add fresh.
-        SecItemDelete(query as CFDictionary)
+        let deleteStatus = SecItemDelete(query as CFDictionary)
+        if deleteStatus != errSecSuccess && deleteStatus != errSecItemNotFound {
+            log.warning("Keychain delete failed for '\(key)': status \(deleteStatus)")
+        }
+
         let attributes: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
             kSecAttrAccount: key,
             kSecValueData:   data,
             kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
-        SecItemAdd(attributes as CFDictionary, nil)
+        let addStatus = SecItemAdd(attributes as CFDictionary, nil)
+        if addStatus != errSecSuccess {
+            log.error("Keychain save FAILED for '\(key)': status \(addStatus)")
+            return false
+        }
+        log.debug("Keychain save OK for '\(key)'")
+        return true
     }
 
     static func read(key: String) -> String? {
@@ -42,6 +56,9 @@ enum KeychainHelper {
             kSecClass:       kSecClassGenericPassword,
             kSecAttrAccount: key,
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        if status != errSecSuccess && status != errSecItemNotFound {
+            log.warning("Keychain delete failed for '\(key)': status \(status)")
+        }
     }
 }

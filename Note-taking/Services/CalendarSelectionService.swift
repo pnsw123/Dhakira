@@ -1,6 +1,9 @@
 import EventKit
 import Foundation
 import Observation
+import OSLog
+
+private let log = Logger(subsystem: "notes.Note-taking", category: "CalendarSelection")
 
 /// Manages Google Calendar sync preference and detects whether Google Calendar
 /// is available via CalDAV (synced through iOS/macOS system Settings).
@@ -29,6 +32,11 @@ final class CalendarSelectionService {
     /// Whether the user wants events synced via the web Google Calendar (OAuth).
     private(set) var googleWebCalendarEnabled: Bool
 
+    /// True if at least one Google CalDAV account is set up in system Settings.
+    /// This is a STORED property (not computed) so @Observable can track changes
+    /// and SwiftUI re-renders when it updates.
+    private(set) var hasGoogleCalendar: Bool = false
+
     private let eventStore: EKEventStore
 
     init(eventStore: EKEventStore = EKEventStore()) {
@@ -38,6 +46,10 @@ final class CalendarSelectionService {
         self.appleCalendarSyncEnabled  = appleRaw != nil ? UserDefaults.standard.bool(forKey: Self.appleSyncKey) : true
         self.googleCalendarSyncEnabled = UserDefaults.standard.bool(forKey: Self.googleSyncKey)
         self.googleWebCalendarEnabled  = UserDefaults.standard.bool(forKey: Self.googleWebSyncKey)
+
+        // Initial detection
+        self.hasGoogleCalendar = detectGoogleCalendar()
+        log.info("init: apple=\(self.appleCalendarSyncEnabled) googleLocal=\(self.googleCalendarSyncEnabled) googleWeb=\(self.googleWebCalendarEnabled) hasGoogleCal=\(self.hasGoogleCalendar)")
     }
 
     // MARK: - Preference
@@ -45,44 +57,64 @@ final class CalendarSelectionService {
     func toggleAppleSync() {
         appleCalendarSyncEnabled.toggle()
         UserDefaults.standard.set(appleCalendarSyncEnabled, forKey: Self.appleSyncKey)
+        log.info("toggleAppleSync: now \(self.appleCalendarSyncEnabled)")
     }
 
     func toggleGoogleSync() {
         googleCalendarSyncEnabled.toggle()
         UserDefaults.standard.set(googleCalendarSyncEnabled, forKey: Self.googleSyncKey)
+        log.info("toggleGoogleSync: now \(self.googleCalendarSyncEnabled)")
     }
 
     func toggleWebSync() {
         googleWebCalendarEnabled.toggle()
         UserDefaults.standard.set(googleWebCalendarEnabled, forKey: Self.googleWebSyncKey)
+        log.info("toggleWebSync: now \(self.googleWebCalendarEnabled)")
     }
 
-    /// Re-reads all flags from UserDefaults (call when app returns to foreground).
+    /// Re-reads all flags from UserDefaults AND refreshes the EventKit sources
+    /// (call when app returns to foreground — e.g. after user adds Google in Settings).
     func refreshFromUserDefaults() {
         let appleRaw = UserDefaults.standard.object(forKey: Self.appleSyncKey)
         appleCalendarSyncEnabled  = appleRaw != nil ? UserDefaults.standard.bool(forKey: Self.appleSyncKey) : true
         googleCalendarSyncEnabled = UserDefaults.standard.bool(forKey: Self.googleSyncKey)
         googleWebCalendarEnabled  = UserDefaults.standard.bool(forKey: Self.googleWebSyncKey)
+
+        // Force EventKit to re-read calendar sources so hasGoogleCalendar picks up
+        // accounts added while the app was backgrounded.
+        eventStore.refreshSourcesIfNecessary()
+        let oldValue = hasGoogleCalendar
+        hasGoogleCalendar = detectGoogleCalendar()
+        log.info("refreshFromUserDefaults: hasGoogleCal \(oldValue) → \(self.hasGoogleCalendar), apple=\(self.appleCalendarSyncEnabled) googleLocal=\(self.googleCalendarSyncEnabled) googleWeb=\(self.googleWebCalendarEnabled)")
     }
 
     // MARK: - Detection
 
-    /// True if at least one Google CalDAV account is set up in system Settings.
-    var hasGoogleCalendar: Bool {
-        eventStore.calendars(for: .event)
-            .compactMap { $0.source }
-            .contains { isGoogleSource($0) }
-    }
-
     /// Returns the first writable Google Calendar if available AND sync is enabled.
     /// Returns nil if Google Calendar is not set up, or if the user disabled Google sync.
     func googleCalendar() -> EKCalendar? {
-        guard googleCalendarSyncEnabled else { return nil }
-        return eventStore.calendars(for: .event)
+        guard googleCalendarSyncEnabled else {
+            log.debug("googleCalendar(): sync disabled — returning nil")
+            return nil
+        }
+        let cal = eventStore.calendars(for: .event)
             .first { isGoogleSource($0.source) && $0.allowsContentModifications }
+        log.debug("googleCalendar(): found=\(cal != nil) title='\(cal?.title ?? "none")'")
+        return cal
     }
 
     // MARK: - Private
+
+    /// Checks EventKit for any Google CalDAV source.
+    private func detectGoogleCalendar() -> Bool {
+        let allSources = eventStore.calendars(for: .event).compactMap { $0.source }
+        let googleSources = allSources.filter { isGoogleSource($0) }
+        log.debug("detectGoogleCalendar: found \(allSources.count) source(s), \(googleSources.count) Google source(s)")
+        for source in allSources {
+            log.debug("  source: '\(source.title)' type=\(source.sourceType.rawValue) id='\(source.sourceIdentifier)'")
+        }
+        return !googleSources.isEmpty
+    }
 
     private func isGoogleSource(_ source: EKSource?) -> Bool {
         guard let source else { return false }

@@ -34,8 +34,10 @@ final class DateDetectionService {
         "2night": "tonight", "tn": "tonight",
         // night
         "nite": "night",
-        // next / this
-        "nxt": "next",  "dis": "this",
+        // time-of-day
+        "morn": "morning",  "aft": "afternoon",  "eve": "evening",
+        // next / this / coming / upcoming
+        "nxt": "next",  "dis": "this",  "comin": "coming",  "upcomin": "upcoming",
         // weekdays — 3-letter
         "mon": "Monday",  "tue": "Tuesday",  "wed": "Wednesday",
         "thu": "Thursday","fri": "Friday",   "sat": "Saturday",  "sun": "Sunday",
@@ -116,6 +118,10 @@ final class DateDetectionService {
                                    with: "at noon", options: .regularExpression)
         s = s.replacingOccurrences(of: #"(?i)(?<!\bat )\bmidnight\b"#,
                                    with: "at midnight", options: .regularExpression)
+        // "tonight" without a time → "today at 8pm" (a sensible evening default)
+        // If user wrote "tonight at 9", the "at 9" will override via NSDataDetector.
+        s = s.replacingOccurrences(of: #"(?i)\btonight\b(?!\s+at\b)"#,
+                                   with: "today at 8pm", options: .regularExpression)
 
         // ── 2. "@" as "at" before a time ─────────────────────────────────────
         // "dentist @5pm" → "dentist at 5pm"
@@ -126,7 +132,12 @@ final class DateDetectionService {
         s = s.replacingOccurrences(of: #"(?i)\b(\d{1,2})(p)\b"#, with: "$1pm", options: .regularExpression)
         s = s.replacingOccurrences(of: #"(?i)\b(\d{1,2})(a)\b"#, with: "$1am", options: .regularExpression)
 
-        // ── 4. Relative durations → absolute date strings ────────────────────
+        // ── 4a. Relative day/week phrases → absolute date strings ────────────
+        // "next week", "next day", "next Monday", "this Friday", etc.
+        // NSDataDetector is unreliable with these, so we resolve them ourselves.
+        s = expandRelativeDayPhrases(in: s)
+
+        // ── 4b. Relative durations → absolute date strings ───────────────────
         // "in 2 hours", "in 30 min", "in 30m", "in 2h", "in an hour", "in a minute"
         s = expandRelativeDurations(in: s)
 
@@ -158,19 +169,171 @@ final class DateDetectionService {
 
     // MARK: - Private helpers
 
-    /// Replaces "in N hours/minutes/seconds" with an absolute date-time string.
+    /// Resolves relative day/week phrases that NSDataDetector misses:
+    /// "next Monday", "next week", "next day", "this Friday", "coming Wednesday",
+    /// "upcoming Friday", "day after tomorrow", bare weekday names, etc.
+    ///
+    /// Uses DATE-ONLY format so user-supplied times ("at 5pm") are preserved
+    /// and picked up by NSDataDetector separately.
+    private func expandRelativeDayPhrases(in text: String) -> String {
+        var result = text
+        let cal = Calendar.current
+        let now = Date()
+
+        let weekdayNames: [(String, Int)] = [
+            ("sunday", 1), ("monday", 2), ("tuesday", 3), ("wednesday", 4),
+            ("thursday", 5), ("friday", 6), ("saturday", 7),
+        ]
+
+        // Helper: nearest future occurrence of a weekday (1–7 days ahead)
+        // Used for "this Friday", "coming Monday", bare "Friday", etc.
+        func nearestOccurrence(of weekday: Int) -> Date? {
+            let today = cal.component(.weekday, from: now)
+            var daysAhead = weekday - today
+            if daysAhead <= 0 { daysAhead += 7 }
+            return cal.date(byAdding: .day, value: daysAhead, to: now)
+        }
+
+        // Helper: NEXT WEEK's occurrence of a weekday (8–14 days ahead)
+        // Used for "next Friday", "next Monday" — always a week AFTER the nearest.
+        func nextWeekOccurrence(of weekday: Int) -> Date? {
+            let today = cal.component(.weekday, from: now)
+            var daysAhead = weekday - today
+            if daysAhead <= 0 { daysAhead += 7 }
+            daysAhead += 7  // push to next week
+            return cal.date(byAdding: .day, value: daysAhead, to: now)
+        }
+
+        // Helper: replace all matches of a pattern with an absolute date string
+        func replacePattern(_ pattern: String, with date: Date, in text: inout String) {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
+            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            for match in matches.reversed() {
+                let replacement = formatAbsoluteDateOnly(date)
+                text = (text as NSString).replacingCharacters(in: match.range, with: replacement)
+            }
+        }
+
+        // ── "next next <weekday>" → TWO weeks out (15–21 days ahead) ────────
+        // Must run BEFORE "next <weekday>" to avoid partial matching.
+        for (name, weekday) in weekdayNames {
+            let pattern = "(?i)\\bnext\\s+next\\s+\(name)\\b"
+            let today = cal.component(.weekday, from: now)
+            var daysAhead = weekday - today
+            if daysAhead <= 0 { daysAhead += 7 }
+            daysAhead += 14  // two weeks out
+            if let target = cal.date(byAdding: .day, value: daysAhead, to: now) {
+                replacePattern(pattern, with: target, in: &result)
+            }
+        }
+
+        // ── "next next week" → 14 days from now ─────────────────────────────
+        if let target = cal.date(byAdding: .day, value: 14, to: now) {
+            replacePattern(#"(?i)\bnext\s+next\s+week\b"#, with: target, in: &result)
+        }
+
+        // ── "next <weekday>" → NEXT WEEK's instance (8–14 days ahead) ──────
+        for (name, weekday) in weekdayNames {
+            let pattern = "(?i)\\bnext\\s+\(name)\\b"
+            if let target = nextWeekOccurrence(of: weekday) {
+                replacePattern(pattern, with: target, in: &result)
+            }
+        }
+
+        // ── "this/coming/upcoming <weekday>" → nearest instance (1–7 days) ──
+        for (name, weekday) in weekdayNames {
+            let pattern = "(?i)\\b(?:this|coming|upcoming)\\s+\(name)\\b"
+            if let target = nearestOccurrence(of: weekday) {
+                replacePattern(pattern, with: target, in: &result)
+            }
+        }
+
+        // ── bare weekday name (just "Monday" without prefix) → nearest ───────
+        for (name, weekday) in weekdayNames {
+            let pattern = "(?i)(?<!next\\s)(?<!coming\\s)(?<!upcoming\\s)(?<!this\\s)(?<!every\\s)(?<!each\\s)(?<!last\\s)\\b\(name)\\b"
+            if let target = nearestOccurrence(of: weekday) {
+                replacePattern(pattern, with: target, in: &result)
+            }
+        }
+
+        // ── "next weekend" → next Saturday ───────────────────────────────────
+        if let target = nearestOccurrence(of: 7) { // Saturday = 7
+            replacePattern(#"(?i)\b(?:next|coming|upcoming)\s+weekend\b"#, with: target, in: &result)
+        }
+
+        // ── "this weekend" → this/next Saturday ──────────────────────────────
+        if let target = nearestOccurrence(of: 7) {
+            replacePattern(#"(?i)\bthis\s+weekend\b"#, with: target, in: &result)
+        }
+
+        // ── "next week" → 7 days from now ────────────────────────────────────
+        if let target = cal.date(byAdding: .day, value: 7, to: now) {
+            replacePattern(#"(?i)\bnext\s+week\b"#, with: target, in: &result)
+        }
+
+        // ── "next day" → tomorrow ────────────────────────────────────────────
+        if let target = cal.date(byAdding: .day, value: 1, to: now) {
+            replacePattern(#"(?i)\bnext\s+day\b"#, with: target, in: &result)
+        }
+
+        // ── "day after tomorrow" ─────────────────────────────────────────────
+        if let target = cal.date(byAdding: .day, value: 2, to: now) {
+            replacePattern(#"(?i)\bday\s+after\s+tomorrow\b"#, with: target, in: &result)
+        }
+
+        // ── "next month" → same day, next month ─────────────────────────────
+        if let target = cal.date(byAdding: .month, value: 1, to: now) {
+            replacePattern(#"(?i)\bnext\s+month\b"#, with: target, in: &result)
+        }
+
+        // ── "next year" → same day, next year ────────────────────────────────
+        if let target = cal.date(byAdding: .year, value: 1, to: now) {
+            replacePattern(#"(?i)\bnext\s+year\b"#, with: target, in: &result)
+        }
+
+        // ── "end of day" / "EOD" / "later today" → today at 5:00 PM ─────────
+        if var eod = cal.date(bySettingHour: 17, minute: 0, second: 0, of: now) {
+            // If it's already past 5 PM, push to 11:59 PM
+            if eod <= now { eod = cal.date(bySettingHour: 23, minute: 59, second: 0, of: now) ?? eod }
+            replacePatternWithTime(#"(?i)\b(?:end\s+of\s+(?:the\s+)?day|EOD)\b"#, with: eod, in: &result)
+            replacePatternWithTime(#"(?i)\blater\s+today\b"#, with: eod, in: &result)
+        }
+
+        // ── "end of week" / "EOW" → this Friday at 5:00 PM ──────────────────
+        if let friday = nearestOccurrence(of: 6) { // Friday = 6
+            let fridayEOD = cal.date(bySettingHour: 17, minute: 0, second: 0, of: friday) ?? friday
+            replacePatternWithTime(#"(?i)\b(?:end\s+of\s+(?:the\s+)?week|EOW)\b"#, with: fridayEOD, in: &result)
+        }
+
+        // ── "end of month" / "EOM" → last day of current month ──────────────
+        if let endOfMonth = cal.date(byAdding: DateComponents(month: 1, day: -1),
+                                     to: cal.date(from: cal.dateComponents([.year, .month], from: now))!) {
+            let eom = cal.date(bySettingHour: 17, minute: 0, second: 0, of: endOfMonth) ?? endOfMonth
+            replacePatternWithTime(#"(?i)\b(?:end\s+of\s+(?:the\s+)?month|EOM)\b"#, with: eom, in: &result)
+        }
+
+        return result
+    }
+
+    /// Replace matches with a full date+time string (for phrases where the time is inherent,
+    /// like "end of day" = 5 PM — we don't want the user to have to add "at 5pm").
+    private func replacePatternWithTime(_ pattern: String, with date: Date, in text: inout String) {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        for match in matches.reversed() {
+            let replacement = formatAbsolute(date)
+            text = (text as NSString).replacingCharacters(in: match.range, with: replacement)
+        }
+    }
+
+    /// Replaces "in N hours/minutes/seconds/days/weeks/months/years" with an absolute date-time string.
     private func expandRelativeDurations(in text: String) -> String {
         var result = text
         let now = Date()
         let cal = Calendar.current
 
-        // Pattern: "in <number|a|an> <unit>"
-        // Units: h, hr, hrs, hour, hours, m, min, mins, minute, minutes, s, sec, secs, second, seconds
-        let pattern = #"(?i)\bin\s+(a\s+|an\s+)?(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)\b"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return result }
-
-        // Also handle "in an hour", "in a minute"
-        let wordPattern = #"(?i)\bin\s+(an?\s+)(hour|minute|second)s?\b"#
+        // ── Word form: "in a day", "in an hour", "in a week", "in a month", "in a year" ──
+        let wordPattern = #"(?i)\bin\s+(an?\s+)(hour|minute|second|day|week|month|year|fortnight)s?\b"#
         if let wRegex = try? NSRegularExpression(pattern: wordPattern) {
             let matches = wRegex.matches(in: result, range: NSRange(result.startIndex..., in: result))
             for match in matches.reversed() {
@@ -179,46 +342,84 @@ final class DateDetectionService {
                 var component: Calendar.Component = .hour
                 var amount = 1
                 switch unit {
-                case "hour": component = .hour; amount = 1
-                case "minute": component = .minute; amount = 1
-                case "second": component = .second; amount = 1
+                case "hour":      component = .hour;   amount = 1
+                case "minute":    component = .minute;  amount = 1
+                case "second":    component = .second;  amount = 1
+                case "day":       component = .day;     amount = 1
+                case "week":      component = .day;     amount = 7
+                case "fortnight": component = .day;     amount = 14
+                case "month":     component = .month;   amount = 1
+                case "year":      component = .year;    amount = 1
                 default: break
                 }
                 if let future = cal.date(byAdding: component, value: amount, to: now) {
-                    let replacement = formatAbsolute(future)
-                    let nsMatchRange = match.range
-                    result = (result as NSString).replacingCharacters(in: nsMatchRange, with: replacement)
+                    // Use date-only for day+ units, date+time for sub-day units
+                    let useDateOnly = ["day", "week", "fortnight", "month", "year"].contains(unit)
+                    let replacement = useDateOnly ? formatAbsoluteDateOnly(future) : formatAbsolute(future)
+                    result = (result as NSString).replacingCharacters(in: match.range, with: replacement)
                 }
             }
         }
 
-        // Numeric form: "in 2 hours", "in 30min"
-        let numMatches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
-        for match in numMatches.reversed() {
-            guard let numRange  = Range(match.range(at: 2), in: result),
-                  let unitRange = Range(match.range(at: 3), in: result) else { continue }
-            let amount = Double(result[numRange]) ?? 1
-            let unit   = String(result[unitRange]).lowercased()
-            var seconds: Double = 0
-            switch unit {
-            case "h", "hr", "hrs", "hour", "hours":   seconds = amount * 3600
-            case "m", "min", "mins", "minute", "minutes": seconds = amount * 60
-            case "s", "sec", "secs", "second", "seconds": seconds = amount
-            default: break
-            }
-            if seconds > 0 {
-                let future = now.addingTimeInterval(seconds)
-                let replacement = formatAbsolute(future)
-                result = (result as NSString).replacingCharacters(in: match.range, with: replacement)
+        // ── Numeric form: "in 2 hours", "in 30min", "in 3 days", "in 2 weeks", "in 6 months" ──
+        let pattern = #"(?i)\bin\s+(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds|d|day|days|w|wk|wks|week|weeks|mo|mos|month|months|y|yr|yrs|year|years)\b"#
+        if let regex = try? NSRegularExpression(pattern: pattern) {
+            let numMatches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
+            for match in numMatches.reversed() {
+                guard let numRange  = Range(match.range(at: 1), in: result),
+                      let unitRange = Range(match.range(at: 2), in: result) else { continue }
+                let amount = Double(result[numRange]) ?? 1
+                let unit   = String(result[unitRange]).lowercased()
+
+                var future: Date?
+                var useDateOnly = false
+
+                switch unit {
+                case "h", "hr", "hrs", "hour", "hours":
+                    future = now.addingTimeInterval(amount * 3600)
+                case "m", "min", "mins", "minute", "minutes":
+                    future = now.addingTimeInterval(amount * 60)
+                case "s", "sec", "secs", "second", "seconds":
+                    future = now.addingTimeInterval(amount)
+                case "d", "day", "days":
+                    future = cal.date(byAdding: .day, value: Int(amount), to: now)
+                    useDateOnly = true
+                case "w", "wk", "wks", "week", "weeks":
+                    future = cal.date(byAdding: .day, value: Int(amount) * 7, to: now)
+                    useDateOnly = true
+                case "mo", "mos", "month", "months":
+                    future = cal.date(byAdding: .month, value: Int(amount), to: now)
+                    useDateOnly = true
+                case "y", "yr", "yrs", "year", "years":
+                    future = cal.date(byAdding: .year, value: Int(amount), to: now)
+                    useDateOnly = true
+                default: break
+                }
+
+                if let future {
+                    let replacement = useDateOnly ? formatAbsoluteDateOnly(future) : formatAbsolute(future)
+                    result = (result as NSString).replacingCharacters(in: match.range, with: replacement)
+                }
             }
         }
+
         return result
     }
 
     /// Formats a Date as "March 30 2026 at 5:30 PM" so NSDataDetector parses it reliably.
+    /// Used for duration-based replacements ("in 2 hours") where the time IS the point.
     private func formatAbsolute(_ date: Date) -> String {
         let fmt = DateFormatter()
         fmt.dateFormat = "MMMM d yyyy 'at' h:mm a"
+        return fmt.string(from: date)
+    }
+
+    /// Formats a Date as "March 30 2026" (date only, no time).
+    /// Used for day-level replacements ("next Monday") so any user-supplied time
+    /// ("at 5pm") remains intact and gets parsed by NSDataDetector separately.
+    private func formatAbsoluteDateOnly(_ date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMMM d yyyy"
         return fmt.string(from: date)
     }
 

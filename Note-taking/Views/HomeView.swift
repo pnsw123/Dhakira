@@ -26,6 +26,7 @@ struct HomeView: View {
 
     @State private var calendarService = CalendarSelectionService.shared
     @State private var authService     = GoogleAuthService.shared
+    @State private var googleSignInLoading = false
 
     var body: some View {
             ScrollViewReader { proxy in
@@ -195,47 +196,34 @@ struct HomeView: View {
 
                 Divider().padding(.leading, 16)
 
-                // Local Google Calendar row
-                Button(action: { calendarService.toggleGoogleSync() }) {
-                    HStack(spacing: 10) {
-                        Spacer().frame(width: 0)
-                        Image(systemName: "g.circle")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(calendarService.hasGoogleCalendar ? Color.themeAccent : Color.secondaryText)
-                            .frame(width: 22)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Local Google Calendar")
-                                .font(.system(size: 16))
-                                .foregroundStyle(calendarService.hasGoogleCalendar ? Color.primaryText : Color.secondaryText)
-                            if !calendarService.hasGoogleCalendar {
-                                Text("Add Google account in iOS Settings")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.secondaryText)
-                            }
-                        }
-                        Spacer()
-                        if calendarService.googleCalendarSyncEnabled && calendarService.hasGoogleCalendar {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.themeAccent)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                }
-                .buttonStyle(.plain)
-                .disabled(!calendarService.hasGoogleCalendar)
-
-                Divider().padding(.leading, 16)
-
-                // Web Google Calendar row
+                // Google Calendar row (OAuth — syncs via Google's REST API)
                 Button(action: {
                     if authService.isConnected {
-                        authService.disconnect()
-                        if calendarService.googleWebCalendarEnabled { calendarService.toggleWebSync() }
+                        // Delete all Google events BEFORE disconnecting — while we still
+                        // have the old account's token. This cleans up the old calendar.
+                        Task {
+                            await CalendarSyncService.shared.deleteAllGoogleEvents(in: modelContext)
+                            authService.disconnect()
+                            if calendarService.googleWebCalendarEnabled { calendarService.toggleWebSync() }
+                        }
                     } else {
+                        googleSignInLoading = true
                         if !calendarService.googleWebCalendarEnabled { calendarService.toggleWebSync() }
-                        Task { await authService.connect() }
+                        Task {
+                            await authService.connect()
+                            googleSignInLoading = false
+                            if authService.isConnected {
+                                if authService.accountDidChange {
+                                    // Different account — old event IDs are useless, wipe them
+                                    await CalendarSyncService.shared.clearAllGoogleEventIds(in: modelContext)
+                                    authService.acknowledgeAccountChange()
+                                }
+                                // Sync all tasks to the (new or same) account
+                                await CalendarSyncService.shared.resyncAllTasks(in: modelContext)
+                            } else if calendarService.googleWebCalendarEnabled {
+                                calendarService.toggleWebSync()
+                            }
+                        }
                     }
                 }) {
                     HStack(spacing: 10) {
@@ -245,15 +233,24 @@ struct HomeView: View {
                             .foregroundStyle(Color.themeAccent)
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Web Google Calendar")
+                            Text("Google Calendar")
                                 .font(.system(size: 16))
                                 .foregroundStyle(Color.primaryText)
-                            Text(authService.isConnected ? "Connected" : "Sign in with Google")
-                                .font(.system(size: 12))
-                                .foregroundStyle(authService.isConnected ? Color.themeAccent : Color.secondaryText)
+                            if googleSignInLoading {
+                                Text("Connecting...")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.secondaryText)
+                            } else {
+                                Text(authService.isConnected ? "Connected" : "Sign in with Google")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(authService.isConnected ? Color.themeAccent : Color.secondaryText)
+                            }
                         }
                         Spacer()
-                        if authService.isConnected {
+                        if googleSignInLoading {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        } else if authService.isConnected {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(Color.themeAccent)
@@ -267,6 +264,7 @@ struct HomeView: View {
                     .padding(.vertical, 12)
                 }
                 .buttonStyle(.plain)
+                .disabled(googleSignInLoading)
             }
         }
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))

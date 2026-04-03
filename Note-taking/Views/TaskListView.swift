@@ -409,8 +409,27 @@ struct TaskListView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 recentlyCompletedIds.remove(taskId)
             }
+            // Remove calendar events — task is done, no need for reminders.
+            if let eventId = task.calendarEventId {
+                log.info("toggleComplete: removing Apple Calendar event '\(eventId)'")
+                Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
+                task.calendarEventId = nil
+            } else {
+                log.debug("toggleComplete: no Apple Calendar event to remove")
+            }
+            if let googleEventId = task.googleCalendarEventId {
+                log.info("toggleComplete: removing Google Calendar event '\(googleEventId)'")
+                Task { await CalendarSyncService.shared.deleteGoogleEvent(googleEventId) }
+                task.googleCalendarEventId = nil
+            } else {
+                log.debug("toggleComplete: no Google Calendar event to remove")
+            }
         } else {
             LocalStateLedger.shared.unmarkCompleted(task.id)
+            // Un-completing — re-sync to recreate the calendar event.
+            log.info("toggleComplete: un-completed — re-syncing calendar events")
+            let t = task
+            Task { await CalendarSyncService.shared.syncTaskIfNeeded(t) }
         }
     }
 
@@ -471,12 +490,30 @@ struct TaskListView: View {
                 log.warning("reconcile: CloudKit restored deleted task '\(task.title)' — re-deleting")
                 task.isTrashed = true
                 task.deletedAt = task.deletedAt ?? Date()
+                // Clean up any calendar events for this restored-then-deleted task.
+                if let eventId = task.calendarEventId {
+                    Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
+                    task.calendarEventId = nil
+                }
+                if let googleId = task.googleCalendarEventId {
+                    Task { await CalendarSyncService.shared.deleteGoogleEvent(googleId) }
+                    task.googleCalendarEventId = nil
+                }
                 needsSave = true
             }
             if ledger.isMarkedCompleted(task.id) && !task.isCompleted {
                 log.warning("reconcile: CloudKit restored completed task '\(task.title)' — re-completing")
                 task.isCompleted = true
                 task.completedAt = task.completedAt ?? Date()
+                // Clean up any calendar events for this restored-then-completed task.
+                if let eventId = task.calendarEventId {
+                    Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
+                    task.calendarEventId = nil
+                }
+                if let googleId = task.googleCalendarEventId {
+                    Task { await CalendarSyncService.shared.deleteGoogleEvent(googleId) }
+                    task.googleCalendarEventId = nil
+                }
                 needsSave = true
             }
         }

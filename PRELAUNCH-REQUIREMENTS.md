@@ -1,7 +1,6 @@
 # Pre-Launch Requirements — V1 (iPhone + iPad)
 > Last updated: April 2, 2026
-> Status: **97% Complete** — final testing + branding remaining
-> Testing first. Themes second. Branding and publishing last.
+> Status: **Google Calendar done, branding & submission remaining**
 
 ---
 
@@ -10,486 +9,193 @@
 | Area | Status | Notes |
 |---|---|---|
 | Core Note Features | ✅ Done | Editor, formatting, folders all working |
-| Calendar Integration | ✅ Done | Events save at correct time, 5pm → 5pm in Apple Calendar |
-| Widget System | ✅ Done | Fully compatible, theme syncs almost instantly |
-| Theme System | ✅ Done | Applies across app and widgets live |
-| Export | ✅ Done | PDF (images render, dark theme fixed), plain text share |
-| Attachments | ✅ Done | Photos, files (with icon + cursor placement + tap-to-open), scan |
+| Calendar Integration (Apple) | ✅ Done | Events sync, complete/delete removes events |
+| Calendar Integration (Google) | ✅ Done | OAuth, multi-account, cleanup all working |
+| Date Parsing | ✅ Done | "next Friday" vs "this Friday", "in 3 days", "EOD", bare weekdays |
+| Widget System | ✅ Done | Fully compatible, theme syncs |
+| Theme System | ✅ Done | Applies across app and widgets |
+| Export | ✅ Done | PDF + plain text share |
+| Attachments | ✅ Done | Photos, files, scan |
 | Reminders Import | ✅ Done | |
+| Google Cloud Project | ✅ Done | Moved from "strictseal" to "Dhakira" project |
 | More Themes (paid) | 🔲 Remaining | Need to add more theme designs |
 | Paywall | 🔲 Remaining | StoreKit integration |
-| Testing + Edge Cases | 🔲 Remaining | Ongoing until launch |
 | Branding + Logo | 🔲 Remaining | App icon, screens |
+| Landing Page | 🔲 Remaining | dhakira.app domain purchased, page not built |
+| Google OAuth Verification | 🔲 Remaining | Needs branding page with privacy policy URL |
 | App Store Submission | 🔲 Remaining | License, listing, review |
-| Domain | 🔲 Remaining | Find and register |
+
+---
+
+## Google Calendar — Completed
+
+### What Was Done
+| # | Task | Status |
+|---|------|--------|
+| 1 | Created new Google Cloud project "Dhakira" (`dhakira-492200`) | ✅ |
+| 2 | Enabled Google Calendar API | ✅ |
+| 3 | Created iOS OAuth client (bundle ID: `com.prodnote.notetaking`) | ✅ |
+| 4 | Updated app code with new Client ID | ✅ |
+| 5 | Updated Info.plist URL scheme | ✅ |
+| 6 | OAuth consent screen configured (External, published) | ✅ |
+| 7 | UI shows "Connected" / "Sign in with Google" with proper feedback | ✅ |
+| 8 | Events sync to Google Calendar on task creation | ✅ |
+| 9 | Events removed on task completion or deletion | ✅ |
+| 10 | Events cleaned up on app launch for completed/trashed tasks | ✅ |
+| 11 | Account switch detection (email-based) | ✅ |
+| 12 | Events deleted from old account on disconnect | ✅ |
+| 13 | Reinstall detection (Keychain vs UserDefaults mismatch) | ✅ |
+| 14 | Apple Calendar targets iCloud (not Gmail CalDAV) | ✅ |
+| 15 | KeychainHelper has error logging | ✅ |
+| 16 | "next Friday" vs "this Friday" resolved correctly | ✅ |
+| 17 | Privacy policy page created (`docs/privacy-policy.html`) | ✅ |
+
+### Google OAuth Verification — Remaining Steps
+
+| # | Step | Status | Notes |
+|---|------|--------|-------|
+| 1 | Build landing page at dhakira.app | 🔲 | Domain purchased, page not built yet |
+| 2 | Host privacy policy at dhakira.app/privacy-policy | 🔲 | Content already written in `docs/privacy-policy.html` |
+| 3 | Go to Google Cloud Console → Branding page | 🔲 | Fill in homepage + privacy policy URLs |
+| 4 | Click "Verify branding" | 🔲 | Google reviews branding (not a full app review) |
+| 5 | Data access scopes are non-sensitive | ✅ | No security review required |
+
+**Temporary workaround:** Until verified, users see "This app isn't verified" warning during sign-in but can click "Advanced → Go to Dhakira (unsafe)" to proceed. Fully functional.
 
 ---
 
 ## Priority 1 — Testing (Do This Repeatedly Until Launch)
-Test everything below. If anything breaks, fix it before moving on.
 
 ### Core Note Features
-- [x] Create a new task / note
-- [x] Type in the editor — text appears correctly
-- [x] Bold, italic, underline, strikethrough formatting works
-- [x] Heading 1, 2, 3 apply and revert correctly
-- [x] Bullet list inserts and toggles off
-- [x] Quote block inserts with blue bar and toggles off
-- [x] Checklist inserts and checkbox toggles checked/unchecked
-- [x] Slash `/` menu appears, filters, and applies command correctly
-- [x] Slash menu dismisses on backspace
-- [x] Drag-to-reorder toolbar icons works
+- [x] Create, edit, format notes (bold, italic, lists, quotes, checklists)
+- [x] Slash menu works
+- [x] Drag-to-reorder toolbar
 
 ### Folders & Navigation
-- [x] Create a new folder
-- [x] Rename a folder inline
-- [x] Delete a folder
-- [x] Navigate Tasks → Folders → Tasks smoothly
-- [x] Select a task list from a folder and it becomes active
+- [x] Create, rename, delete folders
+- [x] Navigate between views smoothly
 
 ### Calendar & Date Detection
-- [x] Type a date in a note title (e.g. "Dentist tomorrow at 3pm")
-- [x] App detects the date automatically
-- [x] Calendar event is created in Apple Calendar
-- [x] Event has correct title, date, and time ✅ confirmed 5pm → 5pm
-- [x] Event has 15-minute reminder alarm
-- [ ] Edit the date in the title — event updates (re-test)
-- [ ] Remove the date from the title — event is deleted (re-test)
+- [x] Dates auto-detected in task titles
+- [x] Apple Calendar events created with correct time
+- [x] Google Calendar events created via OAuth
+- [x] Events have 15-minute reminder
+- [x] "next Friday" → next week's Friday, "this Friday" → this week's Friday
+- [x] "in 3 days", "in 2 weeks", "EOD", "tonight" all work
+- [x] Completing a task removes events from both calendars
+- [x] Deleting a task removes events from both calendars
+- [x] Un-completing a task re-creates events
+- [x] Account switch clears old events, syncs fresh to new account
+- [x] App reinstall forces re-sign-in (no stale "Connected" state)
 - [ ] Deep link in calendar event opens the app at the correct note (re-test)
 
-### Export
-- [x] PDF export: tap export → share sheet appears with .pdf file
-- [x] PDF renders text AND inline images correctly
-- [x] PDF uses black text regardless of active theme (dark theme fix)
-- [x] Plain text share works
-- [x] Word/RTF export removed (iOS cannot produce .docx natively)
+### Export & Attachments
+- [x] PDF export with images, dark theme text fix
+- [x] Plain text share
+- [x] Photos, files, scan attachments work
 
-### Attachments
-- [x] Attach a photo from photo library — inserts at cursor
-- [x] Attach a file — inserts at cursor with SF Symbol icon + tappable filename
-- [x] Tap attached file — opens native Apple preview (UIDocumentInteractionController)
-- [x] Scan a document with camera (text scan)
-- [x] Attached items appear inline in the note
-- [x] Voice recording removed
+### Edge Cases
+- [x] Delete a note with calendar event → event removed
+- [x] Calendar permission denied → app handles gracefully (no crash)
+- [x] CloudKit restores completed task → events cleaned up on launch
+- [ ] Note title with two dates → uses earliest (verify)
+- [ ] Widget loads with no notes → no crash (verify)
+- [ ] Force-quit mid-edit → no data loss (verify)
+- [ ] VoiceOver accessibility (verify)
 
-### Reminders Import
-- [x] Grant Reminders permission
-- [x] Import from Apple Reminders works
-- [x] Imported reminder becomes a task with correct title and notes
-
-### Sync & Data
-- [x] Close and reopen app — all notes are still there
-- [x] Recently Completed shows completed tasks
-- [x] Recently Deleted shows soft-deleted tasks
-- [x] Restore a deleted task works
-- [x] Permanently delete a task works
-
-### Deep Links & Siri
-- [ ] Siri shortcut "Create Task" works (re-test)
-- [ ] Deep link URL (prodnote://task/{uuid}) opens correct note (re-test)
-
-### iPhone Polish
-- [ ] App looks correct in Light Mode (re-test all themes)
-- [ ] App looks correct in Dark Mode (re-test all themes)
-- [ ] No visible layout breaks on iPhone 16 Pro Max
-- [ ] No visible layout breaks on iPhone SE (small screen)
-- [ ] App does not crash on cold launch
-
-### iPad Polish
-- [ ] No visible layout breaks on iPad Pro 13"
-- [ ] No visible layout breaks on iPad Mini
-- [ ] App works correctly in iPad Split View
-- [ ] App works correctly in Slide Over
-- [ ] Keyboard shortcuts work on iPad with external keyboard
-- [ ] App does not crash on cold launch on iPad
-
-### Edge Cases to Think Through
-- [ ] What happens if you delete a note that has a calendar event?
-- [ ] What if the user denies calendar permission — does the app crash or handle it gracefully?
-- [ ] What if a note title has two dates in it?
-- [ ] What happens when storage is almost full?
-- [ ] What if the user types a date with no time — does it default reasonably?
-- [ ] What if the widget loads with no notes yet?
-- [ ] What if the user switches themes rapidly — does anything break?
-- [ ] What if a photo attachment is very large?
-- [ ] What if the user force-quits mid-edit — is anything lost?
-- [ ] Accessibility (VoiceOver) — does the app work for visually impaired users?
+### Device Testing
+- [ ] iPhone 17 Pro — Light + Dark mode
+- [ ] iPhone SE (small screen) — no layout breaks
+- [ ] iPad Pro 13" — split view, slide over
+- [ ] iPad Mini — layout check
 
 ---
 
 ## Priority 2 — More Themes (Revenue Driver)
-The infrastructure is done. Now add more theme designs.
 
-### Current Theme Status
 | Name | Tier | Status |
 |---|---|---|
 | Default | Free | ✅ Done |
 | Midnight | Free | ✅ Done |
-| Academia | Paid | 🔲 Design + build |
-| Nord | Paid | 🔲 Design + build |
-| Tokyo Night | Paid | 🔲 Design + build |
-| Forest | Paid | 🔲 Design + build |
-| Rosé | Paid | 🔲 Design + build |
-| Void | Paid (bundle) | 🔲 Design + build |
-
-### Theme Checklist (per theme)
-- [ ] Colors defined (background, text, accent)
-- [ ] Tested on iPhone (light + dark)
-- [ ] Tested on iPad
-- [ ] Widget inherits theme correctly
-- [ ] Theme persists after app kill/reopen
+| Academia | Paid | 🔲 |
+| Nord | Paid | 🔲 |
+| Tokyo Night | Paid | 🔲 |
+| Forest | Paid | 🔲 |
+| Rose | Paid | 🔲 |
+| Void | Paid (bundle) | 🔲 |
 
 ---
 
-## Priority 3 — Widgets ✅ (Infrastructure Complete)
-Widget system is fully working and syncs with themes instantly.
-
-### Remaining Widget Polish
-- [ ] All widgets tested on iPhone home screen
-- [ ] All widgets tested on iPad home screen
-- [ ] Lock screen widgets look correct
-- [ ] Tinted mode (iOS 18) looks correct
-- [ ] No stale data after theme change
+## Priority 3 — Paywall (StoreKit)
+- [ ] Free tier: Default + Midnight only
+- [ ] Paid theme pricing locked
+- [ ] StoreKit 2 integration
+- [ ] Purchase flow tested in sandbox
+- [ ] Restore purchases works
 
 ---
 
-## Priority 4 — Paywall
-- [ ] Free tier confirmed: Default + Midnight only
-- [ ] Paid theme pack pricing locked ($1.99/pack or $7.99 bundle)
-- [ ] StoreKit 2 `Product.products` integrated
-- [ ] `product.purchase()` flow works end-to-end
-- [ ] `Transaction.updates` listener active (restores purchases)
-- [ ] `ProductView` / `StoreView` UI in theme picker
-- [ ] Purchases persist after app reinstall (restore purchases button)
-- [ ] Tested in Xcode sandbox (StoreKit testing)
+## Priority 4 — Landing Page (dhakira.app)
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Domain purchased: dhakira.app | ✅ |
+| 2 | Point domain to hosting (Cloudflare Pages or similar) | 🔲 |
+| 3 | Build landing page (iOS-style, screenshots, download button) | 🔲 |
+| 4 | Host privacy policy at dhakira.app/privacy-policy | 🔲 |
+| 5 | Add App Store link once approved | 🔲 |
+
+**Privacy policy content is already written** in `docs/privacy-policy.html` — just needs to be deployed to the domain.
 
 ---
 
-## Priority 5 — Apple Developer Program + iCloud
-- [x] Enrolled at developer.apple.com/programs/enroll ($99/year)
-- [x] iCloud + CloudKit capability added in Xcode (`iCloud.com.prodnote.notetaking`, `.automatic` mode)
-- [ ] iCloud sync tested: notes appear on second device (use Simulator as second device — see checklist below)
-- [x] App Group `group.com.prodnote.notetaking` confirmed working (widgets use it)
+## Priority 5 — Google OAuth Branding Verification
 
-### iCloud E2E Test — Automated (Unit Tests)
-Run `Cmd+U` in Xcode. No network or iCloud needed. Proves local model layer is correct.
-- [ ] `testCreateTaskPersists` — insert task, fetch back, title matches
-- [ ] `testDeleteTaskSoftDeletes` — soft-delete excludes from active query
-- [ ] `testFolderWithTasksRelationship` — Folder ↔ TaskItem relationship intact
-- [ ] `testTaskListContainsTasks` — TaskList holds attached tasks, count correct
-- [ ] `testAttachmentLinksToTask` — Attachment links back to parent TaskItem
-- [ ] `testPurgeLogicIdentifiesExpiredDeletedTasks` — 31-day-old deleted task flagged for removal
+Once dhakira.app is live with the privacy policy:
+1. Go to [Google Cloud Console → Branding](https://console.cloud.google.com/auth/branding?project=dhakira-492200)
+2. Fill in:
+   - Application home page: `https://dhakira.app`
+   - Privacy policy link: `https://dhakira.app/privacy-policy`
+3. Add authorized domain: `dhakira.app`
+4. Click "Save" then "Verify branding"
+5. Google reviews (usually 1-3 business days for non-sensitive scopes)
 
-### iCloud E2E Test — Manual (iPhone + Mac Simulator as second device)
-
-**One-time Simulator setup (do once on Mac):**
-1. Open Xcode → Simulator (iPhone 16, iOS 17+)
-2. In Simulator: Settings → Sign in with Apple ID → use **same Apple ID as your iPhone**
-3. Enable iCloud Drive in Simulator Settings
-4. Build & run the app on Simulator from Xcode
-
-**12-step sync test (do in order):**
-
-| Step | Device | Action | Expected | Wait |
-|---|---|---|---|---|
-| 1 | Simulator | Cold launch app | Launches, no crash | — |
-| 2 | Simulator | Wait after first launch | Tasks from iPhone appear | 30–60s |
-| 3 | iPhone | Create task "iCloud Test A" | Visible on iPhone | — |
-| 4 | Simulator | Watch list | "iCloud Test A" appears | ~30s |
-| 5 | Simulator | Edit title → "iCloud Edited" | Title changes on Simulator | — |
-| 6 | iPhone | Watch list | Title shows "iCloud Edited" | ~30s |
-| 7 | iPhone | Soft-delete the task | Moves to Recently Deleted on iPhone | — |
-| 8 | Simulator | Watch list | Task gone from active list | ~30s |
-| 9 | iPhone | Airplane Mode ON → create "Offline Task" | Task on iPhone only | — |
-| 10 | iPhone | Airplane Mode OFF | "Offline Task" appears on Simulator | ~60s |
-| 11 | Simulator | Create task while iPhone is offline | Task on Simulator only | — |
-| 12 | iPhone | Come back online | Simulator's task appears on iPhone | ~60s |
-
-- [ ] Steps 1–4 passed (basic sync works)
-- [ ] Steps 5–8 passed (edit + delete sync)
-- [ ] Steps 9–12 passed (offline sync / conflict)
-
-### CloudKit Dashboard Verification (fallback — no Simulator needed)
-1. Open: https://icloud.developer.apple.com/dashboard
-2. Sign in → select container `iCloud.com.prodnote.notetaking`
-3. Navigate: Data → Private Database → `CD_TaskItem`
-4. Create a task on iPhone → refresh → record appears within ~60s
-
-| SwiftData Model | CloudKit Record Type |
-|---|---|
-| TaskItem | `CD_TaskItem` |
-| Folder | `CD_Folder` |
-| TaskList | `CD_TaskList` |
-| Attachment | `CD_Attachment` |
-
-- [ ] `CD_TaskItem` records visible in dashboard after creating tasks on iPhone
+After verification: the "unverified app" warning disappears for all users.
 
 ---
 
-## Priority 6 — Branding
-- [x] App name finalized → **Dhakira** (Arabic: "memory")
-- [ ] Logo designed (1024x1024 px, works on white and black backgrounds)
-- [ ] All Xcode icon sizes added to Assets catalog
-- [ ] App Store screenshots planned and captured (see below)
-- [x] Domain decided → **dhakira.app**
-- [ ] Register dhakira.app on Namecheap or Cloudflare
-- [ ] Point domain to Cloudflare
-
-### Landing Page (dhakira.app)
-- [ ] Build landing page with iOS-style theme
-- [ ] Add App Store screenshots to landing page
-- [ ] State availability: iPhone · iPad · Mac
-- [ ] Add App Store download button/link
-- [ ] Deploy via Cloudflare Pages (free)
+## Priority 6 — Branding & Screenshots
+- [x] App name: Dhakira
+- [x] Domain: dhakira.app
+- [ ] Logo (1024x1024)
+- [ ] App Store screenshots (5 per device)
+- [ ] Screenshot devices: iPhone 6.9", iPad Pro 13"
 
 ---
 
-## Priority 7 — App Store Screenshots
-Showcase themes and widgets. Capture on real device or high-quality simulator.
-
-| Screen | Status |
-|---|---|
-| Home / Folders screen | 🔲 |
-| Task list view | 🔲 |
-| Note editor with formatting toolbar | 🔲 |
-| Slash `/` command menu open | 🔲 |
-| Theme picker showing paid options | 🔲 |
-| Widget on home screen with active theme | 🔲 |
-| Calendar event created from a note | 🔲 |
-
-- [ ] Minimum 3 screenshots — iPhone 6.9"
-- [ ] Minimum 3 screenshots — iPhone 6.5"
-- [ ] Minimum 3 screenshots — iPad Pro 13"
-
-### Screenshot Workflow
-
-#### Step 1 — Take Raw Screenshots
-1. Open Xcode
-2. Run the app in **Simulator** (not a real device)
-3. Switch to each device: iPhone 16 Pro Max, iPad Pro 13", Mac
-4. Take screenshots using `Cmd + S` in the Simulator
-5. Save to a folder called `screenshots/raw`
-
-#### Step 2 — Design in Figma
-1. Go to **figma.com** and create a free account
-2. Search Figma Community for "App Store screenshot template"
-3. Recommended free templates:
-   - **ASO.dev template**: aso.dev/figma/screenshot-template (iPhone + iPad + Mac mockups)
-   - **iOS/iPadOS/visionOS template**: Figma Community file `1288121980561553565`
-4. Replace the placeholder screens with your own screenshots
-5. Add app name, short tagline, and brand colors
-6. Export each design as **PNG**
-
-#### Step 3 — Resize for All Devices in Figma
-Duplicate the frame for each device size and adjust layout:
-
-| Device | Required Dimensions |
-|---|---|
-| iPhone 6.9" | 1260 x 2736 px |
-| iPhone 6.5" | 1284 x 2778 px |
-| iPad Pro 13" | 2064 x 2752 px |
-| Mac | 1440 x 900 px |
-
-#### Step 4 — Upload to App Store Connect
-1. Go to **appstoreconnect.apple.com**
-2. Open your app listing
-3. Navigate to each device slot
-4. Drag and drop the matching screenshot into the correct slot
-5. Apple handles routing the right screenshot to the right device automatically
-
----
-
-## Priority 8 — Final Submission
-- [ ] App Store description written (highlight themes + widgets + calendar)
-- [ ] Keywords researched and added
-- [ ] Bundle ID set correctly in Xcode
+## Priority 7 — App Store Submission
+- [ ] App Store description written
+- [ ] Keywords researched
 - [ ] Version 1.0.0, Build 1
-- [ ] Archive build (Product → Archive)
-- [ ] Upload via Xcode Organizer
+- [ ] Archive + upload via Xcode
 - [ ] App Store Connect listing complete
 - [ ] Submit for Apple Review
 
 ---
 
-## Tech Reference — Theme System APIs
+## Key Files Modified (Google Calendar Sprint)
 
-> Exact iOS 26 SwiftUI APIs, docs, and WWDC sessions. Use this while coding.
-
-### Deployment Target
-| Target | What You Get |
+| File | What Changed |
 |---|---|
-| iOS 17 minimum | All base grid, scroll, StoreKit APIs |
-| iOS 18 | MeshGradient, zoom transition |
-| iOS 26 | Liquid Glass, glassEffect, GlassEffectContainer, ConcentricRectangle |
-| Strategy | Build on iOS 17. Gate glass behind `if #available(iOS 26, *)` |
-
-### Screen 1 — Theme Gallery
-| API | Exact Syntax | iOS | Docs |
-|---|---|---|---|
-| LazyVGrid | `LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) { }` | 14 | https://developer.apple.com/documentation/swiftui/lazyvgrid |
-| searchable | `.searchable(text: $q, placement: .navigationBarDrawer, prompt: "Search themes")` | 15 | https://developer.apple.com/documentation/swiftui/view/searchable(text:placement:prompt:)-18a8f |
-| ultraThinMaterial | `.background(.ultraThinMaterial)` | 15 | https://developer.apple.com/documentation/swiftui/material |
-| contentMargins | `.contentMargins(16, for: .scrollContent)` | 17 | https://developer.apple.com/documentation/swiftui/view/contentmargins(_:for:) |
-| containerRelativeFrame | `.containerRelativeFrame(.horizontal, count: 2, spacing: 12)` | 17 | https://developer.apple.com/documentation/swiftui/view/containerrelativeframe(_:count:span:spacing:alignment:) |
-| scrollTransition | `.scrollTransition { c, p in c.opacity(p.isIdentity ? 1:0).scaleEffect(p.isIdentity ? 1:0.85) }` | 17 | https://developer.apple.com/documentation/swiftui/view/scrolltransition(_:axis:transition:) |
-| MeshGradient | `MeshGradient(width: 3, height: 3, points: [...], colors: [...])` inside `TimelineView(.animation)` | 18 | https://developer.apple.com/documentation/swiftui/meshgradient |
-| matchedTransitionSource | `.matchedTransitionSource(id: theme.id, in: namespace)` | 18 | https://developer.apple.com/documentation/swiftui/view/matchedtransitionsource(id:in:) |
-| ConcentricRectangle | `.clipShape(ConcentricRectangle())` | 26 | https://developer.apple.com/documentation/swiftui/concentricrectangle |
-| scrollEdgeEffectStyle | `.scrollEdgeEffectStyle(.soft, for: .all)` | 26 | https://developer.apple.com/documentation/SwiftUI/View/scrollEdgeEffectStyle(_:for:) |
-| symbolEffect drawOn | `.symbolEffect(.drawOn, value: isSelected)` | 26 | https://developer.apple.com/documentation/swiftui/view/symboleffect(_:options:value:) |
-
-### Screen 2 — Theme Detail / Customization
-| API | Exact Syntax | iOS | Docs |
-|---|---|---|---|
-| navigationTransition zoom | `.navigationTransition(.zoom(sourceID: id, in: ns))` on destination | 18 | https://developer.apple.com/documentation/SwiftUI/NavigationTransition/zoom(sourceID:in:) |
-| glassEffect regular | `.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16))` | 26 | https://developer.apple.com/documentation/swiftui/view/glasseffect(_:in:) |
-| glassEffect interactive | `.glassEffect(.regular.interactive(), in: .capsule)` | 26 | https://developer.apple.com/documentation/swiftui/view/glasseffect(_:in:) |
-| GlassEffectContainer | `GlassEffectContainer(spacing: 8) { }` | 26 | https://developer.apple.com/documentation/swiftui/glasseffectcontainer |
-| buttonStyle glass | `.buttonStyle(.glass)` — secondary | 26 | https://developer.apple.com/documentation/SwiftUI/Applying-Liquid-Glass-to-custom-views |
-| buttonStyle glassProminent | `.buttonStyle(.glassProminent)` — primary Apply button | 26 | https://developer.apple.com/documentation/SwiftUI/Applying-Liquid-Glass-to-custom-views |
-| backgroundExtensionEffect | `.backgroundExtensionEffect()` — background bleeds into safe areas | 26 | https://developer.apple.com/documentation/SwiftUI/View/backgroundExtensionEffect() |
-| Phone mockup scaling | `.scaleEffect(0.35).frame(width:180, height:370).clipped()` + `allowsHitTesting(false)` | 14 | N/A |
-
-### Screen 3 — Scope Selector (All / App / Widgets pill)
-| API | Exact Syntax | iOS | Docs |
-|---|---|---|---|
-| matchedGeometryEffect pill | `.matchedGeometryEffect(id: "pill", in: namespace)` on `Capsule()` fill | 14 | https://developer.apple.com/documentation/swiftui/view/matchedgeometryeffect(id:in:properties:anchor:issource:) |
-| spring animation | `.animation(.spring(duration: 0.3, bounce: 0.25), value: selected)` | 17 | https://developer.apple.com/documentation/SwiftUI/Animation/spring(duration:bounce:blendDuration:) |
-
-### Screen 4 — Bottom Bar (Color / Gradient / Photo / Blur)
-| API | Exact Syntax | iOS | Docs |
-|---|---|---|---|
-| PhotosPicker | `PhotosPicker("Photo", selection: $item, matching: .images)` | 16 | https://developer.apple.com/documentation/photosui/photospicker |
-| loadTransferable | `try? await item?.loadTransferable(type: Data.self)` | 16 | https://developer.apple.com/documentation/photokit/bringing-photos-picker-to-your-swiftui-app |
-| ColorPicker | `ColorPicker("", selection: $color, supportsOpacity: false)` | 14 | https://developer.apple.com/documentation/swiftui/colorpicker |
-| blur | `.blur(radius: 12)` | 13 | https://developer.apple.com/documentation/swiftui/view/blur(radius:opaque:) |
-
-### Screen 5 — Widget Preview Mockup
-| Widget size | Frame to use | Corner radius |
-|---|---|---|
-| systemSmall | `.frame(width: 155, height: 155)` | 22pt |
-| systemMedium | `.frame(width: 329, height: 155)` | 22pt |
-| systemLarge | `.frame(width: 329, height: 345)` | 22pt |
-| Note | `WidgetPreviewContext` is Xcode-only — use scaled SwiftUI views in main app | — |
-
-### Screen 6 — StoreKit Paywall
-| API | Exact Syntax | iOS | Docs |
-|---|---|---|---|
-| Product.products | `try await Product.products(for: ["com.prodnote.theme.x"])` | 15 | https://developer.apple.com/documentation/storekit/storekit-views |
-| product.purchase | `let result = try await product.purchase()` | 15 | https://developer.apple.com/storekit/ |
-| Transaction.updates | `for await update in Transaction.updates { }` | 15 | https://developer.apple.com/storekit/ |
-| ProductView | `ProductView(id: "com.prodnote.theme.x")` | 17 | https://developer.apple.com/documentation/storekit/productview |
-| StoreView | `StoreView(ids: ["id1", "id2"])` | 17 | https://developer.apple.com/documentation/storekit/storeview |
-| WWDC | Meet StoreKit for SwiftUI — WWDC23 #10013 | — | https://developer.apple.com/videos/play/wwdc2023/10013/ |
-
-### Widget Tinting (Widget Extension target)
-| API | Exact Syntax | iOS | Docs |
-|---|---|---|---|
-| widgetAccentable | `.widgetAccentable()` | 16 | https://developer.apple.com/documentation/swiftui/view/widgetaccentable(_:) |
-| widgetAccentedRenderingMode | `Image("x").widgetAccentedRenderingMode(.accentedDesaturated)` | 18 | https://developer.apple.com/documentation/swiftui/image/widgetaccentedrenderingmode(_:) |
-| widgetRenderingMode | `@Environment(\.widgetRenderingMode) var mode` | 16 | https://developer.apple.com/documentation/swiftui/environmentvalues/widgetrenderingmode |
-| showsWidgetContainerBackground | `@Environment(\.showsWidgetContainerBackground) var showsBg` | 17 | https://developer.apple.com/documentation/swiftui/environmentvalues/showswidgetcontainerbackground |
-| containerBackground | `.containerBackground(for: .widget) { MeshGradient(...) }` | 17 | https://developer.apple.com/documentation/widgetkit |
-
-### Background Image Rules
-| Rule | Detail |
-|---|---|
-| Always downsample | 12MP photo = 87MB raw → must downsample to ~11MB using `CGImageSourceCreateThumbnailAtIndex` |
-| Display pattern | `.resizable().scaledToFill().ignoresSafeArea(.all)` — always this combination |
-| Readability overlay | `Color.black.opacity(0.25)` light / `Color.black.opacity(0.55)` dark |
-| Storage | Documents directory as JPEG 0.85 quality. Path saved in `@AppStorage` |
-| App Group | `group.com.prodnote.shared` — widget reads image from same container |
-| WWDC reference | WWDC 2018 Session 416 — Image and Graphics Best Practices |
-
-### Theme Names (V1)
-| Name | Tier | Audience | Color Direction | Status |
-|---|---|---|---|---|
-| Default | Free | Everyone | Warm off-white (current look) | ✅ Done |
-| Midnight | Free | Everyone | Deep charcoal (current dark) | ✅ Done |
-| Academia | Paid | Millennial women, students | Warm sepia, cream, deep brown | 🔲 |
-| Nord | Paid | Men, professionals | Arctic blue-grey, icy white | 🔲 |
-| Tokyo Night | Paid | Gen Z, creatives | Deep navy, neon purple, electric teal | 🔲 |
-| Forest | Paid | Creatives, nature lovers | Muted green, earthy brown, amber | 🔲 |
-| Rosé | Paid | Women 20–35 | Dusty rose, warm pink, cream | 🔲 |
-| Void | Paid (bundle) | Power users, OLED screens | Pure #000000 black | 🔲 |
-
-### Key WWDC Sessions
-| Session | Year | What It Covers |
-|---|---|---|
-| WWDC25 #323 — Build SwiftUI app with new design | 2025 | Liquid Glass full reference |
-| WWDC24 #10145 — Enhance UI animations and transitions | 2024 | zoom transition, matchedTransitionSource |
-| WWDC23 #10013 — Meet StoreKit for SwiftUI | 2023 | ProductView, StoreView, purchase flow |
-| WWDC23 #10027 — Bring Widgets to New Places | 2023 | StandBy, iPad widgets |
-| WWDC23 #10028 — Bring Widgets to Life | 2023 | Interactive widgets |
-| WWDC22 #10058 — SwiftUI on iPad | 2022 | NavigationSplitView |
-| WWDC22 #10050 — Complications and Widgets: Reloaded | 2022 | Lock screen widgets |
-| WWDC18 #416 — Image and Graphics Best Practices | 2018 | Image downsampling (MANDATORY read) |
-
-
-
-## Progress Notes (April 2, 2026)
-- Editor lag fixed — UITextView handles its own scrolling now
-- File attach fixed — cursor placement + icon + tap-to-open
-- PDF export fixed — images render, dark theme text visible
-- Export as Word removed — iOS limitation, no native .docx
-- Share menu — iOS 26 native dropdown with glass effect
-- Image resize — tap image → +/- pill to grow/shrink
-- Keyboard dismiss icon updated to keyboard.chevron.compact.down
-- Theme mock data updated — icons now show circles matching real UI
-- Slash menu always below cursor — flip-above logic removed
-- Toolbar hides automatically when slash menu is open, restores on dismiss
-
----
-
-## 🔴 Google Calendar — Broken, Must Fix Before Launch
-
-### What is broken
-1. **Wrong OAuth domain** — the Google Cloud project is registered under a different domain than the app's bundle ID / redirect URI. Login appears to succeed but nothing happens. You need to create a new Google Cloud project with the correct bundle ID (`com.prodnote.notetaking`) and update the OAuth client ID in the app.
-2. **No confirmation after login** — after the user signs in with Google, the Folders page shows nothing: no checkmark, no "Connected" state, no feedback at all. The UI must reflect the linked state.
-3. **Toggle behavior untested** — enabling/disabling Google Calendar sync has never been verified end-to-end on a real device with Google Calendar installed.
-
-### What you need to do (in order)
-| # | Task |
-|---|------|
-| 1 | Go to [console.cloud.google.com](https://console.cloud.google.com) → create a **new project** named `Dhakira` |
-| 2 | Enable the **Google Calendar API** on the new project |
-| 3 | Create an **OAuth 2.0 client ID** → type: iOS → bundle ID: `com.prodnote.notetaking` |
-| 4 | Download the new `GoogleService-Info.plist` and replace the one in Xcode |
-| 5 | Update the `REVERSED_CLIENT_ID` URL scheme in `Info.plist` to match the new client |
-| 6 | Fix the Folders page UI — after successful login show a checkmark / "Connected to Google Calendar" label |
-| 7 | Install **Google Calendar** app on your iPhone |
-| 8 | Sign in → create a task with a date in the title → verify the event appears in Google Calendar |
-| 9 | Toggle Google Calendar sync OFF → verify the event is removed or no new events are created |
-| 10 | Toggle back ON → verify sync resumes |
-
-### Definition of done
-- [ ] Login completes and Folders page shows a clear "Connected" indicator
-- [ ] Creating a dated note creates an event in Google Calendar on device
-- [ ] Toggling sync off stops new events from being created
-- [ ] No crash on login failure or permission denial
-
----
-
-## Remaining Before Launch
-| # | Item | Status |
-|---|------|--------|
-| 1 | Google Calendar fix (see above) | 🔴 Broken |
-| 2 | Widget theme vs real device widgets | 🔲 Test manually |
-| 3 | iCloud sync on two real devices | 🔲 Test manually |
-| 4 | Simple per-theme pricing (no separate page) | 🔲 |
-| 5 | Screenshots (Figma) | 🔲 |
-| 6 | Logo (1024×1024) | 🔲 |
-| 7 | Paywall (StoreKit) | 🔲 |
-| 8 | Full end-to-end test on real device | 🔲 |
-| 9 | App Store submission + dhakira.app landing page | 🔲 |
-
-## Current Sprint
-| # | Task | Status |
-|---|------|--------|
-| 1 | App name → **Dhakira** | ✅ Done |
-| 2 | Register dhakira.app domain | 🔲 Next |
-| 3 | Screenshots (in progress) | 🔄 Active |
-| 4 | Landing page on Cloudflare | 🔲 After screenshots |
-| 5 | End-to-end test on device | 🔲 |
-| 6 | Submit to App Store | 🔲 |
-
+| `Services/GoogleAuthService.swift` | New Dhakira client ID, email scope, account detection, validate on launch |
+| `Services/GoogleCalendarAPIService.swift` | Fixed HTTP 400 (removed dhakira:// source), added timeZone, error body logging |
+| `Services/CalendarSyncService.swift` | iCloud calendar targeting, cleanup on startup, delete-all on disconnect, resync |
+| `Services/CalendarSelectionService.swift` | Observable hasGoogleCalendar, logging, EventKit refresh |
+| `Services/DateDetectionService.swift` | "next" vs "this" weekday, bare weekdays, "in N days/weeks", EOD/EOW/EOM |
+| `Services/KeychainHelper.swift` | Error handling + logging for save/delete |
+| `Views/HomeView.swift` | Removed Local Google Calendar, proper connect/disconnect flow |
+| `Views/TaskListView.swift` | Calendar cleanup on complete/uncomplete, CloudKit reconciliation cleanup |
+| `Note_takingApp.swift` | Startup cleanup, validate tokens, email backfill |
+| `Info.plist` | New OAuth URL scheme |
+| `docs/privacy-policy.html` | Privacy policy for Google verification |
+| `docs/index.html` | Simple homepage |

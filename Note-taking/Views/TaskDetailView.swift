@@ -507,7 +507,7 @@ struct TaskDetailView: View {
             GeometryReader { geo in
                 let gf = geo.frame(in: .global)
                 let caretMaxY: CGFloat = slashCursorGlobalRect == .zero ? gf.minY + 40 : slashCursorGlobalRect.maxY
-                let caretMinY: CGFloat = slashCursorGlobalRect == .zero ? gf.minY + 20 : slashCursorGlobalRect.minY
+
                 let localX: CGFloat = slashCursorGlobalRect == .zero
                     ? 16
                     : max(0, min(slashCursorGlobalRect.minX - gf.minX, geo.size.width - 264))

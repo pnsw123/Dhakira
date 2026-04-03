@@ -90,16 +90,19 @@ final class GoogleCalendarAPIService {
             let (data, response) = try await URLSession.shared.data(for: req)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
 
-            // 401 = token expired — refresh and retry once.
+            // 401 = token expired — clear only the access token and try refreshing.
+            // IMPORTANT: Do NOT call disconnect() here — that nukes the refresh token
+            // too, making it impossible to recover. Only invalidate the stale access token.
             if status == 401 {
-                log.warning("\(method) \(url): 401 — refreshing token and retrying")
-                GoogleAuthService.shared.disconnect() // clears stale access token
+                log.warning("\(method) \(url): 401 — clearing stale access token and refreshing")
+                await GoogleAuthService.shared.clearAccessToken()
                 guard let freshToken = await GoogleAuthService.shared.validToken() else { return nil }
                 return await request(method: method, url: url, body: body, token: freshToken)
             }
 
             guard (200..<300).contains(status) else {
-                log.error("\(method) \(url): HTTP \(status)")
+                let errorBody = String(data: data, encoding: .utf8) ?? "(no body)"
+                log.error("\(method) \(url): HTTP \(status) — \(errorBody)")
                 return nil
             }
 
@@ -118,22 +121,24 @@ final class GoogleCalendarAPIService {
 
         let start = formatter.string(from: date)
         let end   = formatter.string(from: date.addingTimeInterval(3600))
+        let tz    = TimeZone.current.identifier  // e.g. "America/New_York"
 
-        var event: [String: Any] = [
+        let event: [String: Any] = [
             "summary": title,
-            "start": ["dateTime": start],
-            "end":   ["dateTime": end],
+            "start": ["dateTime": start, "timeZone": tz],
+            "end":   ["dateTime": end,   "timeZone": tz],
             "reminders": [
                 "useDefault": false,
                 "overrides":  [["method": "popup", "minutes": 15]],
             ],
+            // Note: "source" field removed — Google rejects non-HTTPS URLs
+            // (our deep link uses dhakira:// scheme which causes HTTP 400).
+            "description": deepLinkURL.map { "Open in ProdNote: \($0.absoluteString)" } ?? "",
         ]
 
-        if let url = deepLinkURL {
-            event["source"] = ["title": "ProdNote", "url": url.absoluteString]
-        }
-
-        return (try? JSONSerialization.data(withJSONObject: event)) ?? Data()
+        let data = (try? JSONSerialization.data(withJSONObject: event)) ?? Data()
+        log.debug("makeEventBody: \(String(data: data, encoding: .utf8) ?? "")")
+        return data
     }
 }
 

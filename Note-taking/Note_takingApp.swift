@@ -55,6 +55,11 @@ struct Note_takingApp: App {
                 .task {
                     // Request calendar permission once on first launch (Issue #60).
                     await CalendarPermissionService.shared.requestIfNeeded()
+                    // Validate Google OAuth tokens — clears stale Keychain data after reinstall.
+                    await GoogleAuthService.shared.validateOnLaunch()
+                    // Clean up calendar events for completed/trashed tasks (handles CloudKit sync,
+                    // reinstalls, and tasks completed on other devices).
+                    await CalendarSyncService.shared.cleanupStaleEvents(in: container.mainContext)
                     // Run all startup work on a background actor so the UI renders immediately.
                     let worker = StartupWorker(modelContainer: container)
                     await worker.run()
@@ -106,7 +111,6 @@ private actor StartupWorker {
 
     func run() {
         cleanupEmptyTasks()
-        seedDefaultFolderIfNeeded()
         cleanup30DayDeletedTasks()
         syncWidgetData()
     }
@@ -126,44 +130,6 @@ private actor StartupWorker {
         emptyTasks.forEach { modelContext.delete($0) }
         try? modelContext.save()
         log.info("cleanupEmptyTasks: done ✓")
-    }
-
-    // MARK: Seed default folder
-
-    private func seedDefaultFolderIfNeeded() {
-        guard let existingFolders = try? modelContext.fetch(FetchDescriptor<Folder>()) else { return }
-
-        if existingFolders.isEmpty {
-            log.info("seedDefaultFolder: seeding Default Folder + Tasks TaskList")
-            let defaultFolder = Folder(name: "Default")
-            modelContext.insert(defaultFolder)
-            let defaultTaskList = TaskList(name: "Tasks", folder: defaultFolder)
-            modelContext.insert(defaultTaskList)
-            try? modelContext.save()
-            log.info("seedDefaultFolder: done ✓")
-        } else {
-            log.debug("seedDefaultFolder: folders already exist, skipping seed")
-        }
-
-        migrateOrphanedTasks()
-    }
-
-    // MARK: Migrate orphaned tasks
-
-    private func migrateOrphanedTasks() {
-        let orphanDescriptor = FetchDescriptor<TaskItem>(
-            predicate: #Predicate<TaskItem> { $0.taskList == nil && !$0.isTrashed }
-        )
-        guard let orphans = try? modelContext.fetch(orphanDescriptor), !orphans.isEmpty else { return }
-
-        var listDescriptor = FetchDescriptor<TaskList>()
-        listDescriptor.fetchLimit = 1
-        guard let lists = try? modelContext.fetch(listDescriptor),
-              let defaultList = lists.first else { return }
-
-        log.info("migrateOrphanedTasks: migrating \(orphans.count) tasks to '\(defaultList.name)'")
-        orphans.forEach { $0.taskList = defaultList }
-        try? modelContext.save()
     }
 
     // MARK: Sync widget data on launch
