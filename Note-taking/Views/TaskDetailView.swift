@@ -1725,45 +1725,77 @@ struct PhotoPickerView: UIViewControllerRepresentable {
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
-            guard !results.isEmpty else { return }
+            guard !results.isEmpty else {
+                print("PhotoPicker: no results selected")
+                return
+            }
+            print("PhotoPicker: user selected \(results.count) photo(s)")
 
-            // Process all selected photos on a background queue, collect the JPEG data,
-            // then deliver them ONE AT A TIME on the main thread with a small delay
-            // so each appendImage call finishes before the next one mutates the binding.
-            let group = DispatchGroup()
-            var processedImages: [(Int, Data)] = [] // (index, jpeg) to preserve order
-            let lock = NSLock()
+            // Process photos ONE AT A TIME sequentially to avoid memory spikes
+            // and temp-file-cleanup races. Each photo is fully processed and
+            // delivered before the next one starts.
+            let onPick = self.onPick
+            Task {
+                for (index, result) in results.enumerated() {
+                    print("PhotoPicker: processing photo \(index + 1)/\(results.count)")
+                    if let jpeg = await Self.processPickerResult(result) {
+                        print("PhotoPicker: photo \(index + 1) ready (\(jpeg.count) bytes)")
+                        await MainActor.run { onPick(jpeg) }
+                    } else {
+                        print("PhotoPicker: photo \(index + 1) FAILED — skipping")
+                    }
+                }
+                print("PhotoPicker: all photos delivered")
+            }
+        }
 
-            for (index, result) in results.enumerated() {
-                group.enter()
+        /// Process a single picker result: load from temp file → downsample → JPEG.
+        /// Returns nil on any failure (never crashes).
+        private static func processPickerResult(_ result: PHPickerResult) async -> Data? {
+            await withCheckedContinuation { continuation in
                 result.itemProvider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, error in
-                    defer { group.leave() }
-                    guard let url else {
-                        if let error { print("PhotoPicker: loadFileRepresentation failed — \(error.localizedDescription)") }
+                    if let error {
+                        print("PhotoPicker: loadFileRepresentation error — \(error.localizedDescription)")
+                        continuation.resume(returning: nil)
                         return
                     }
-                    guard let data = try? Data(contentsOf: url) else { return }
+                    guard let url else {
+                        print("PhotoPicker: loadFileRepresentation returned nil URL")
+                        continuation.resume(returning: nil)
+                        return
+                    }
+                    // Read data from temp file immediately (iOS may delete it after this callback)
+                    guard let data = try? Data(contentsOf: url) else {
+                        print("PhotoPicker: failed to read data from temp URL \(url.lastPathComponent)")
+                        continuation.resume(returning: nil)
+                        return
+                    }
+                    print("PhotoPicker: loaded \(data.count) bytes from \(url.lastPathComponent)")
+
+                    // Downsample on current thread (background) — safe for Core Graphics
                     let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-                    guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return }
+                    guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
+                        print("PhotoPicker: CGImageSourceCreateWithData failed")
+                        continuation.resume(returning: nil)
+                        return
+                    }
                     let thumbOptions: [CFString: Any] = [
                         kCGImageSourceCreateThumbnailFromImageAlways: true,
                         kCGImageSourceShouldCacheImmediately: true,
                         kCGImageSourceCreateThumbnailWithTransform: true,
                         kCGImageSourceThumbnailMaxPixelSize: 1440
                     ]
-                    guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOptions as CFDictionary),
-                          let jpeg = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.85) else { return }
-                    lock.lock()
-                    processedImages.append((index, jpeg))
-                    lock.unlock()
-                }
-            }
-
-            // Once ALL photos are processed, deliver them sequentially on main thread
-            group.notify(queue: .main) { [weak self] in
-                let sorted = processedImages.sorted { $0.0 < $1.0 }
-                for (_, jpeg) in sorted {
-                    self?.onPick(jpeg)
+                    guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOptions as CFDictionary) else {
+                        print("PhotoPicker: CGImageSourceCreateThumbnailAtIndex failed")
+                        continuation.resume(returning: nil)
+                        return
+                    }
+                    guard let jpeg = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.85) else {
+                        print("PhotoPicker: jpegData compression failed")
+                        continuation.resume(returning: nil)
+                        return
+                    }
+                    continuation.resume(returning: jpeg)
                 }
             }
         }
