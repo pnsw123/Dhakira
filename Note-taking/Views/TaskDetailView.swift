@@ -1725,32 +1725,45 @@ struct PhotoPickerView: UIViewControllerRepresentable {
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
-            for result in results {
-                // loadFileRepresentation gives a temp file URL — no image bytes loaded yet.
-                // CGImageSourceCreateThumbnailAtIndex then decodes ONLY the resized version,
-                // so the full 48MP bitmap is never in RAM. Apple WWDC 2018 Session 219 pattern.
+            guard !results.isEmpty else { return }
+
+            // Process all selected photos on a background queue, collect the JPEG data,
+            // then deliver them ONE AT A TIME on the main thread with a small delay
+            // so each appendImage call finishes before the next one mutates the binding.
+            let group = DispatchGroup()
+            var processedImages: [(Int, Data)] = [] // (index, jpeg) to preserve order
+            let lock = NSLock()
+
+            for (index, result) in results.enumerated() {
+                group.enter()
                 result.itemProvider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, error in
+                    defer { group.leave() }
                     guard let url else {
                         if let error { print("PhotoPicker: loadFileRepresentation failed — \(error.localizedDescription)") }
                         return
                     }
-                    // Copy the temp file URL data before it's cleaned up by the system.
-                    // Then process on a proper background queue — the callback thread is
-                    // NOT guaranteed safe for Core Graphics.
                     guard let data = try? Data(contentsOf: url) else { return }
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-                        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return }
-                        let thumbOptions: [CFString: Any] = [
-                            kCGImageSourceCreateThumbnailFromImageAlways: true,
-                            kCGImageSourceShouldCacheImmediately: true,
-                            kCGImageSourceCreateThumbnailWithTransform: true,
-                            kCGImageSourceThumbnailMaxPixelSize: 1440
-                        ]
-                        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOptions as CFDictionary),
-                              let jpeg = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.85) else { return }
-                        DispatchQueue.main.async { self.onPick(jpeg) }
-                    }
+                    let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+                    guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return }
+                    let thumbOptions: [CFString: Any] = [
+                        kCGImageSourceCreateThumbnailFromImageAlways: true,
+                        kCGImageSourceShouldCacheImmediately: true,
+                        kCGImageSourceCreateThumbnailWithTransform: true,
+                        kCGImageSourceThumbnailMaxPixelSize: 1440
+                    ]
+                    guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOptions as CFDictionary),
+                          let jpeg = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.85) else { return }
+                    lock.lock()
+                    processedImages.append((index, jpeg))
+                    lock.unlock()
+                }
+            }
+
+            // Once ALL photos are processed, deliver them sequentially on main thread
+            group.notify(queue: .main) { [weak self] in
+                let sorted = processedImages.sorted { $0.0 < $1.0 }
+                for (_, jpeg) in sorted {
+                    self?.onPick(jpeg)
                 }
             }
         }
