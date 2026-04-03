@@ -10,9 +10,23 @@ struct ProdNoteWidgetView: View {
     var entry: ProdNoteEntry
     @Environment(\.widgetFamily) var family
     @Environment(\.widgetRenderingMode) var renderingMode  // iOS 18 tinting
+    @Environment(\.colorScheme) var colorScheme
 
     private var theme: AppTheme {
         AppTheme.all.first { $0.id == entry.themeId } ?? .defaultLight
+    }
+
+    /// Resolves a Color that might use `Color(light:dark:)` to the correct variant
+    /// for the current color scheme. Widget extensions don't always inherit trait
+    /// collections properly, so dynamic UIColors can resolve to the wrong mode.
+    private func resolved(_ color: Color) -> Color {
+        #if canImport(UIKit)
+        let traits = UITraitCollection(userInterfaceStyle: colorScheme == .dark ? .dark : .light)
+        let uiColor = UIColor(color).resolvedColor(with: traits)
+        return Color(uiColor: uiColor)
+        #else
+        return color
+        #endif
     }
 
     var body: some View {
@@ -41,11 +55,11 @@ struct ProdNoteWidgetView: View {
 
             Text("\(entry.taskCount)")
                 .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundStyle(theme.primaryText)
+                .foregroundStyle(resolved(theme.primaryText))
 
             Text("tasks today")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(theme.secondaryText)
+                .foregroundStyle(resolved(theme.secondaryText))
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -62,11 +76,11 @@ struct ProdNoteWidgetView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Today")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(theme.primaryText)
+                    .foregroundStyle(resolved(theme.primaryText))
                 Spacer()
                 Text("\(entry.taskCount) tasks")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(theme.secondaryText)
+                    .foregroundStyle(resolved(theme.secondaryText))
             }
             .padding(.bottom, 8)
 
@@ -77,7 +91,7 @@ struct ProdNoteWidgetView: View {
                         .foregroundStyle(Color(theme.accentColor))
                     Text("All caught up!")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(theme.secondaryText)
+                        .foregroundStyle(resolved(theme.secondaryText))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             } else {
@@ -86,11 +100,11 @@ struct ProdNoteWidgetView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 7) {
                                 Circle()
-                                    .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
+                                    .strokeBorder(resolved(theme.checkboxInactive), lineWidth: 1.2)
                                     .frame(width: 12, height: 12)
                                 Text(task.title)
                                     .font(.system(size: 12))
-                                    .foregroundStyle(theme.primaryText)
+                                    .foregroundStyle(resolved(theme.primaryText))
                                     .lineLimit(1)
                                 Spacer()
                                 if task.priority == "high" {
@@ -108,7 +122,7 @@ struct ProdNoteWidgetView: View {
                                 .foregroundStyle(
                                     task.hasContent
                                         ? Color(theme.accentColor)
-                                        : theme.secondaryText.opacity(0.35)
+                                        : resolved(theme.secondaryText).opacity(0.35)
                                 )
                                 .padding(.leading, 19)
                         }
@@ -117,7 +131,7 @@ struct ProdNoteWidgetView: View {
                     if overflow > 0 {
                         Text("+\(overflow) more")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(theme.secondaryText)
+                            .foregroundStyle(resolved(theme.secondaryText))
                     }
                 }
             }
@@ -139,16 +153,16 @@ struct ProdNoteWidgetView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Today")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(theme.primaryText)
+                    .foregroundStyle(resolved(theme.primaryText))
                 Spacer()
                 Text("\(entry.taskCount) tasks")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(theme.secondaryText)
+                    .foregroundStyle(resolved(theme.secondaryText))
             }
 
             // Thin separator
             Rectangle()
-                .fill(Color(theme.separatorColor).opacity(0.5))
+                .fill(resolved(Color(theme.separatorColor)).opacity(0.5))
                 .frame(height: 0.5)
                 .padding(.vertical, 9)
 
@@ -159,7 +173,7 @@ struct ProdNoteWidgetView: View {
                         .foregroundStyle(Color(theme.accentColor))
                     Text("All caught up!")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(theme.secondaryText)
+                        .foregroundStyle(resolved(theme.secondaryText))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -168,11 +182,11 @@ struct ProdNoteWidgetView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 8) {
                                 Circle()
-                                    .strokeBorder(theme.checkboxInactive, lineWidth: 1.2)
+                                    .strokeBorder(resolved(theme.checkboxInactive), lineWidth: 1.2)
                                     .frame(width: 11, height: 11)
                                 Text(task.title)
                                     .font(.system(size: 11))
-                                    .foregroundStyle(theme.primaryText)
+                                    .foregroundStyle(resolved(theme.primaryText))
                                     .lineLimit(1)
                                 Spacer()
                                 if task.priority == "high" {
@@ -190,7 +204,7 @@ struct ProdNoteWidgetView: View {
                                 .foregroundStyle(
                                     task.hasContent
                                         ? Color(theme.accentColor)
-                                        : theme.secondaryText.opacity(0.35)
+                                        : resolved(theme.secondaryText).opacity(0.35)
                                 )
                                 .padding(.leading, 19)
                         }
@@ -199,7 +213,7 @@ struct ProdNoteWidgetView: View {
                     if overflow > 0 {
                         Text("+\(overflow) more")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(theme.secondaryText)
+                            .foregroundStyle(resolved(theme.secondaryText))
                             .padding(.top, 2)
                     }
                 }
