@@ -1724,79 +1724,59 @@ struct PhotoPickerView: UIViewControllerRepresentable {
         init(onPick: @escaping (Data) -> Void) { self.onPick = onPick }
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            picker.dismiss(animated: true)
+            // DO NOT dismiss here — SwiftUI will tear down the sheet binding
+            // and crash when onPick tries to mutate &attributedText.
+            // Instead, load images via loadObject (simpler, synchronous callback),
+            // deliver each one, THEN let the onPick handler dismiss the sheet.
             guard !results.isEmpty else {
                 print("PhotoPicker: no results selected")
+                picker.dismiss(animated: true)
                 return
             }
             print("PhotoPicker: user selected \(results.count) photo(s)")
 
-            // Process photos ONE AT A TIME sequentially to avoid memory spikes
-            // and temp-file-cleanup races. Each photo is fully processed and
-            // delivered before the next one starts.
+            let total = results.count
+            var remaining = total
             let onPick = self.onPick
-            Task {
-                for (index, result) in results.enumerated() {
-                    print("PhotoPicker: processing photo \(index + 1)/\(results.count)")
-                    if let jpeg = await Self.processPickerResult(result) {
-                        print("PhotoPicker: photo \(index + 1) ready (\(jpeg.count) bytes)")
-                        await MainActor.run { onPick(jpeg) }
-                    } else {
-                        print("PhotoPicker: photo \(index + 1) FAILED — skipping")
+
+            for (index, result) in results.enumerated() {
+                result.itemProvider.loadObject(ofClass: UIImage.self) { object, error in
+                    defer {
+                        remaining -= 1
+                        if remaining == 0 {
+                            print("PhotoPicker: all \(total) photo(s) delivered — dismissing")
+                            DispatchQueue.main.async { picker.dismiss(animated: true) }
+                        }
                     }
+                    if let error {
+                        print("PhotoPicker: photo \(index + 1)/\(total) loadObject error — \(error.localizedDescription)")
+                        return
+                    }
+                    guard let image = object as? UIImage else {
+                        print("PhotoPicker: photo \(index + 1)/\(total) — not a UIImage")
+                        return
+                    }
+                    // Downsample to 1440px max to prevent OOM with 48MP photos
+                    let resized = Self.downsample(image, maxDimension: 1440)
+                    guard let jpeg = resized.jpegData(compressionQuality: 0.85) else {
+                        print("PhotoPicker: photo \(index + 1)/\(total) — JPEG compression failed")
+                        return
+                    }
+                    print("PhotoPicker: photo \(index + 1)/\(total) ready (\(jpeg.count) bytes, \(Int(resized.size.width))×\(Int(resized.size.height)))")
+                    DispatchQueue.main.async { onPick(jpeg) }
                 }
-                print("PhotoPicker: all photos delivered")
             }
         }
 
-        /// Process a single picker result: load from temp file → downsample → JPEG.
-        /// Returns nil on any failure (never crashes).
-        private static func processPickerResult(_ result: PHPickerResult) async -> Data? {
-            await withCheckedContinuation { continuation in
-                result.itemProvider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, error in
-                    if let error {
-                        print("PhotoPicker: loadFileRepresentation error — \(error.localizedDescription)")
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    guard let url else {
-                        print("PhotoPicker: loadFileRepresentation returned nil URL")
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    // Read data from temp file immediately (iOS may delete it after this callback)
-                    guard let data = try? Data(contentsOf: url) else {
-                        print("PhotoPicker: failed to read data from temp URL \(url.lastPathComponent)")
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    print("PhotoPicker: loaded \(data.count) bytes from \(url.lastPathComponent)")
-
-                    // Downsample on current thread (background) — safe for Core Graphics
-                    let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-                    guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
-                        print("PhotoPicker: CGImageSourceCreateWithData failed")
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    let thumbOptions: [CFString: Any] = [
-                        kCGImageSourceCreateThumbnailFromImageAlways: true,
-                        kCGImageSourceShouldCacheImmediately: true,
-                        kCGImageSourceCreateThumbnailWithTransform: true,
-                        kCGImageSourceThumbnailMaxPixelSize: 1440
-                    ]
-                    guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOptions as CFDictionary) else {
-                        print("PhotoPicker: CGImageSourceCreateThumbnailAtIndex failed")
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    guard let jpeg = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.85) else {
-                        print("PhotoPicker: jpegData compression failed")
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    continuation.resume(returning: jpeg)
-                }
+        /// Downsample image so longest side ≤ maxDimension.
+        private static func downsample(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+            let size = image.size
+            let longest = max(size.width, size.height)
+            guard longest > maxDimension else { return image }
+            let scale = maxDimension / longest
+            let newSize = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+            return UIGraphicsImageRenderer(size: newSize).image { _ in
+                image.draw(in: CGRect(origin: .zero, size: newSize))
             }
         }
     }
