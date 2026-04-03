@@ -1726,13 +1726,30 @@ struct PhotoPickerView: UIViewControllerRepresentable {
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
             for result in results {
-                let provider = result.itemProvider
-                if provider.canLoadObject(ofClass: UIImage.self) {
-                    provider.loadObject(ofClass: UIImage.self) { object, _ in
-                        if let image = object as? UIImage,
-                           let data = image.jpegData(compressionQuality: 0.85) {
-                            DispatchQueue.main.async { self.onPick(data) }
-                        }
+                // loadFileRepresentation gives a temp file URL — no image bytes loaded yet.
+                // CGImageSourceCreateThumbnailAtIndex then decodes ONLY the resized version,
+                // so the full 48MP bitmap is never in RAM. Apple WWDC 2018 Session 219 pattern.
+                result.itemProvider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, error in
+                    guard let url else {
+                        if let error { print("PhotoPicker: loadFileRepresentation failed — \(error.localizedDescription)") }
+                        return
+                    }
+                    // Copy the temp file URL data before it's cleaned up by the system.
+                    // Then process on a proper background queue — the callback thread is
+                    // NOT guaranteed safe for Core Graphics.
+                    guard let data = try? Data(contentsOf: url) else { return }
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+                        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return }
+                        let thumbOptions: [CFString: Any] = [
+                            kCGImageSourceCreateThumbnailFromImageAlways: true,
+                            kCGImageSourceShouldCacheImmediately: true,
+                            kCGImageSourceCreateThumbnailWithTransform: true,
+                            kCGImageSourceThumbnailMaxPixelSize: 1440
+                        ]
+                        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOptions as CFDictionary),
+                              let jpeg = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.85) else { return }
+                        DispatchQueue.main.async { self.onPick(jpeg) }
                     }
                 }
             }
