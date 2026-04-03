@@ -5,7 +5,16 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "DateDetectio
 
 struct DetectedDate {
     let date: Date
+    /// Optional end date for time ranges like "5 to 8pm", "2-5pm".
+    /// Nil means use the default duration (1 hour).
+    let endDate: Date?
     let range: Range<String.Index>
+
+    init(date: Date, range: Range<String.Index>, endDate: Date? = nil) {
+        self.date = date
+        self.endDate = endDate
+        self.range = range
+    }
 }
 
 final class DateDetectionService {
@@ -68,26 +77,97 @@ final class DateDetectionService {
             log.error("detectDates: detector unavailable — returning empty")
             return []
         }
-        let normalized = normalize(text)
-        log.debug("detectDates: original='\(text)' normalized='\(normalized)'")
+
+        // Pre-extract time ranges ("5 to 8pm", "2-5pm", "9am-12pm") BEFORE normalization.
+        // We store the duration so we can attach endDate to the result.
+        let (textForNorm, extractedDuration) = extractTimeRange(from: text)
+
+        let normalized = normalize(textForNorm)
+        log.debug("detectDates: original='\(text)' normalized='\(normalized)' duration=\(extractedDuration.map { "\($0)s" } ?? "default")")
         let nsRange = NSRange(normalized.startIndex..., in: normalized)
         let matches = detector.matches(in: normalized, options: [], range: nsRange)
         let results = matches.compactMap { match -> DetectedDate? in
             guard let date = match.date else { return nil }
-            // Map the range back to the *original* string best-effort:
-            // use the full string range so CalendarSyncService can still strip
-            // the date token.  A nil range here would skip stripping, which is
-            // safer than a crash on mis-mapped indices.
             let range = Range(match.range, in: normalized).flatMap { normRange -> Range<String.Index>? in
-                // Try to find the same substring in the original text so the
-                // stripping logic in CalendarSyncService works on the right text.
                 let token = String(normalized[normRange])
                 return text.range(of: token, options: .caseInsensitive)
-            } ?? text.startIndex..<text.startIndex   // fallback: empty range at start
-            return DetectedDate(date: date, range: range)
+            } ?? text.startIndex..<text.startIndex
+            let endDate = extractedDuration.map { date.addingTimeInterval($0) }
+            return DetectedDate(date: date, range: range, endDate: endDate)
         }
         log.info("detectDates: found \(results.count) date(s)")
         return results
+    }
+
+    // MARK: - Time range extraction
+
+    /// Extracts time ranges like "5 to 8pm", "2-5pm", "9am-12pm", "7 to 8:30pm"
+    /// Returns the text with the range replaced by just the START time (so NSDataDetector
+    /// can parse it), plus the duration in seconds.
+    private func extractTimeRange(from text: String) -> (String, TimeInterval?) {
+        // Patterns for time ranges — start time, separator, end time
+        // "5 to 8pm", "5-8pm", "5pm to 8pm", "5pm-8pm", "9:30am to 12pm", "5 to 8 pm"
+        let pattern = #"(?i)\b(\d{1,2}(?::\d{2})?)\s*(am|pm|a\.?m\.?|p\.?m\.?)?\s*(?:to|-|–|—|til|till|until)\s*(\d{1,2}(?::\d{2})?)\s*(am|pm|a\.?m\.?|p\.?m\.?)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return (text, nil) }
+
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        guard let match = matches.first, match.numberOfRanges >= 5 else { return (text, nil) }
+
+        let startTimeStr = nsText.substring(with: match.range(at: 1))
+        let startPeriodRange = match.range(at: 2)
+        let startPeriod = startPeriodRange.location != NSNotFound ? nsText.substring(with: startPeriodRange) : nil
+        let endTimeStr = nsText.substring(with: match.range(at: 3))
+        let endPeriod = nsText.substring(with: match.range(at: 4))
+
+        // Parse start and end hours/minutes
+        let startComps = parseTimeComponents(startTimeStr)
+        let endComps = parseTimeComponents(endTimeStr)
+        let endIsPM = endPeriod.lowercased().hasPrefix("p")
+        let endIsAM = endPeriod.lowercased().hasPrefix("a")
+
+        // Determine start period: if not specified, infer from end period and logic
+        // "5 to 8pm" → start is 5pm (same period), "9 to 12pm" → start is 9am (crosses noon)
+        let startIsPM: Bool
+        if let sp = startPeriod {
+            startIsPM = sp.lowercased().hasPrefix("p")
+        } else if endIsPM {
+            // If start hour < end hour and both would be PM, keep PM
+            // If start hour > end hour (e.g. "10 to 2pm"), start is AM
+            startIsPM = startComps.hour <= endComps.hour || startComps.hour >= 12
+        } else {
+            startIsPM = false
+        }
+
+        var startHour24 = startComps.hour
+        if startIsPM && startHour24 < 12 { startHour24 += 12 }
+        if !startIsPM && startHour24 == 12 { startHour24 = 0 }
+
+        var endHour24 = endComps.hour
+        if endIsPM && endHour24 < 12 { endHour24 += 12 }
+        if endIsAM && endHour24 == 12 { endHour24 = 0 }
+
+        let startMinutes = startHour24 * 60 + startComps.minute
+        let endMinutes = endHour24 * 60 + endComps.minute
+        var durationMinutes = endMinutes - startMinutes
+        if durationMinutes <= 0 { durationMinutes += 24 * 60 } // crosses midnight
+
+        let duration = TimeInterval(durationMinutes * 60)
+        log.debug("extractTimeRange: \(startTimeStr)\(startPeriod ?? "") to \(endTimeStr)\(endPeriod) → duration \(durationMinutes)min")
+
+        // Replace the full range with just the start time for NSDataDetector
+        let resolvedStartPeriod = startIsPM ? "pm" : "am"
+        let replacement = "\(startTimeStr)\(startPeriod ?? resolvedStartPeriod)"
+        let newText = nsText.replacingCharacters(in: match.range, with: replacement)
+        return (newText, duration)
+    }
+
+    /// Parses "5" → (5, 0), "5:30" → (5, 30)
+    private func parseTimeComponents(_ timeStr: String) -> (hour: Int, minute: Int) {
+        let parts = timeStr.split(separator: ":")
+        let hour = Int(parts[0]) ?? 0
+        let minute = parts.count > 1 ? (Int(parts[1]) ?? 0) : 0
+        return (hour, minute)
     }
 
     // MARK: - Normalization

@@ -37,6 +37,7 @@ final class CalendarSyncService {
     func syncDateToCalendar(
         title: String,
         date: Date,
+        endDate: Date? = nil,
         existingEventId: String?,
         targetCalendar: EKCalendar? = nil,
         deepLinkURL: URL? = nil
@@ -52,7 +53,7 @@ final class CalendarSyncService {
             if let existingEvent = eventStore.event(withIdentifier: eventId) {
                 // Update the existing event in place.
                 log.info("syncDateToCalendar: updating existing event '\(eventId)'")
-                configure(existingEvent, title: title, date: date, deepLinkURL: deepLinkURL)
+                configure(existingEvent, title: title, date: date, endDate: endDate, deepLinkURL: deepLinkURL)
                 do {
                     try eventStore.save(existingEvent, span: .thisEvent)
                     log.info("syncDateToCalendar: event updated ✓")
@@ -74,7 +75,7 @@ final class CalendarSyncService {
         }
         let event = EKEvent(eventStore: eventStore)
         event.calendar = calendar
-        configure(event, title: title, date: date, deepLinkURL: deepLinkURL)
+        configure(event, title: title, date: date, endDate: endDate, deepLinkURL: deepLinkURL)
         do {
             try eventStore.save(event, span: .thisEvent)
             log.info("syncDateToCalendar: event created ✓ id='\(event.eventIdentifier ?? "unknown")'")
@@ -189,6 +190,7 @@ final class CalendarSyncService {
             appleEventId = await syncDateToCalendar(
                 title: cleanTitle,
                 date: earliest.date,
+                endDate: earliest.endDate,
                 existingEventId: existingEventId,
                 targetCalendar: appleCal,
                 deepLinkURL: deepLinkURL
@@ -213,6 +215,7 @@ final class CalendarSyncService {
             googleEventId = await syncDateToCalendar(
                 title: cleanTitle,
                 date: earliest.date,
+                endDate: earliest.endDate,
                 existingEventId: task.googleCalendarEventId,
                 targetCalendar: googleCal,
                 deepLinkURL: deepLinkURL
@@ -222,6 +225,7 @@ final class CalendarSyncService {
             googleEventId = await GoogleCalendarAPIService.shared.syncEvent(
                 title: cleanTitle,
                 date: earliest.date,
+                endDate: earliest.endDate,
                 existingId: task.googleCalendarEventId,
                 deepLinkURL: deepLinkURL
             )
@@ -528,10 +532,10 @@ final class CalendarSyncService {
     // MARK: - Private helpers
 
     /// Applies all standard fields to an EKEvent: title, dates, 15-minute alarm, deep link.
-    private func configure(_ event: EKEvent, title: String, date: Date, deepLinkURL: URL?) {
+    private func configure(_ event: EKEvent, title: String, date: Date, endDate: Date? = nil, deepLinkURL: URL?) {
         event.title = title
         event.startDate = date
-        event.endDate = date.addingTimeInterval(3600) // 1 hour default
+        event.endDate = endDate ?? date.addingTimeInterval(3600) // use detected end time, or 1 hour default
 
         // Attach (or replace) the 15-minute reminder alarm.
         // Setting the array replaces any existing alarms, preventing duplicates on update.

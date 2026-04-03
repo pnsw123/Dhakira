@@ -26,6 +26,7 @@ final class GoogleCalendarAPIService {
     func syncEvent(
         title: String,
         date: Date,
+        endDate: Date? = nil,
         existingId: String?,
         deepLinkURL: URL? = nil
     ) async -> String? {
@@ -34,7 +35,7 @@ final class GoogleCalendarAPIService {
             return existingId
         }
 
-        let body = makeEventBody(title: title, date: date, deepLinkURL: deepLinkURL)
+        let body = makeEventBody(title: title, date: date, endDate: endDate, deepLinkURL: deepLinkURL)
 
         if let existingId {
             // Try to update the existing event.
@@ -115,12 +116,12 @@ final class GoogleCalendarAPIService {
         }
     }
 
-    private func makeEventBody(title: String, date: Date, deepLinkURL: URL?) -> Data {
+    private func makeEventBody(title: String, date: Date, endDate: Date? = nil, deepLinkURL: URL?) -> Data {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
 
         let start = formatter.string(from: date)
-        let end   = formatter.string(from: date.addingTimeInterval(3600))
+        let end   = formatter.string(from: endDate ?? date.addingTimeInterval(3600))
         let tz    = TimeZone.current.identifier  // e.g. "America/New_York"
 
         let event: [String: Any] = [
