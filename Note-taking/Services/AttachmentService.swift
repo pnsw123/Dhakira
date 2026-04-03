@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 import OSLog
@@ -84,16 +85,22 @@ final class AttachmentService: NSObject {
             alertItem = .imageDecodeFailed(data.count)
             return
         }
+        // Resize to max 1440px before storing in memory or on disk.
+        // Full-resolution camera photos (48MP+) cause OOM crashes when held in NSTextAttachment.
+        let resized = AttachmentService.resized(image, maxDimension: 1440)
+        let storageData = resized.jpegData(compressionQuality: 0.85) ?? data
+        log.debug("AttachmentService.appendImage: resized \(Int(image.size.width))×\(Int(image.size.height)) → \(Int(resized.size.width))×\(Int(resized.size.height))")
+
         let attachment = NSTextAttachment()
-        attachment.image = image
+        attachment.image = resized
         let maxWidth: CGFloat = 280
-        if image.size.width > maxWidth {
-            let scale = maxWidth / image.size.width
-            attachment.bounds = CGRect(x: 0, y: 0, width: maxWidth, height: image.size.height * scale)
-            log.debug("AttachmentService.appendImage: scaled \(image.size.width)pt → \(maxWidth)pt")
+        if resized.size.width > maxWidth {
+            let scale = maxWidth / resized.size.width
+            attachment.bounds = CGRect(x: 0, y: 0, width: maxWidth, height: resized.size.height * scale)
+            log.debug("AttachmentService.appendImage: display-scaled \(resized.size.width)pt → \(maxWidth)pt")
         }
-        // Persist image to disk and tag with UUID via custom attribute
-        let attachmentId = AttachmentStore.shared.save(imageData: data, taskId: taskId)
+        // Persist resized image to disk and tag with UUID via custom attribute
+        let attachmentId = AttachmentStore.shared.save(imageData: storageData, taskId: taskId)
         let attachStr = NSMutableAttributedString(string: "\n")
         let imgStr = NSMutableAttributedString(attachment: attachment)
         imgStr.addAttribute(.imageAttachmentId, value: attachmentId.uuidString, range: NSRange(location: 0, length: imgStr.length))
@@ -153,6 +160,22 @@ final class AttachmentService: NSObject {
         log.info("AttachmentService.appendScannedText: \(text.count) chars")
     }
 
+    // MARK: - Image resize helper
+
+    /// Downscale image so its longest side does not exceed maxDimension.
+    /// Uses UIGraphicsImageRenderer — Apple's recommended API, handles orientation correctly.
+    /// Returns the original image unchanged if it already fits within the limit.
+    private static func resized(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let size = image.size
+        let longest = max(size.width, size.height)
+        guard longest > maxDimension else { return image }
+        let scale = maxDimension / longest
+        let newSize = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+        return UIGraphicsImageRenderer(size: newSize).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+    }
+
     // MARK: - Presentation hooks
 
     /// Returns a zero-size view that drives all sheet presentations for this service.
@@ -171,12 +194,44 @@ struct AttachmentServicePresenters: View {
     @Binding var attributedText: NSAttributedString
     var taskId: UUID
 
+    /// SwiftUI PhotosPicker selection — replaces UIKit PHPickerViewController.
+    @State private var selectedPhotos: [PhotosPickerItem] = []
+
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
-            // Single enum-driven sheet — only one can be active at a time
+            // PhotosPicker presented as sheet when .photoLibrary is active
+            .photosPicker(
+                isPresented: Binding(
+                    get: { service.activeSheet == .photoLibrary },
+                    set: { if !$0 { service.activeSheet = nil } }
+                ),
+                selection: $selectedPhotos,
+                maxSelectionCount: 10,
+                matching: .images
+            )
+            .onChange(of: selectedPhotos) { _, newItems in
+                guard !newItems.isEmpty else { return }
+                let cursorPos = service.savedCursorPosition
+                Task {
+                    for (index, item) in newItems.enumerated() {
+                        print("PhotoPicker: loading photo \(index + 1)/\(newItems.count)")
+                        if let data = try? await item.loadTransferable(type: Data.self) {
+                            print("PhotoPicker: photo \(index + 1) loaded (\(data.count) bytes)")
+                            await MainActor.run {
+                                service.appendImage(data, to: &attributedText, taskId: taskId, at: cursorPos)
+                            }
+                        } else {
+                            print("PhotoPicker: photo \(index + 1) FAILED to load")
+                        }
+                    }
+                    print("PhotoPicker: all \(newItems.count) photo(s) delivered")
+                    await MainActor.run { selectedPhotos = [] }
+                }
+            }
+            // Other sheets (camera, document picker, scanner, etc.)
             .sheet(item: Binding(
-                get: { service.activeSheet },
+                get: { service.activeSheet == .photoLibrary ? nil : service.activeSheet },
                 set: { service.activeSheet = $0 }
             )) { sheet in
                 sheetContent(for: sheet)
@@ -198,10 +253,7 @@ struct AttachmentServicePresenters: View {
     private func sheetContent(for sheet: AttachmentSheet) -> some View {
         switch sheet {
         case .photoLibrary:
-            PhotoPickerView { data in
-                service.appendImage(data, to: &attributedText, taskId: taskId, at: service.savedCursorPosition)
-                service.activeSheet = nil
-            }
+            EmptyView() // Handled by .photosPicker above
         case .camera:
             #if os(iOS)
             CameraPickerView { data in
