@@ -13,7 +13,14 @@ struct ProdNoteWidgetView: View {
     @Environment(\.colorScheme) var colorScheme
 
     private var theme: AppTheme {
-        AppTheme.all.first { $0.id == entry.themeId } ?? .defaultLight
+        let matched = AppTheme.all.first { $0.id == entry.themeId }
+        // If the theme is "default" (auto), pick light or dark based on system color scheme.
+        // The app syncs the resolved ID ("midnight") but there's a race at launch where
+        // "default" is written before the view detects dark mode. This ensures the widget
+        // always shows the correct variant regardless of sync timing.
+        if let matched { return matched }
+        if entry.themeId == "default" && colorScheme == .dark { return .midnight }
+        return .defaultLight
     }
 
     /// Resolves a Color that might use `Color(light:dark:)` to the correct variant
