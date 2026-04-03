@@ -51,42 +51,57 @@ struct RecentlyCompletedView: View {
                     .listRowBackground(Color.clear)
 
                     ForEach(completedTasks) { task in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(task.title.isEmpty ? "Untitled" : task.title)
-                            .font(.system(size: 15))
-                            .strikethrough(true)
-                            .foregroundStyle(Color.secondaryText)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(task.title.isEmpty ? "Untitled" : task.title)
+                                .font(.system(size: 15))
+                                .strikethrough(true)
+                                .foregroundStyle(Color.secondaryText)
 
-                        HStack(spacing: 4) {
-                            if let listName = task.taskList?.name {
-                                Text(listName)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.secondaryText.opacity(0.7))
-                                Text("·")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.secondaryText.opacity(0.5))
-                            }
-                            if let folder = task.taskList?.folder {
-                                Text(folder.name)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.secondaryText.opacity(0.7))
-                                Text("·")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.secondaryText.opacity(0.5))
-                            }
-                            if let completedAt = task.completedAt {
-                                Text(Self.dateFormatter.string(from: completedAt))
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.secondaryText.opacity(0.6))
-                            } else {
-                                Text("Unknown time")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.secondaryText.opacity(0.4))
+                            HStack(spacing: 4) {
+                                if let listName = task.taskList?.name {
+                                    Text(listName)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.secondaryText.opacity(0.7))
+                                    Text("·")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.secondaryText.opacity(0.5))
+                                }
+                                if let folder = task.taskList?.folder {
+                                    Text(folder.name)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.secondaryText.opacity(0.7))
+                                    Text("·")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.secondaryText.opacity(0.5))
+                                }
+                                if let completedAt = task.completedAt {
+                                    Text(Self.dateFormatter.string(from: completedAt))
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.secondaryText.opacity(0.6))
+                                } else {
+                                    Text("Unknown time")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.secondaryText.opacity(0.4))
+                                }
                             }
                         }
-                    }
-                    .padding(.vertical, 4)
-                    .listRowBackground(Color.clear)
+                        .padding(.vertical, 4)
+                        .listRowBackground(Color.clear)
+                        .swipeActions(edge: .leading) {
+                            Button {
+                                restoreTask(task)
+                            } label: {
+                                Label("Restore", systemImage: "arrow.uturn.backward")
+                            }
+                            .tint(.green)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                trashTask(task)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                 }
                 .listStyle(.plain)
@@ -97,6 +112,38 @@ struct RecentlyCompletedView: View {
         .toolbar(.hidden, for: .navigationBar)
         .background(Color.clear)
         .navigationBarBackButtonHidden(true)
+    }
+
+    // MARK: - Actions
+
+    private func restoreTask(_ task: TaskItem) {
+        log.info("restoreTask: uncompleting '\(task.title)'")
+        withAnimation {
+            task.isCompleted = false
+            task.completedAt = nil
+        }
+        LocalStateLedger.shared.unmarkCompleted(task.id)
+        // Re-create calendar events for the restored task
+        let t = task
+        Task { await CalendarSyncService.shared.syncTaskIfNeeded(t) }
+    }
+
+    private func trashTask(_ task: TaskItem) {
+        log.info("trashTask: moving '\(task.title)' to trash")
+        // Clean up calendar events before trashing
+        if let eventId = task.calendarEventId {
+            Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
+            task.calendarEventId = nil
+        }
+        if let googleId = task.googleCalendarEventId {
+            Task { await CalendarSyncService.shared.deleteGoogleEvent(googleId) }
+            task.googleCalendarEventId = nil
+        }
+        withAnimation {
+            task.isTrashed = true
+            task.deletedAt = Date()
+        }
+        LocalStateLedger.shared.markDeleted(task.id)
     }
 
     private var emptyState: some View {
