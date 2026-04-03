@@ -134,7 +134,7 @@ final class GoogleCalendarAPIService {
             ],
             // Note: "source" field removed — Google rejects non-HTTPS URLs
             // (our deep link uses dhakira:// scheme which causes HTTP 400).
-            "description": deepLinkURL.map { "Open in ProdNote: \($0.absoluteString)" } ?? "",
+            "description": deepLinkURL.map { "Open in Dhakira: \($0.absoluteString)" } ?? "",
         ]
 
         let data = (try? JSONSerialization.data(withJSONObject: event)) ?? Data()

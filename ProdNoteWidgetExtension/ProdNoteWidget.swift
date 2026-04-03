@@ -73,7 +73,7 @@ struct ProdNoteWidget: Widget {
                 }
                 .widgetURL(URL(string: "prodnote://openNote"))
         }
-        .configurationDisplayName("ProdNote")
+        .configurationDisplayName("Dhakira")
         .description("Your tasks at a glance.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
@@ -120,7 +120,7 @@ struct ProdNoteWidgetAccessory: Widget {
                 .containerBackground(for: .widget) { Color.clear }
                 .widgetURL(URL(string: "prodnote://openNote"))
         }
-        .configurationDisplayName("ProdNote")
+        .configurationDisplayName("Dhakira")
         .description("Tasks at a glance on your lock screen.")
         .supportedFamilies([
             .accessoryCircular,

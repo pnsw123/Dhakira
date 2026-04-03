@@ -251,7 +251,7 @@ struct ProdNoteWidgetView: View {
     }
 
     private var accessoryInlineView: some View {
-        Text("ProdNote: \(entry.taskCount) tasks")
+        Text("Dhakira: \(entry.taskCount) tasks")
     }
 }
 
