@@ -67,9 +67,8 @@ struct ProdNoteWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: ProdNoteProvider()) { entry in
             ProdNoteWidgetView(entry: entry)
-                // containerBackground required on iOS 17+ (NOT .background())
                 .containerBackground(for: .widget) {
-                    widgetBackground(for: entry)
+                    WidgetBackgroundView(entry: entry)
                 }
                 .widgetURL(URL(string: "prodnote://openNote"))
         }
@@ -77,10 +76,24 @@ struct ProdNoteWidget: Widget {
         .description("Your tasks at a glance.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
+}
 
-    @ViewBuilder
-    private func widgetBackground(for entry: ProdNoteEntry) -> some View {
-        let theme = AppTheme.all.first { $0.id == entry.themeId } ?? .defaultLight
+/// Separate View for the widget background so it can use @Environment(\.colorScheme).
+/// Widget structs can't use @Environment — only View structs can.
+private struct WidgetBackgroundView: View {
+    var entry: ProdNoteEntry
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var theme: AppTheme {
+        if entry.themeId == "default" {
+            return colorScheme == .dark ? .midnight : .defaultLight
+        }
+        let allThemes = [AppTheme.defaultLight, .midnight] + AppTheme.all
+        return allThemes.first { $0.id == entry.themeId }
+            ?? (colorScheme == .dark ? .midnight : .defaultLight)
+    }
+
+    var body: some View {
         if let data = entry.backgroundImageData, let img = UIImage(data: data) {
             Image(uiImage: img)
                 .resizable()

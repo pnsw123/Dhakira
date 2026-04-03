@@ -12,15 +12,19 @@ struct ProdNoteWidgetView: View {
     @Environment(\.widgetRenderingMode) var renderingMode  // iOS 18 tinting
     @Environment(\.colorScheme) var colorScheme
 
+    /// All themes the widget might need — includes .defaultLight and .midnight
+    /// which are NOT in AppTheme.all (they were removed from the theme picker
+    /// because dark mode is now automatic, not a manual theme selection).
+    private static let widgetThemes: [AppTheme] = [.defaultLight, .midnight] + AppTheme.all
+
     private var theme: AppTheme {
-        // "default" is the auto-theme — follow system dark/light mode.
-        // Check colorScheme FIRST, before looking up the theme by ID,
-        // because AppTheme.all contains id:"default" → .defaultLight which
-        // would always match and skip the dark mode branch.
+        // "default" = auto-theme → follow system dark/light mode
         if entry.themeId == "default" {
             return colorScheme == .dark ? .midnight : .defaultLight
         }
-        return AppTheme.all.first { $0.id == entry.themeId } ?? .defaultLight
+        // "midnight" or any other theme → look up in the full list
+        return Self.widgetThemes.first { $0.id == entry.themeId }
+            ?? (colorScheme == .dark ? .midnight : .defaultLight)
     }
 
     /// Resolves a Color that might use `Color(light:dark:)` to the correct variant
