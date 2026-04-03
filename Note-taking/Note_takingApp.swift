@@ -22,7 +22,6 @@ struct Note_takingApp: App {
     @State private var storeKitManager = StoreKitManager.shared
 
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.colorScheme) private var colorScheme
 
 
     init() {
@@ -43,15 +42,6 @@ struct Note_takingApp: App {
                 .environment(themeManager)
                 .environment(storeKitManager)
                 .preferredColorScheme(themeManager.current.preferredScheme)
-                .onChange(of: colorScheme, initial: true) { _, scheme in
-                    guard themeManager.isAutoTheme else { return }
-                    let newTheme: AppTheme = scheme == .dark ? .midnight : .defaultLight
-                    themeManager.current = newTheme
-                    // Push the new theme to the widget via the proper ThemeManager API so
-                    // syncToAppGroup() writes the resolved id ("midnight"/"defaultLight")
-                    // rather than "default", which no AppTheme matches.
-                    themeManager.applyWidget(newTheme)
-                }
                 .task {
                     // Request calendar permission once on first launch (Issue #60).
                     await CalendarPermissionService.shared.requestIfNeeded()

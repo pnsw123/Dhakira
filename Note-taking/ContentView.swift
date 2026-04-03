@@ -36,12 +36,24 @@ struct ContentView: View {
 
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        if hSizeClass == .compact {
-            iPhoneLayout
-        } else {
-            iPadLayout
+        Group {
+            if hSizeClass == .compact {
+                iPhoneLayout
+            } else {
+                iPadLayout
+            }
+        }
+        // Auto-theme: switch between defaultLight and midnight based on system dark mode.
+        // This MUST be in the view hierarchy (not the App struct) so @Environment(\.colorScheme)
+        // resolves correctly — the App struct doesn't participate in SwiftUI's view environment.
+        .onChange(of: colorScheme, initial: true) { _, scheme in
+            guard themeManager.isAutoTheme else { return }
+            let newTheme: AppTheme = scheme == .dark ? .midnight : .defaultLight
+            themeManager.current = newTheme
+            themeManager.applyWidget(newTheme)
         }
     }
 
