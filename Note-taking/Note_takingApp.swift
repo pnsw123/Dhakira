@@ -60,6 +60,8 @@ struct Note_takingApp: App {
                     await CalendarSyncService.shared.cleanupStaleEvents(in: container.mainContext)
                     // Issue #86: reconcile body events — mark struck if deleted from Apple Calendar.
                     BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
+                    // Issue #87: reconcile body events against Google Calendar on app open.
+                    await BodyEventSyncService.shared.reconcileGoogleEvents(context: container.mainContext)
                     // Run all startup work on a background actor so the UI renders immediately.
                     let worker = StartupWorker(modelContainer: container)
                     await worker.run()

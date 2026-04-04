@@ -78,6 +78,66 @@ final class GoogleCalendarAPIService {
         }
     }
 
+    // MARK: - Batch existence check (Issue #87)
+
+    /// Checks which event IDs still exist in Google Calendar.
+    /// Returns the set of IDs that are confirmed to exist.
+    /// Uses a single list-events API call filtered by time range for efficiency.
+    ///
+    /// If the token is expired/invalid, returns nil (skip check, don't mark as deleted).
+    func existingEventIds(from ids: Set<String>) async -> Set<String>? {
+        guard !ids.isEmpty else { return [] }
+        guard let token = await GoogleAuthService.shared.validToken() else {
+            log.warning("existingEventIds: no valid token — skipping check")
+            return nil  // nil = skip, not "all deleted"
+        }
+
+        // Fetch recent + upcoming events (30 days back, 365 days ahead) in batches.
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let timeMin = formatter.string(from: Date().addingTimeInterval(-30 * 86400))
+        let timeMax = formatter.string(from: Date().addingTimeInterval(365 * 86400))
+
+        var allEventIds: Set<String> = []
+        var pageToken: String? = nil
+
+        repeat {
+            var urlStr = "\(Self.baseURL)?timeMin=\(timeMin)&timeMax=\(timeMax)&maxResults=250&fields=items(id)"
+            if let pt = pageToken {
+                urlStr += "&pageToken=\(pt)"
+            }
+            guard let url = URL(string: urlStr) else { break }
+
+            var req = URLRequest(url: url)
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: req)
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                guard (200..<300).contains(status) else {
+                    log.warning("existingEventIds: HTTP \(status) — aborting check")
+                    return nil  // don't mark anything as deleted on error
+                }
+                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                if let items = json?["items"] as? [[String: Any]] {
+                    for item in items {
+                        if let id = item["id"] as? String {
+                            allEventIds.insert(id)
+                        }
+                    }
+                }
+                pageToken = json?["nextPageToken"] as? String
+            } catch {
+                log.error("existingEventIds: \(error.localizedDescription)")
+                return nil  // skip on error
+            }
+        } while pageToken != nil
+
+        let found = ids.intersection(allEventIds)
+        log.info("existingEventIds: checked \(ids.count) IDs, \(found.count) still exist")
+        return found
+    }
+
     // MARK: - Private
 
     private func request(method: String, url: URL, body: Data, token: String) async -> String? {

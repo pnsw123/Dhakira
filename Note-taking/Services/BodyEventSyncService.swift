@@ -286,6 +286,50 @@ final class BodyEventSyncService {
         }
     }
 
+    // MARK: - Google Calendar reconciliation (Issue #87)
+
+    /// Checks all BodyCalendarEvent records against Google Calendar.
+    /// If a googleCalendarEventId no longer exists, marks the record as struck.
+    /// Called on app open only (no real-time notification from Google).
+    /// Handles token expiry gracefully — skips check, no crash.
+    @MainActor
+    func reconcileGoogleEvents(context: ModelContext) async {
+        let isConnected = GoogleAuthService.shared.isConnected
+        guard isConnected else {
+            log.info("reconcileGoogleEvents: Google not connected — skipping")
+            return
+        }
+
+        let descriptor = FetchDescriptor<BodyCalendarEvent>(
+            predicate: #Predicate<BodyCalendarEvent> { $0.isStruck == false && $0.googleCalendarEventId != nil }
+        )
+        guard let records = try? context.fetch(descriptor), !records.isEmpty else { return }
+
+        let googleIds = Set(records.compactMap { $0.googleCalendarEventId })
+        guard !googleIds.isEmpty else { return }
+
+        // Batch check — single API call (or paginated).
+        guard let existingIds = await GoogleCalendarAPIService.shared.existingEventIds(from: googleIds) else {
+            log.info("reconcileGoogleEvents: check skipped (token expired or API error)")
+            return  // graceful skip — don't mark anything as deleted
+        }
+
+        var struckCount = 0
+        for record in records {
+            guard let gId = record.googleCalendarEventId else { continue }
+            if !existingIds.contains(gId) {
+                record.isStruck = true
+                record.googleCalendarEventId = nil
+                struckCount += 1
+                log.info("reconcileGoogleEvents: struck '\(record.lineText)' (Google event \(gId) deleted)")
+            }
+        }
+        if struckCount > 0 {
+            try? context.save()
+            log.info("reconcileGoogleEvents: struck \(struckCount) records total")
+        }
+    }
+
     // MARK: - Apple Calendar sync helper
 
     /// Syncs a single body-line event to Apple Calendar using the preferred calendar.
