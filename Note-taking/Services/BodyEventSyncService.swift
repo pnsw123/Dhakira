@@ -76,8 +76,10 @@ final class BodyEventSyncService {
         var datedLines: [(text: String, date: DetectedDate)] = []
         for line in lines {
             // If this line's checkbox is checked, delete its event instead of syncing.
-            if checkedLines.contains(line) {
-                log.info("sync: line '\(line)' has checked checkbox — will delete event")
+            // Strip checkbox character (U+FFFC) before comparing — checkedLines has it stripped.
+            let lineForCheck = line.replacingOccurrences(of: "\u{FFFC}", with: "").trimmingCharacters(in: .whitespaces)
+            if checkedLines.contains(lineForCheck) {
+                log.info("sync: line '\(lineForCheck)' has checked checkbox — will delete event")
                 continue
             }
             let detected = detector.detectDates(in: line)
@@ -118,8 +120,9 @@ final class BodyEventSyncService {
             }
         }
 
-        // Remaining unmatched records → delete.
+        // Remaining unmatched records → delete (includes checked checkbox lines).
         for record in unmatched {
+            log.info("sync: will DELETE event for unmatched record '\(record.lineText)' (struck=\(record.isStruck))")
             actions.append(SyncAction(kind: .delete, lineText: nil, date: nil, record: record))
         }
 
