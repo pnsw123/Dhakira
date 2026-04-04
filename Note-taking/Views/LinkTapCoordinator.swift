@@ -53,6 +53,11 @@ final class LinkTapCoordinator: NSObject, ObservableObject, UIGestureRecognizerD
         log.info("LinkTapCoordinator: tapped link \(url.absoluteString)")
 
         if url.isFileURL {
+            // Guard: prevent double-presentation if user taps rapidly or preview is already open.
+            guard docController == nil else {
+                log.warning("LinkTapCoordinator: preview already open — ignoring tap")
+                return
+            }
             let controller = UIDocumentInteractionController(url: url)
             controller.delegate = self
             docController = controller  // retain until dismissed

@@ -265,8 +265,11 @@ struct AttachmentServicePresenters: View {
             #endif
         case .documentPicker:
             DocumentFilePickerView { url in
-                service.appendFile(url: url, to: &attributedText, at: service.savedCursorPosition)
+                // Guard: dismiss sheet FIRST to prevent SwiftUI re-evaluation
+                // from firing the callback again (triple-insert bug).
+                guard service.activeSheet == .documentPicker else { return }
                 service.activeSheet = nil
+                service.appendFile(url: url, to: &attributedText, at: service.savedCursorPosition)
             }
         case .documentScanner:
             #if os(iOS)
