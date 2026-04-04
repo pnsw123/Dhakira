@@ -6,6 +6,7 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "RecentlyComp
 
 struct RecentlyCompletedView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @Query(
         filter: #Predicate<TaskItem> { $0.isCompleted == true && $0.isTrashed == false },
@@ -126,6 +127,13 @@ struct RecentlyCompletedView: View {
         // Re-create calendar events for the restored task
         let t = task
         Task { await CalendarSyncService.shared.syncTaskIfNeeded(t) }
+        // Issue #85: re-scan body to recreate body-line events after un-complete.
+        if let bodyData = t.body,
+           case .success(let attrStr) = NoteBodyCodec.decode(bodyData, taskId: t.id) {
+            let bodyText = attrStr.string
+            let ctx = modelContext
+            Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx) }
+        }
     }
 
     private func trashTask(_ task: TaskItem) {
@@ -139,6 +147,10 @@ struct RecentlyCompletedView: View {
             Task { await CalendarSyncService.shared.deleteGoogleEvent(googleId) }
             task.googleCalendarEventId = nil
         }
+        // Issue #85: delete all body-line calendar events on trash.
+        let ctx = modelContext
+        let t = task
+        Task { await BodyEventSyncService.shared.deleteAllEvents(for: t, context: ctx) }
         withAnimation {
             task.isTrashed = true
             task.deletedAt = Date()

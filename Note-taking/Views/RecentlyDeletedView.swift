@@ -130,6 +130,14 @@ struct RecentlyDeletedView: View {
             task.isTrashed = false
             task.deletedAt = nil
         }
+        // Issue #85: re-scan body to recreate body-line events after restore.
+        if let bodyData = task.body,
+           case .success(let attrStr) = NoteBodyCodec.decode(bodyData, taskId: task.id) {
+            let bodyText = attrStr.string
+            let ctx = modelContext
+            let t = task
+            Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx) }
+        }
     }
 
     private func permanentlyDelete(_ task: TaskItem) {

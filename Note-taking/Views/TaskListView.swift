@@ -466,12 +466,23 @@ struct TaskListView: View {
             } else {
                 log.debug("toggleComplete: no Google Calendar event to remove")
             }
+            // Issue #85: delete all body-line calendar events.
+            let ctx = modelContext
+            let completedTask = task
+            Task { await BodyEventSyncService.shared.deleteAllEvents(for: completedTask, context: ctx) }
         } else {
             LocalStateLedger.shared.unmarkCompleted(task.id)
             // Un-completing — re-sync to recreate the calendar event.
             log.info("toggleComplete: un-completed — re-syncing calendar events")
             let t = task
             Task { await CalendarSyncService.shared.syncTaskIfNeeded(t) }
+            // Issue #85: re-scan body to recreate body-line events.
+            let ctx = modelContext
+            if let bodyData = t.body,
+               case .success(let attrStr) = NoteBodyCodec.decode(bodyData, taskId: t.id) {
+                let bodyText = attrStr.string
+                Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx) }
+            }
         }
     }
 
@@ -510,6 +521,13 @@ struct TaskListView: View {
             t.googleCalendarEventId = savedGoogleId
             LocalStateLedger.shared.unmarkDeleted(t.id)
             try? modelContext.save()
+            // Issue #85: re-scan body to recreate body-line events after untrash.
+            if let bodyData = t.body,
+               case .success(let attrStr) = NoteBodyCodec.decode(bodyData, taskId: t.id) {
+                let bodyText = attrStr.string
+                let ctx = modelContext
+                Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx) }
+            }
         }
         undoManager?.setActionName("Delete Task")
 
@@ -521,6 +539,10 @@ struct TaskListView: View {
             Task { await CalendarSyncService.shared.deleteGoogleEvent(googleEventId) }
             task.googleCalendarEventId = nil
         }
+        // Issue #85: delete all body-line calendar events on trash.
+        let ctx = modelContext
+        let trashedTask = task
+        Task { await BodyEventSyncService.shared.deleteAllEvents(for: trashedTask, context: ctx) }
         withAnimation(.smooth(duration: 0.3)) {
             task.isTrashed = true
             task.deletedAt = Date()
