@@ -49,6 +49,8 @@ struct Note_takingApp: App {
                     BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
                 }
                 .task {
+                    // Issue #88: configure notification delegate for foreground display.
+                    NotificationService.shared.configure()
                     // Request calendar permission once on first launch (Issue #60).
                     await CalendarPermissionService.shared.requestIfNeeded()
                     // Validate Google OAuth tokens — clears stale Keychain data after reinstall.

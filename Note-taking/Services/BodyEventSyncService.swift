@@ -184,6 +184,13 @@ final class BodyEventSyncService {
         } catch {
             log.error("sync: context.save() failed — \(error.localizedDescription)")
         }
+
+        // 8. Issue #88: notify user about newly created events (not updates/deletes).
+        if createsExecuted > 0 {
+            NotificationService.shared.notifyBodyEventsCreated(
+                taskTitle: taskTitle, createdCount: createsExecuted
+            )
+        }
     }
 
     /// Delete ALL body-line events for a task (used on task completion/trash).
