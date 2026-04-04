@@ -46,6 +46,8 @@ struct TaskListView: View {
     @State private var editedName: String = ""
 
     @Environment(\.undoManager) private var undoManager
+    /// Bumped after each undo registration so SwiftUI re-evaluates canUndo/canRedo.
+    @State private var undoVersion: Int = 0
 
     // Inline "add task" — no task is created until the user types a name
     @State private var isAddingTask: Bool = false
@@ -105,8 +107,10 @@ struct TaskListView: View {
                             Spacer()
 
                             // Undo / Redo — native UndoManager
+                            // undoVersion forces SwiftUI to re-check canUndo/canRedo
                             Button {
                                 undoManager?.undo()
+                                undoVersion += 1
                             } label: {
                                 Image(systemName: "arrow.uturn.backward")
                                     .font(.system(size: 16, weight: .semibold))
@@ -115,11 +119,12 @@ struct TaskListView: View {
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
                             .buttonStyle(.plain)
-                            .opacity(undoManager?.canUndo == true ? 1 : 0.35)
+                            .opacity(undoVersion >= 0 && undoManager?.canUndo == true ? 1 : 0.35)
                             .accessibilityLabel("Undo")
 
                             Button {
                                 undoManager?.redo()
+                                undoVersion += 1
                             } label: {
                                 Image(systemName: "arrow.uturn.forward")
                                     .font(.system(size: 16, weight: .semibold))
@@ -128,7 +133,7 @@ struct TaskListView: View {
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
                             .buttonStyle(.plain)
-                            .opacity(undoManager?.canRedo == true ? 1 : 0.35)
+                            .opacity(undoVersion >= 0 && undoManager?.canRedo == true ? 1 : 0.35)
                             .accessibilityLabel("Redo")
 
                             settingsButton
@@ -430,6 +435,7 @@ struct TaskListView: View {
             try? modelContext.save()
         }
         undoManager?.setActionName(willComplete ? "Complete Task" : "Uncomplete Task")
+        undoVersion += 1
 
         withAnimation(.easeInOut(duration: 0.3)) {
             task.isCompleted = willComplete
@@ -497,6 +503,7 @@ struct TaskListView: View {
             try? modelContext.save()
         }
         undoManager?.setActionName("Set Priority")
+        undoVersion += 1
 
         task.priority = newPriority
         do {
@@ -530,6 +537,7 @@ struct TaskListView: View {
             }
         }
         undoManager?.setActionName("Delete Task")
+        undoVersion += 1
 
         if let eventId = task.calendarEventId {
             Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }

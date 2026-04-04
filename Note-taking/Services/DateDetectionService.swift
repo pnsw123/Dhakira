@@ -178,6 +178,12 @@ final class DateDetectionService {
     func normalize(_ text: String) -> String {
         var s = text
 
+        // ── 0. Strip "due" before date phrases ──────────────────────────────
+        // NSDataDetector misinterprets "due tomorrow" as TODAY (a known Apple bug).
+        // Removing "due on/by/at/before" lets the actual date word parse correctly.
+        s = s.replacingOccurrences(of: #"(?i)\bdue\s+(?:on|by|at|before|for)?\s*"#,
+                                   with: "", options: .regularExpression)
+
         // ── 1. Token-dictionary word substitution ────────────────────────────
         // One tokenizer regex finds all alphanumeric words; O(1) dict lookup
         // per token.  Iterating in reverse keeps NSRange values valid after
@@ -220,6 +226,13 @@ final class DateDetectionService {
         // ── 4b. Relative durations → absolute date strings ───────────────────
         // "in 2 hours", "in 30 min", "in 30m", "in 2h", "in an hour", "in a minute"
         s = expandRelativeDurations(in: s)
+
+        // ── 4c. Reorder stranded TIME before DATE → DATE at TIME ─────────────
+        // After expanding relative phrases, "at 9 pm next week" becomes
+        // "at 9 pm April 10 2026" — NSDataDetector sees two separate dates.
+        // Fix: move the time AFTER the date so it reads as one unit:
+        // "April 10 2026 at 9 pm"
+        s = reorderStrandedTimeBeforeDate(in: s)
 
         // ── 5. Comma-separated dates → slashes ───────────────────────────────
         // "3,31,2026"  →  "3/31/2026"
@@ -483,6 +496,44 @@ final class DateDetectionService {
             }
         }
 
+        return result
+    }
+
+    /// Fixes stranded time-before-date patterns produced by relative phrase expansion.
+    ///
+    /// After `expandRelativeDayPhrases`, input like "at 9 pm next week" becomes
+    /// "at 9 pm April 10 2026".  NSDataDetector treats "9 pm" and "April 10 2026"
+    /// as two independent dates (the first defaults to today).
+    ///
+    /// This function detects "TIME … DATE" and reorders to "DATE at TIME" so
+    /// NSDataDetector reads them as a single date-time.
+    ///
+    /// Handles:  "at 9pm April 10 2026", "9:30 pm April 10 2026",
+    ///           "at 9 pm 04/10/2026",  "9pm April 10 2026"
+    private func reorderStrandedTimeBeforeDate(in text: String) -> String {
+        // Month-name dates:  "April 10 2026"
+        let monthDatePattern = #"(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}\s+\d{4}"#
+        // Numeric dates:  "04/10/2026", "4-10-2026"
+        let numericDatePattern = #"\d{1,2}[/\-]\d{1,2}[/\-]\d{4}"#
+        // Time:  "9pm", "9:30 pm", "9 pm", "9:30pm"
+        let timePattern = #"\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM|a\.m\.|p\.m\.)"#
+
+        // Match: optional "at " + TIME + whitespace + DATE
+        let fullPattern = "(?i)(?:at\\s+)?(\(timePattern))\\s+(\(monthDatePattern)|\(numericDatePattern))"
+
+        guard let regex = try? NSRegularExpression(pattern: fullPattern) else { return text }
+        var result = text
+        let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
+        for match in matches.reversed() {
+            guard let timeRange = Range(match.range(at: 1), in: result),
+                  let dateRange = Range(match.range(at: 2), in: result),
+                  let fullRange = Range(match.range, in: result) else { continue }
+            let timePart = String(result[timeRange])
+            let datePart = String(result[dateRange])
+            result = result.replacingCharacters(in: fullRange, with: "\(datePart) at \(timePart)")
+        }
+
+        log.debug("reorderStrandedTimeBeforeDate: '\(text)' → '\(result)'")
         return result
     }
 

@@ -41,7 +41,8 @@ final class CalendarSyncService {
         endDate: Date? = nil,
         existingEventId: String?,
         targetCalendar: EKCalendar? = nil,
-        deepLinkURL: URL? = nil
+        deepLinkURL: URL? = nil,
+        notes: String? = nil
     ) async -> String? {
         let permitted = await MainActor.run { CalendarPermissionService.shared.isGranted }
         guard permitted else {
@@ -54,7 +55,7 @@ final class CalendarSyncService {
             if let existingEvent = eventStore.event(withIdentifier: eventId) {
                 // Update the existing event in place.
                 log.info("syncDateToCalendar: updating existing event '\(eventId)'")
-                configure(existingEvent, title: title, date: date, endDate: endDate, deepLinkURL: deepLinkURL)
+                configure(existingEvent, title: title, date: date, endDate: endDate, deepLinkURL: deepLinkURL, notes: notes)
                 do {
                     try eventStore.save(existingEvent, span: .thisEvent)
                     log.info("syncDateToCalendar: event updated ✓")
@@ -76,7 +77,7 @@ final class CalendarSyncService {
         }
         let event = EKEvent(eventStore: eventStore)
         event.calendar = calendar
-        configure(event, title: title, date: date, endDate: endDate, deepLinkURL: deepLinkURL)
+        configure(event, title: title, date: date, endDate: endDate, deepLinkURL: deepLinkURL, notes: notes)
         do {
             try eventStore.save(event, span: .thisEvent)
             log.info("syncDateToCalendar: event created ✓ id='\(event.eventIdentifier ?? "unknown")'")
@@ -135,6 +136,11 @@ final class CalendarSyncService {
     /// "March 30", "3/30", "5pm", "9 o'clock", and virtually every other format.
     /// Safe to call at task creation time or after any edit.
     func syncTaskIfNeeded(_ task: TaskItem, bodyText: String = "") async {
+        // Never create/update calendar events for completed or trashed tasks.
+        guard !task.isCompleted && !task.isTrashed else {
+            log.info("syncTaskIfNeeded: skipping — task is \(task.isCompleted ? "completed" : "trashed")")
+            return
+        }
         let cal = Calendar.current
         let now = Date()
         let title = task.title
@@ -142,7 +148,6 @@ final class CalendarSyncService {
 
         let detector = DateDetectionService()
         let titleDetected = detector.detectDates(in: title)
-        let bodyDetected  = bodyText.isEmpty ? [] : detector.detectDates(in: bodyText)
 
         // Accept dates that are today (even if the exact time has passed) or in the future.
         func isRelevant(_ date: Date) -> Bool {
@@ -150,10 +155,11 @@ final class CalendarSyncService {
         }
 
         let relevantTitle = titleDetected.filter { isRelevant($0.date) }
-        let relevantBody  = bodyDetected.filter  { isRelevant($0.date) }
-        let allRelevant   = relevantTitle + relevantBody
 
-        guard let earliest = allRelevant.min(by: { $0.date < $1.date }) else {
+        // Title event uses ONLY title dates — body dates are handled by BodyEventSyncService.
+        // Without this, "Laundry" with body "do this at 9pm" would create a spurious
+        // "Laundry" event at 9pm in addition to the body-line event.
+        guard let earliest = relevantTitle.min(by: { $0.date < $1.date }) else {
             // No date in the text — delete any stale calendar events (Apple + Google).
             if let staleId = existingEventId {
                 await deleteEvent(withId: staleId)
@@ -533,7 +539,7 @@ final class CalendarSyncService {
     // MARK: - Private helpers
 
     /// Applies all standard fields to an EKEvent: title, dates, 15-minute alarm, deep link.
-    private func configure(_ event: EKEvent, title: String, date: Date, endDate: Date? = nil, deepLinkURL: URL?) {
+    private func configure(_ event: EKEvent, title: String, date: Date, endDate: Date? = nil, deepLinkURL: URL?, notes: String? = nil) {
         event.title = title
         event.startDate = date
         event.endDate = endDate ?? date.addingTimeInterval(3600) // use detected end time, or 1 hour default
@@ -545,6 +551,11 @@ final class CalendarSyncService {
         // Store the deep link URL so tapping the event in Calendar opens the task.
         if let url = deepLinkURL {
             event.url = url
+        }
+
+        // Body-line events include the line text as event notes/description.
+        if let notes {
+            event.notes = notes
         }
     }
 }
