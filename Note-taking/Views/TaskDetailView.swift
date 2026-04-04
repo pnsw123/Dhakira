@@ -34,9 +34,11 @@ struct TaskDetailView: View {
     @State private var showExportOptions = false
     @State private var isKeyboardVisible = false
     @State private var isDrawingMode = false
-    /// References to PencilKit objects — obtained via onCanvasReady, managed here.
+    /// References to PencilKit objects — created once, embedded inside UITextView.
     @State private var pkCanvasView: PKCanvasView?
     @State private var pkToolPicker: PKToolPicker?
+    /// KVO observer for syncing canvas size with UITextView.contentSize.
+    @State private var contentSizeObserver: NSKeyValueObservation?
     // Slash command coordinator — replaces 3 @State vars + double evaluate() (Issue #48)
     @StateObject private var slashCoordinator = SlashCommandCoordinator()
     // Checkbox tap coordinator — wires a UITapGestureRecognizer to the UITextView
@@ -120,9 +122,11 @@ struct TaskDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
 
-            TextField("Untitled", text: $task.title)
+            TextField("Untitled", text: $task.title, axis: .vertical)
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(Color.primaryText)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
@@ -170,23 +174,80 @@ struct TaskDetailView: View {
 
                 // Right actions
                 if isDrawingMode {
-                    Button {
-                        withAnimation(.spring(response: 0.3)) { isDrawingMode = false }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                            if !isDrawingMode { richTextView?.becomeFirstResponder() }
+                    HStack(spacing: 8) {
+                        // Undo / Redo for drawing — native UndoManager from PKCanvasView
+                        Button {
+                            pkCanvasView?.undoManager?.undo()
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                                .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
-                    } label: {
-                        Text("Done")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.themeAccent)
-                            .padding(.horizontal, 14)
-                            .frame(height: 36)
-                            .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .capsule)
+                        .buttonStyle(.plain)
+                        .opacity(pkCanvasView?.undoManager?.canUndo == true ? 1 : 0.35)
+                        .accessibilityLabel("Undo Drawing")
+
+                        Button {
+                            pkCanvasView?.undoManager?.redo()
+                        } label: {
+                            Image(systemName: "arrow.uturn.forward")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                                .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(pkCanvasView?.undoManager?.canRedo == true ? 1 : 0.35)
+                        .accessibilityLabel("Redo Drawing")
+
+                        Button {
+                            withAnimation(.spring(response: 0.3)) { isDrawingMode = false }
+                            pkToolPicker?.setVisible(false, forFirstResponder: pkCanvasView ?? UIView())
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                if !isDrawingMode { richTextView?.becomeFirstResponder() }
+                            }
+                        } label: {
+                            Text("Done")
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Color.themeAccent)
+                                .padding(.horizontal, 14)
+                                .frame(height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .capsule)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     .padding(.trailing, 8)
                 } else {
                     HStack(spacing: 8) {
+                        // Undo / Redo — native UndoManager from UITextView
+                        Button {
+                            richTextView?.undoManager?.undo()
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                                .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(richTextView?.undoManager?.canUndo == true ? 1 : 0.35)
+                        .accessibilityLabel("Undo")
+
+                        Button {
+                            richTextView?.undoManager?.redo()
+                        } label: {
+                            Image(systemName: "arrow.uturn.forward")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.themeAccent)
+                                .frame(width: 36, height: 36)
+                                .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(richTextView?.undoManager?.canRedo == true ? 1 : 0.35)
+                        .accessibilityLabel("Redo")
+
                         Menu {
                             Button { shareTask() } label: {
                                 Label("Share", systemImage: "square.and.arrow.up")
@@ -342,7 +403,15 @@ struct TaskDetailView: View {
                         let nsStr = tv.text as NSString
                         let prevChar = nsStr.substring(with: NSRange(location: sel.location - 1, length: 1))
                         if prevChar == "\n" {
+                            // Clear BOTH highlight colors so they don't bleed onto new lines.
                             tv.typingAttributes.removeValue(forKey: .backgroundColor)
+                            tv.typingAttributes[.foregroundColor] = UIColor.label
+                            // Also strip background from the newline character itself so it
+                            // doesn't render a colored bar across the empty line.
+                            let nlRange = NSRange(location: sel.location - 1, length: 1)
+                            if nlRange.location < tv.textStorage.length {
+                                tv.textStorage.removeAttribute(.backgroundColor, range: nlRange)
+                            }
                         }
                     }
                     let tap = UITapGestureRecognizer(
@@ -360,6 +429,9 @@ struct TaskDetailView: View {
                     imageSizeCoordinator.attach(to: tv)
                     linkTapCoordinator.attach(to: tv)
                     DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
+
+                    // Sync drawing canvas scroll with text view so strokes stay in place.
+                    syncCanvasScrollWithTextView(tv)
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -400,6 +472,11 @@ struct TaskDetailView: View {
                 onCanvasReady: { canvas, picker in
                     pkCanvasView = canvas
                     pkToolPicker = picker
+                    // Keep scroll disabled — user draws on full screen.
+                    // We sync contentOffset programmatically so drawings scroll with text.
+                    canvas.isScrollEnabled = false
+                    // Large contentSize so strokes at any Y position are kept
+                    canvas.contentSize = CGSize(width: 4096, height: 16384)
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -428,7 +505,16 @@ struct TaskDetailView: View {
                     ColorPaletteView(
                         mode: $paletteMode,
                         onApplyHighlight: { color in
-                            applyColorAttribute(key: .backgroundColor, value: color, range: savedColorSelection)
+                            let pair = NamedColor.highlightPair(for: color)
+                            applyColorAttribute(key: .backgroundColor, value: pair.backgroundColor, range: savedColorSelection)
+                            applyColorAttribute(key: .foregroundColor, value: pair.textColor, range: savedColorSelection)
+                            // Clear highlight colors from typing attributes so they don't
+                            // bleed onto new lines when the user presses Enter.
+                            if let tv = richTextView {
+                                tv.typingAttributes.removeValue(forKey: .backgroundColor)
+                                tv.typingAttributes[.foregroundColor] = UIColor.label
+                            }
+                            activeFontColor = nil
                         },
                         onApplyFontColor: { color in
                             applyColorAttribute(key: .foregroundColor, value: color, range: savedColorSelection)
@@ -438,6 +524,7 @@ struct TaskDetailView: View {
                         },
                         onRemoveHighlight: {
                             applyColorAttribute(key: .backgroundColor, value: nil, range: savedColorSelection)
+                            applyColorAttribute(key: .foregroundColor, value: UIColor.label, range: savedColorSelection)
                         },
                         onDismiss: { showColorPalette = false },
                         initialFontColorName: detectedFontColorName(),
@@ -864,8 +951,8 @@ struct TaskDetailView: View {
     }
 
     // MARK: - Markdown Header Auto-Conversion
-    /// Detects `## `, `### `, `#### ` typed at the start of a paragraph and converts
-    /// them to h2 / h3 / h4 heading styles, removing the markdown prefix.
+    /// Detects `# `, `## `, `### `, `#### ` typed at the start of a paragraph and converts
+    /// them to h1 / h2 / h3 / h4 heading styles, removing the markdown prefix (Notion-style).
     private func evaluateMarkdownHeader(tv: UITextView) {
         guard let tvText = tv.attributedText else { return }
         let str = tvText.string as NSString
@@ -884,6 +971,8 @@ struct TaskDetailView: View {
             match = ("### ", .h3)
         } else if parText.hasPrefix("## ") {
             match = ("## ", .h2)
+        } else if parText.hasPrefix("# ") {
+            match = ("# ", .h1)
         } else {
             return
         }
@@ -911,8 +1000,18 @@ struct TaskDetailView: View {
         log.debug("evaluateMarkdownHeader: applied \(String(describing: level)) from prefix '\(prefix)'")
     }
 
-    /// Calculate Y offset for the slash menu relative to the editor ZStack.
-    /// Uses the UITextView's caret rect converted to the text view's own coordinate space.
+    /// Sync the DrawingCanvasView's scroll offset with the UITextView so drawings
+    /// stay at their drawn position when scrolling. Called once from onEditorReady.
+    private func syncCanvasScrollWithTextView(_ tv: UITextView) {
+        // Mirror UITextView scroll position to PKCanvasView so drawings stay in place.
+        // Canvas has isScrollEnabled=false but a large contentSize — we set contentOffset
+        // programmatically to scroll the drawing content in sync with the text.
+        contentSizeObserver = tv.observe(\.contentOffset, options: [.new]) { _, _ in
+            guard let canvas = pkCanvasView else { return }
+            canvas.contentOffset = tv.contentOffset
+        }
+    }
+
     /// Show PKToolPicker — retries until the canvas successfully becomes first responder.
     /// Called from handleToolbarTap("pencil") AFTER isDrawingMode = true.
     private func showDrawingToolPicker(attempt: Int = 0) {
@@ -1466,7 +1565,9 @@ struct TaskDetailView: View {
             log.error("exportAsPDF: could not find root view controller")
             return
         }
-        NativeExportService.exportAsPDF(title: task.title, content: attributedText, from: root)
+        // Pass PKDrawing for composite PDF export (text + drawings)
+        let drawing = pkCanvasView?.drawing
+        NativeExportService.exportAsPDF(title: task.title, content: attributedText, drawing: drawing, from: root)
     }
 
     // MARK: - Inline Attachment Menu
@@ -1645,6 +1746,7 @@ struct TaskDetailView: View {
 // Camera/scanner hardware — iOS only, hidden on Mac Catalyst
 
 #if os(iOS)
+@MainActor
 struct DataScannerWrapperView: UIViewControllerRepresentable {
     let onScan: (String) -> Void
 
@@ -1676,11 +1778,29 @@ struct DataScannerWrapperView: UIViewControllerRepresentable {
         )
         scanner.delegate = context.coordinator
         context.coordinator.scanner = scanner
-        try? scanner.startScanning()
+        // Apple docs: present first, THEN start scanning.
+        // startScanning() is deferred to updateUIViewController
+        // so the view controller is fully in the hierarchy.
         return scanner
     }
 
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        // Start scanning only once the scanner is presented in the view hierarchy.
+        guard let scanner = uiViewController as? DataScannerViewController,
+              !scanner.isScanning else { return }
+        do {
+            try scanner.startScanning()
+        } catch {
+            Logger(subsystem: "notes.Note-taking", category: "DataScanner")
+                .error("startScanning failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Called when the sheet is about to dismiss — stop the camera first.
+    static func dismantleUIViewController(_ uiViewController: UIViewController, coordinator: Coordinator) {
+        guard let scanner = uiViewController as? DataScannerViewController else { return }
+        scanner.stopScanning()
+    }
 
     class Coordinator: NSObject, DataScannerViewControllerDelegate {
         let onScan: (String) -> Void
@@ -1690,10 +1810,10 @@ struct DataScannerWrapperView: UIViewControllerRepresentable {
 
         func dataScanner(_ dataScanner: DataScannerViewController, didTapOn item: RecognizedItem) {
             if case .text(let text) = item {
-                DispatchQueue.main.async {
-                    self.onScan(text.transcript)
-                    dataScanner.dismiss(animated: true)
-                }
+                dataScanner.stopScanning()
+                // onScan sets activeSheet = nil → SwiftUI dismisses the sheet.
+                // Do NOT also call dataScanner.dismiss() — double-dismiss crashes.
+                self.onScan(text.transcript)
             }
         }
     }

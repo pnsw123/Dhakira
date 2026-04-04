@@ -1,4 +1,5 @@
 import UIKit
+import PencilKit
 import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "NativeExport")
@@ -11,12 +12,13 @@ final class NativeExportService {
 
     // MARK: - Export as PDF
 
-    static func exportAsPDF(title: String, content: NSAttributedString, from viewController: UIViewController) {
-        log.info("exportAsPDF: starting for '\(title)', \(content.length) chars")
+    static func exportAsPDF(title: String, content: NSAttributedString, drawing: PKDrawing? = nil, from viewController: UIViewController) {
+        log.info("exportAsPDF: starting for '\(title)', \(content.length) chars, hasDrawing=\(drawing != nil)")
 
         let pageRect  = CGRect(x: 0, y: 0, width: 595.2, height: 841.8) // A4
         let margin: CGFloat = 40
         let printableRect = pageRect.insetBy(dx: margin, dy: margin + 20)
+        let printableHeight = printableRect.height
 
         // Prepend title as bold heading
         let full = NSMutableAttributedString()
@@ -29,7 +31,6 @@ final class NativeExportService {
         full.append(normalizeForPDF(content))
 
         // UISimpleTextPrintFormatter uses TextKit — correctly renders NSTextAttachment images.
-        // CoreText (CTFrameDraw) does not render image attachments, hence the empty PDF before.
         let formatter = UISimpleTextPrintFormatter(attributedText: full)
         let renderer  = UIPrintPageRenderer()
         renderer.addPrintFormatter(formatter, startingAtPageAt: 0)
@@ -42,6 +43,38 @@ final class NativeExportService {
         for i in 0..<renderer.numberOfPages {
             UIGraphicsBeginPDFPage()
             renderer.drawPage(at: i, in: pageRect)
+
+            // Overlay PKDrawing — position it on the correct page at the correct offset.
+            // drawing.bounds gives us the position in the UITextView's coordinate space.
+            // We map that to the paginated PDF: which page and at what Y offset on that page.
+            if let drawing, !drawing.strokes.isEmpty {
+                let bounds = drawing.bounds
+                // Scale factor: screen points to PDF points (A4 width / screen width)
+                let screenWidth = printableRect.width
+                let drawingScale = min(screenWidth / max(bounds.width, 1), 1.0)
+
+                // Which page does the drawing start on?
+                let drawingTopInDoc = bounds.origin.y * drawingScale
+                let drawingPage = Int(drawingTopInDoc / printableHeight)
+
+                if i == drawingPage {
+                    let drawingImage = drawing.image(from: bounds, scale: 2.0)
+                    // Y position on this page = drawing's Y minus page offset
+                    let yOnPage = drawingTopInDoc - (CGFloat(drawingPage) * printableHeight)
+                    let drawSize = CGSize(
+                        width: bounds.width * drawingScale,
+                        height: bounds.height * drawingScale
+                    )
+                    let drawRect = CGRect(
+                        x: printableRect.origin.x + (bounds.origin.x * drawingScale),
+                        y: printableRect.origin.y + yOnPage,
+                        width: drawSize.width,
+                        height: drawSize.height
+                    )
+                    drawingImage.draw(in: drawRect)
+                    log.debug("exportAsPDF: drew PKDrawing on page \(i) at y=\(yOnPage)")
+                }
+            }
         }
         UIGraphicsEndPDFContext()
 

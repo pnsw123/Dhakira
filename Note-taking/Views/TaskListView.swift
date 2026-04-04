@@ -45,6 +45,8 @@ struct TaskListView: View {
     @State private var isEditingName: Bool = false
     @State private var editedName: String = ""
 
+    @Environment(\.undoManager) private var undoManager
+
     // Inline "add task" — no task is created until the user types a name
     @State private var isAddingTask: Bool = false
     @State private var newTaskTitle: String = ""
@@ -101,6 +103,33 @@ struct TaskListView: View {
                             }
 
                             Spacer()
+
+                            // Undo / Redo — native UndoManager
+                            Button {
+                                undoManager?.undo()
+                            } label: {
+                                Image(systemName: "arrow.uturn.backward")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Color.themeAccent)
+                                    .frame(width: 36, height: 36)
+                                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                            }
+                            .buttonStyle(.plain)
+                            .opacity(undoManager?.canUndo == true ? 1 : 0.35)
+                            .accessibilityLabel("Undo")
+
+                            Button {
+                                undoManager?.redo()
+                            } label: {
+                                Image(systemName: "arrow.uturn.forward")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Color.themeAccent)
+                                    .frame(width: 36, height: 36)
+                                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                            }
+                            .buttonStyle(.plain)
+                            .opacity(undoManager?.canRedo == true ? 1 : 0.35)
+                            .accessibilityLabel("Redo")
 
                             settingsButton
                             if isAddingTask || isEditingName {
@@ -389,6 +418,19 @@ struct TaskListView: View {
     private func toggleComplete(_ task: TaskItem) {
         let willComplete = !task.isCompleted
         log.info("toggleComplete: '\(task.title)' → \(willComplete ? "complete" : "incomplete")")
+
+        // Register undo — reverse the completion toggle
+        let wasCompleted = task.isCompleted
+        let oldCompletedAt = task.completedAt
+        undoManager?.registerUndo(withTarget: task) { t in
+            withAnimation(.easeInOut(duration: 0.3)) {
+                t.isCompleted = wasCompleted
+                t.completedAt = oldCompletedAt
+            }
+            try? modelContext.save()
+        }
+        undoManager?.setActionName(willComplete ? "Complete Task" : "Uncomplete Task")
+
         withAnimation(.easeInOut(duration: 0.3)) {
             task.isCompleted = willComplete
             task.completedAt = willComplete ? Date() : nil
@@ -436,6 +478,15 @@ struct TaskListView: View {
     private func setPriority(_ task: TaskItem, to priority: String) {
         let newPriority = task.priority == priority ? "default" : priority
         log.info("setPriority: '\(task.title)' → \(newPriority)")
+
+        // Register undo — restore previous priority
+        let oldPriority = task.priority
+        undoManager?.registerUndo(withTarget: task) { t in
+            t.priority = oldPriority
+            try? modelContext.save()
+        }
+        undoManager?.setActionName("Set Priority")
+
         task.priority = newPriority
         do {
             try modelContext.save()
@@ -446,6 +497,22 @@ struct TaskListView: View {
 
     private func softDeleteTask(_ task: TaskItem) {
         log.info("softDeleteTask: '\(task.title)'")
+
+        // Register undo — restore task from trash
+        let savedCalendarId = task.calendarEventId
+        let savedGoogleId   = task.googleCalendarEventId
+        undoManager?.registerUndo(withTarget: task) { t in
+            withAnimation(.smooth(duration: 0.3)) {
+                t.isTrashed = false
+                t.deletedAt = nil
+            }
+            t.calendarEventId = savedCalendarId
+            t.googleCalendarEventId = savedGoogleId
+            LocalStateLedger.shared.unmarkDeleted(t.id)
+            try? modelContext.save()
+        }
+        undoManager?.setActionName("Delete Task")
+
         if let eventId = task.calendarEventId {
             Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
             task.calendarEventId = nil

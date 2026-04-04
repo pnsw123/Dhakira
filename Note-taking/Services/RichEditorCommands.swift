@@ -168,7 +168,7 @@ final class RichEditorCommands {
 
         var font: UIFont {
             switch self {
-            case .h1: return UIFont.systemFont(ofSize: 22, weight: .bold)
+            case .h1: return UIFont.systemFont(ofSize: 28, weight: .bold)
             case .h2: return UIFont.systemFont(ofSize: 18, weight: .semibold)
             case .h3: return UIFont.systemFont(ofSize: 15, weight: .semibold)
             case .h4: return UIFont.systemFont(ofSize: 13, weight: .semibold)
@@ -452,8 +452,8 @@ final class RichEditorCommands {
         log.debug("applyTextColor: applied \(color.description) to range \(safe.location)+\(safe.length)")
     }
 
-    /// Apply background (highlight) colour to the given range.
-    /// Pass UIColor.clear to remove the highlight.
+    /// Apply styled highlight to the given range: bright text color + dark tinted background.
+    /// Pass UIColor.clear to remove the highlight (clears both foreground and background).
     /// Mimics Word/Pages behaviour: whitespace and newlines are not highlighted.
     static func applyHighlightColor(_ color: UIColor,
                                     attributedText: inout NSAttributedString,
@@ -468,7 +468,11 @@ final class RichEditorCommands {
 
         if color == .clear {
             mutable.removeAttribute(.backgroundColor, range: safe)
+            mutable.removeAttribute(.foregroundColor, range: safe)
         } else {
+            // Get the styled highlight pair: bright text + dark muted background
+            let pair = NamedColor.highlightPair(for: color)
+
             // Only highlight non-whitespace characters (Word/Pages behaviour).
             // Use rangeOfComposedCharacterSequence so Arabic, emoji, and other
             // multi-codeunit characters are never split mid-character.
@@ -484,14 +488,16 @@ final class RichEditorCommands {
                 let char = nsString.substring(with: clampedRange)
                 if char.unicodeScalars.allSatisfy({ $0.properties.isWhitespace }) {
                     mutable.removeAttribute(.backgroundColor, range: clampedRange)
+                    mutable.removeAttribute(.foregroundColor, range: clampedRange)
                 } else {
-                    mutable.addAttribute(.backgroundColor, value: color, range: clampedRange)
+                    mutable.addAttribute(.backgroundColor, value: pair.backgroundColor, range: clampedRange)
+                    mutable.addAttribute(.foregroundColor, value: pair.textColor, range: clampedRange)
                 }
                 i = clampedRange.location + clampedRange.length
             }
         }
         attributedText = mutable
-        log.debug("applyHighlightColor: applied \(color.description) to range \(safe.location)+\(safe.length)")
+        log.debug("applyHighlightColor: applied styled highlight to range \(safe.location)+\(safe.length)")
     }
 
     /// Clamp an NSRange so it never exceeds the string's actual length.

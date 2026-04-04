@@ -20,12 +20,23 @@ struct NamedColor {
         NamedColor(id: "colorPurple",   label: "Purple", uiColor: UIColor(hex: "#BF5AF2"), role: .shared),
         NamedColor(id: "colorPink",     label: "Pink",   uiColor: UIColor(hex: "#FF375F"), role: .shared),
         NamedColor(id: "colorBrown",    label: "Brown",  uiColor: UIColor(hex: "#AC8E68"), role: .shared),
+        NamedColor(id: "colorMint",     label: "Mint",   uiColor: UIColor(hex: "#30D158"), role: .shared),
         NamedColor(id: "paletteYellow", label: "Yellow", uiColor: UIColor(hex: "#FFCC02"), role: .shared),
         NamedColor(id: "paletteRed",    label: "Red",    uiColor: UIColor(hex: "#FF3B30"), role: .shared),
         NamedColor(id: "paletteTeal",   label: "Teal",   uiColor: UIColor(hex: "#5AC8FA"), role: .shared),
         NamedColor(id: "paletteBlack",  label: "Black",  uiColor: UIColor(hex: "#1C1C1E"), role: .shared),
         NamedColor(id: "paletteWhite",  label: "White",  uiColor: UIColor(hex: "#FFFFFF"), role: .shared),
     ]
+
+    /// Returns a highlight pair for the given color: bright text color + dark muted background.
+    /// Used when highlighting text to create the styled highlight look (bright text on dark tinted bg).
+    static func highlightPair(for color: UIColor) -> (textColor: UIColor, backgroundColor: UIColor) {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        // Dark tinted background — 35% brightness, fully opaque so it stands out
+        let bgColor = UIColor(red: r * 0.35, green: g * 0.35, blue: b * 0.35, alpha: 1.0)
+        return (textColor: color, backgroundColor: bgColor)
+    }
 
     /// Colors for the slash-command editor menu
     static var forEditor: [NamedColor] { all.filter { $0.role != .paletteOnly } }
@@ -50,6 +61,7 @@ struct NamedColor {
             NamedColor(id: "paletteWhite",  label: "White",  uiColor: UIColor(hex: "#FFFFFF"), role: .paletteOnly),
             NamedColor(id: "colorBlue",     label: "Blue",   uiColor: UIColor(hex: "#0A84FF"), role: .shared),
             NamedColor(id: "colorPurple",   label: "Purple", uiColor: UIColor(hex: "#BF5AF2"), role: .shared),
+            NamedColor(id: "colorMint",     label: "Mint",   uiColor: UIColor(hex: "#30D158"), role: .shared),
             NamedColor(id: "paletteRed",    label: "Red",    uiColor: UIColor(hex: "#FF3B30"), role: .paletteOnly),
             NamedColor(id: "colorBrown",    label: "Brown",  uiColor: UIColor(hex: "#AC8E68"), role: .shared),
             NamedColor(id: "colorGray",     label: "Gray",   uiColor: UIColor(hex: "#8E8E93"), role: .shared),
