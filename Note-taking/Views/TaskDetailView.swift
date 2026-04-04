@@ -77,6 +77,12 @@ struct TaskDetailView: View {
     /// newline insertion (Return key) for block-continuation logic.
     @State private var prevTextLength: Int = 0
 
+    /// Issue #84: debounce timer for body-line event sync.
+    /// Fires 2 seconds after the last newline insertion (Enter key).
+    @State private var bodyEventDebounceTimer: Timer?
+    /// Tracks whether a newline was inserted (Enter pressed) since the last sync.
+    @State private var newlineDetectedSinceLastSync = false
+
     // Default toolbar order — most-used items first. User can drag-reorder; saved to UserDefaults.
     static let defaultToolbarItems: [EditorTool] = [
         .init(id: "fontSizeUp",       icon: "textformat.size.larger"),   // 1 — increase text size
@@ -444,6 +450,15 @@ struct TaskDetailView: View {
                 evaluateSlashCommand()
                 evaluateMarkdownHeader(tv: tv)
                 DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
+
+                // Issue #84: detect newline → start/reset 2s debounce for body event sync.
+                let textLen = (tv.text as NSString).length
+                let cursorLoc = tv.selectedRange.location
+                if textLen > 0, cursorLoc > 0,
+                   (tv.text as NSString).character(at: cursorLoc - 1) == 0x0A {
+                    newlineDetectedSinceLastSync = true
+                }
+                scheduleBodyEventSync()
             }
             .onReceive(NotificationCenter.default.publisher(for: .attachmentAppended)) { note in
                 guard let newText = note.object as? NSAttributedString,
@@ -1740,6 +1755,27 @@ struct TaskDetailView: View {
 
     // MARK: - Calendar Sync (Issue #63)
     // Logic lives in CalendarSyncService.syncTaskIfNeeded(_:bodyText:)
+
+    // MARK: - Body Event Debounce (Issue #84)
+
+    /// Resets the 2-second debounce timer. When the timer fires and a newline
+    /// was detected, triggers a body-line event sync without a full saveBody().
+    private func scheduleBodyEventSync() {
+        bodyEventDebounceTimer?.invalidate()
+        bodyEventDebounceTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { _ in
+            Task { @MainActor in
+                guard newlineDetectedSinceLastSync else { return }
+                newlineDetectedSinceLastSync = false
+                let tvText = richTextView?.attributedText
+                let liveText = tvText ?? richTextContext.attributedString
+                let bodyText = liveText.string
+                let t = task
+                let ctx = modelContext
+                log.info("bodyEventDebounce: firing sync for '\(t.title)'")
+                Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx) }
+            }
+        }
+    }
 }
 
 
