@@ -5,13 +5,17 @@ import SwiftData
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "BodyEventSync")
 
-/// Syncs body-line dates to Apple Calendar as individual events.
+/// Syncs body-line dates to Apple Calendar AND Google Calendar as individual events.
 /// Entry point: `sync(bodyText:task:context:)` — called on save, Enter+debounce, and background.
 ///
+/// Google Calendar uses the same dual-path architecture as title events:
+/// - CalDAV (if Google account added in iOS Settings) → EKEventStore targeting Google calendar
+/// - OAuth REST API (if connected via GoogleAuthService) → GoogleCalendarAPIService
+///
 /// Diffing strategy:
-/// - New date line → create Apple Calendar event + store BodyCalendarEvent record
-/// - Changed line (fuzzy match ≥ 80%) → update existing event
-/// - Deleted/dateless line → delete event + record
+/// - New date line → create Apple + Google Calendar event + store BodyCalendarEvent record
+/// - Changed line (fuzzy match ≥ 80%) → update existing events
+/// - Deleted/dateless line → delete events + record
 /// - Max 15 body events per task
 final class BodyEventSyncService {
 
@@ -115,46 +119,58 @@ final class BodyEventSyncService {
                     continue
                 }
                 guard let lineText = action.lineText, let detected = action.date else { continue }
-                let eventId = await calendarSync.syncDateToCalendar(
-                    title: taskTitle,
-                    date: detected.date,
-                    endDate: detected.endDate,
-                    existingEventId: nil,
-                    deepLinkURL: deepLinkURL
+                // Apple Calendar
+                let appleEventId = await syncAppleEvent(
+                    title: taskTitle, date: detected.date, endDate: detected.endDate,
+                    existingEventId: nil, deepLinkURL: deepLinkURL
+                )
+                // Google Calendar
+                let googleEventId = await syncGoogleEvent(
+                    title: taskTitle, date: detected.date, endDate: detected.endDate,
+                    existingId: nil, deepLinkURL: deepLinkURL, bodyLineText: lineText
                 )
                 let record = BodyCalendarEvent(
                     lineText: lineText,
                     task: task,
-                    calendarEventId: eventId
+                    calendarEventId: appleEventId,
+                    googleCalendarEventId: googleEventId
                 )
                 context.insert(record)
                 createsExecuted += 1
-                log.info("sync: CREATED event for line '\(lineText)' → eventId=\(eventId ?? "nil")")
+                log.info("sync: CREATED event for line '\(lineText)' → apple=\(appleEventId ?? "nil") google=\(googleEventId ?? "nil")")
 
             case .update:
                 guard let record = action.record,
                       let lineText = action.lineText,
                       let detected = action.date else { continue }
-                let eventId = await calendarSync.syncDateToCalendar(
-                    title: taskTitle,
-                    date: detected.date,
-                    endDate: detected.endDate,
-                    existingEventId: record.calendarEventId,
-                    deepLinkURL: deepLinkURL
+                // Apple Calendar
+                let appleEventId = await syncAppleEvent(
+                    title: taskTitle, date: detected.date, endDate: detected.endDate,
+                    existingEventId: record.calendarEventId, deepLinkURL: deepLinkURL
+                )
+                // Google Calendar
+                let googleEventId = await syncGoogleEvent(
+                    title: taskTitle, date: detected.date, endDate: detected.endDate,
+                    existingId: record.googleCalendarEventId, deepLinkURL: deepLinkURL,
+                    bodyLineText: lineText
                 )
                 record.lineText = lineText
-                record.calendarEventId = eventId
+                record.calendarEventId = appleEventId
+                record.googleCalendarEventId = googleEventId
                 // If the line was struck and user edited it with a new date, revive it.
                 if record.isStruck {
                     record.isStruck = false
                     log.info("sync: revived struck record for '\(lineText)'")
                 }
-                log.info("sync: UPDATED event for line '\(lineText)' → eventId=\(eventId ?? "nil")")
+                log.info("sync: UPDATED event for line '\(lineText)' → apple=\(appleEventId ?? "nil") google=\(googleEventId ?? "nil")")
 
             case .delete:
                 guard let record = action.record else { continue }
                 if let eventId = record.calendarEventId {
                     await calendarSync.deleteEvent(withId: eventId)
+                }
+                if let googleId = record.googleCalendarEventId {
+                    await calendarSync.deleteGoogleEvent(googleId)
                 }
                 context.delete(record)
                 log.info("sync: DELETED event for line '\(record.lineText)'")
@@ -179,6 +195,9 @@ final class BodyEventSyncService {
             if let eventId = record.calendarEventId {
                 await calendarSync.deleteEvent(withId: eventId)
             }
+            if let googleId = record.googleCalendarEventId {
+                await calendarSync.deleteGoogleEvent(googleId)
+            }
             context.delete(record)
         }
         do {
@@ -186,6 +205,71 @@ final class BodyEventSyncService {
         } catch {
             log.error("deleteAllEvents: context.save() failed — \(error.localizedDescription)")
         }
+    }
+
+    /// Clear all Google Calendar event IDs for a task's body events
+    /// (used when Google account is disconnected or switched).
+    @MainActor
+    func clearGoogleEventIds(for task: TaskItem, context: ModelContext) {
+        let records = task.bodyCalendarEvents ?? []
+        for record in records {
+            record.googleCalendarEventId = nil
+        }
+        do {
+            try context.save()
+        } catch {
+            log.error("clearGoogleEventIds: context.save() failed — \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Apple Calendar sync helper
+
+    /// Syncs a single body-line event to Apple Calendar using the preferred calendar.
+    private func syncAppleEvent(
+        title: String, date: Date, endDate: Date?,
+        existingEventId: String?, deepLinkURL: URL?
+    ) async -> String? {
+        let appleEnabled = await MainActor.run { CalendarSelectionService.shared.appleCalendarSyncEnabled }
+        guard appleEnabled else {
+            if let staleId = existingEventId { await calendarSync.deleteEvent(withId: staleId) }
+            return nil
+        }
+        return await calendarSync.syncDateToCalendar(
+            title: title, date: date, endDate: endDate,
+            existingEventId: existingEventId, deepLinkURL: deepLinkURL
+        )
+    }
+
+    // MARK: - Google Calendar sync helper (Issue #83)
+
+    /// Syncs a single body-line event to Google Calendar.
+    /// CalDAV takes precedence over REST API (same logic as title events).
+    private func syncGoogleEvent(
+        title: String, date: Date, endDate: Date?,
+        existingId: String?, deepLinkURL: URL?, bodyLineText: String
+    ) async -> String? {
+        let googleCal = await MainActor.run { CalendarSelectionService.shared.googleCalendar() }
+        let isOAuthConnected = await MainActor.run { GoogleAuthService.shared.isConnected }
+        let webEnabled = await MainActor.run { CalendarSelectionService.shared.googleWebCalendarEnabled }
+
+        if let googleCal {
+            // CalDAV path — event goes through EKEventStore targeting Google calendar.
+            let descURL = deepLinkURL.map { "Open in Dhakira: \($0.absoluteString)" } ?? ""
+            _ = descURL // description is set via configure() inside CalendarSyncService
+            return await calendarSync.syncDateToCalendar(
+                title: title, date: date, endDate: endDate,
+                existingEventId: existingId, targetCalendar: googleCal,
+                deepLinkURL: deepLinkURL
+            )
+        } else if isOAuthConnected && webEnabled {
+            // OAuth REST API path.
+            return await GoogleCalendarAPIService.shared.syncEvent(
+                title: title, date: date, endDate: endDate,
+                existingId: existingId, deepLinkURL: deepLinkURL
+            )
+        }
+
+        return nil
     }
 
     // MARK: - Fuzzy matching
