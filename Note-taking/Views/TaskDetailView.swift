@@ -1733,6 +1733,9 @@ struct TaskDetailView: View {
         let bodyText = liveText.string
         let t = task
         Task { await CalendarSyncService.shared.syncTaskIfNeeded(t, bodyText: bodyText) }
+        // Issue #82: sync body-line dates to individual calendar events.
+        let ctx = modelContext
+        Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx) }
     }
 
     // MARK: - Calendar Sync (Issue #63)

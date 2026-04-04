@@ -10,10 +10,11 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "AppSchemaBui
 
 protocol AppModel: PersistentModel {}
 
-extension TaskItem:   AppModel {}
-extension Attachment: AppModel {}
-extension Folder:     AppModel {}
-extension TaskList:   AppModel {}
+extension TaskItem:          AppModel {}
+extension Attachment:        AppModel {}
+extension Folder:            AppModel {}
+extension TaskList:          AppModel {}
+extension BodyCalendarEvent: AppModel {}
 
 // MARK: - AppSchemaBuilder
 
@@ -25,6 +26,7 @@ enum AppSchemaBuilder {
         Attachment.self,
         Folder.self,
         TaskList.self,
+        BodyCalendarEvent.self,
     ]
 
     /// The shared Schema — derived from registeredTypes.

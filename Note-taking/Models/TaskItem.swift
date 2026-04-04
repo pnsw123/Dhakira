@@ -30,6 +30,10 @@ final class TaskItem {
     @Relationship(deleteRule: .nullify, inverse: \Attachment.task)
     var attachments: [Attachment]? = []
 
+    /// Body-line calendar events — cascade-delete when task is deleted.
+    @Relationship(deleteRule: .cascade, inverse: \BodyCalendarEvent.task)
+    var bodyCalendarEvents: [BodyCalendarEvent]? = []
+
     init(
         title: String = "",
         priority: String = "default",
