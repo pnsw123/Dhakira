@@ -41,7 +41,10 @@ final class BodyEventSyncService {
     ///   - task: The owning TaskItem.
     ///   - context: SwiftData ModelContext for reading/writing BodyCalendarEvent records.
     @MainActor
-    func sync(bodyText: String, task: TaskItem, context: ModelContext) async {
+    /// - Parameters:
+    ///   - checkedLines: Line texts with a checked checkbox — their calendar events
+    ///     will be deleted (task is done, no reminder needed).
+    func sync(bodyText: String, task: TaskItem, context: ModelContext, checkedLines: Set<String> = []) async {
         // Never sync calendar events for completed or trashed tasks.
         guard !task.isCompleted && !task.isTrashed else {
             log.info("sync: skipping — task is \(task.isCompleted ? "completed" : "trashed")")
@@ -67,11 +70,16 @@ final class BodyEventSyncService {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.allSatisfy({ $0 == "\u{FFFC}" }) }
 
-        // 2. Detect dates per line.
+        // 2. Detect dates per line. Skip checked checkbox lines — task is done.
         let cal = Calendar.current
         let now = Date()
         var datedLines: [(text: String, date: DetectedDate)] = []
         for line in lines {
+            // If this line's checkbox is checked, delete its event instead of syncing.
+            if checkedLines.contains(line) {
+                log.info("sync: line '\(line)' has checked checkbox — will delete event")
+                continue
+            }
             let detected = detector.detectDates(in: line)
             // Take the first relevant (today or future) date per line.
             if let best = detected.first(where: { $0.date > now || cal.isDateInToday($0.date) }) {

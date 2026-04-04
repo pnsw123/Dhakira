@@ -354,6 +354,16 @@ struct TaskDetailView: View {
         .onChange(of: checkboxCoordinator.toggleVersion) { _, _ in
             if let toggled = checkboxCoordinator.lastToggledText {
                 attributedText = toggled
+                // Checkbox toggled → sync body events so checked items get their
+                // calendar events deleted (subtask done = no reminder needed).
+                let bodyText = toggled.string
+                let checked = extractCheckedLines(from: toggled)
+                let t = task
+                let ctx = modelContext
+                if !checked.isEmpty {
+                    log.info("checkboxToggle: \(checked.count) checked line(s) — syncing body events")
+                }
+                Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx, checkedLines: checked) }
             }
         }
         // Sync attributedText after image resize so the new size is saved on next write.
@@ -1785,12 +1795,45 @@ struct TaskDetailView: View {
         let t = task
         Task { await CalendarSyncService.shared.syncTaskIfNeeded(t, bodyText: bodyText) }
         // Issue #82: sync body-line dates to individual calendar events.
+        // Pass checked checkbox lines so their events get deleted (subtask done → no reminder).
         let ctx = modelContext
-        Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx) }
+        let checked = extractCheckedLines(from: liveText)
+        Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx, checkedLines: checked) }
     }
 
     // MARK: - Calendar Sync (Issue #63)
     // Logic lives in CalendarSyncService.syncTaskIfNeeded(_:bodyText:)
+
+    /// Extract line texts that have a checked checkbox (strikethrough).
+    /// Used to tell BodyEventSyncService to delete calendar events for completed subtasks.
+    private func extractCheckedLines(from attrText: NSAttributedString) -> Set<String> {
+        var checked = Set<String>()
+        let nsStr = attrText.string as NSString
+        var loc = 0
+        while loc < nsStr.length {
+            let lineRange = nsStr.lineRange(for: NSRange(location: loc, length: 0))
+            // Check if this line has a CheckboxAttachment that's checked
+            var hasCheckedBox = false
+            attrText.enumerateAttribute(.attachment, in: lineRange, options: []) { val, _, stop in
+                if let cb = val as? CheckboxAttachment, cb.isChecked {
+                    hasCheckedBox = true
+                    stop.pointee = true
+                }
+            }
+            if hasCheckedBox {
+                let lineText = nsStr.substring(with: lineRange)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    // Strip the checkbox character (U+FFFC) and leading space
+                    .replacingOccurrences(of: "\u{FFFC}", with: "")
+                    .trimmingCharacters(in: .whitespaces)
+                if !lineText.isEmpty {
+                    checked.insert(lineText)
+                }
+            }
+            loc = NSMaxRange(lineRange)
+        }
+        return checked
+    }
 
     // MARK: - Body Event Debounce (Issue #84)
 
@@ -1807,8 +1850,9 @@ struct TaskDetailView: View {
                 let bodyText = liveText.string
                 let t = task
                 let ctx = modelContext
-                log.info("bodyEventDebounce: firing sync for '\(t.title)'")
-                Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx) }
+                let checked = extractCheckedLines(from: liveText)
+                log.info("bodyEventDebounce: firing sync for '\(t.title)' (\(checked.count) checked lines)")
+                Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx, checkedLines: checked) }
             }
         }
     }
