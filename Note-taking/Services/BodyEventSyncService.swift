@@ -222,6 +222,63 @@ final class BodyEventSyncService {
         }
     }
 
+    // MARK: - Two-way sync reconciliation (Issue #86)
+
+    /// Checks all BodyCalendarEvent records for a task against Apple Calendar.
+    /// If an event ID no longer exists in EKEventStore, marks the record as struck.
+    /// Called on EKEventStoreChangedNotification and on app open / view appear.
+    @MainActor
+    func reconcileAppleEvents(for task: TaskItem, context: ModelContext) {
+        let eventStore = calendarSync.eventStore
+        let records = (task.bodyCalendarEvents ?? []).filter { !$0.isStruck && $0.calendarEventId != nil }
+        guard !records.isEmpty else { return }
+
+        var struckCount = 0
+        for record in records {
+            guard let eventId = record.calendarEventId else { continue }
+            if eventStore.event(withIdentifier: eventId) == nil {
+                record.isStruck = true
+                record.calendarEventId = nil
+                struckCount += 1
+                log.info("reconcileAppleEvents: event '\(eventId)' deleted externally — struck line '\(record.lineText)'")
+            }
+        }
+        if struckCount > 0 {
+            do {
+                try context.save()
+                log.info("reconcileAppleEvents: marked \(struckCount) records as struck for '\(task.title)'")
+            } catch {
+                log.error("reconcileAppleEvents: context.save() failed — \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Reconcile ALL tasks' body events against Apple Calendar.
+    /// Called on app launch and EKEventStoreChangedNotification.
+    @MainActor
+    func reconcileAllAppleEvents(context: ModelContext) {
+        let descriptor = FetchDescriptor<BodyCalendarEvent>(
+            predicate: #Predicate<BodyCalendarEvent> { $0.isStruck == false && $0.calendarEventId != nil }
+        )
+        guard let records = try? context.fetch(descriptor), !records.isEmpty else { return }
+
+        let eventStore = calendarSync.eventStore
+        var struckCount = 0
+        for record in records {
+            guard let eventId = record.calendarEventId else { continue }
+            if eventStore.event(withIdentifier: eventId) == nil {
+                record.isStruck = true
+                record.calendarEventId = nil
+                struckCount += 1
+                log.info("reconcileAllAppleEvents: struck '\(record.lineText)'")
+            }
+        }
+        if struckCount > 0 {
+            try? context.save()
+            log.info("reconcileAllAppleEvents: struck \(struckCount) records total")
+        }
+    }
+
     // MARK: - Apple Calendar sync helper
 
     /// Syncs a single body-line event to Apple Calendar using the preferred calendar.

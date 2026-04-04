@@ -1,3 +1,4 @@
+import EventKit
 import SwiftUI
 import SwiftData
 import RichTextKit
@@ -335,6 +336,14 @@ struct TaskDetailView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             withAnimation(.easeOut(duration: 0.2)) { isKeyboardVisible = false }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+            // Issue #86: refresh strikethrough when calendar events change.
+            BodyEventSyncService.shared.reconcileAppleEvents(for: task, context: modelContext)
+            applyStruckThroughStyling()
+            if let tv = richTextView {
+                tv.attributedText = attributedText
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .inactive || newPhase == .background {
@@ -1652,8 +1661,35 @@ struct TaskDetailView: View {
     private func loadBody() {
         NoteBodyBinding.load(from: task, into: &attributedText,
                              onLoadError: { loadError = $0 })
+        // Issue #86: apply strikethrough to lines whose calendar events were deleted externally.
+        applyStruckThroughStyling()
         // Sync so the first Return key press is detected correctly.
         prevTextLength = attributedText.length
+    }
+
+    /// Issue #86: Applies NSAttributedString strikethrough to body lines that correspond
+    /// to BodyCalendarEvent records with isStruck == true.
+    private func applyStruckThroughStyling() {
+        let struckRecords = (task.bodyCalendarEvents ?? []).filter { $0.isStruck }
+        guard !struckRecords.isEmpty else { return }
+
+        let mutable = NSMutableAttributedString(attributedString: attributedText)
+        let fullText = mutable.string
+        let lines = fullText.components(separatedBy: .newlines)
+        var charIndex = 0
+
+        for line in lines {
+            let lineLength = (line as NSString).length
+            let lineRange = NSRange(location: charIndex, length: lineLength)
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+
+            if struckRecords.contains(where: { $0.lineText == trimmedLine }) {
+                mutable.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: lineRange)
+                mutable.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: lineRange)
+            }
+            charIndex += lineLength + 1  // +1 for newline
+        }
+        attributedText = mutable
     }
 
     private func onSelectionChanged(_ range: NSRange) {

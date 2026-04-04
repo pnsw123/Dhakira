@@ -1,3 +1,4 @@
+import EventKit
 import SwiftUI
 import SwiftData
 import WidgetKit
@@ -42,6 +43,11 @@ struct Note_takingApp: App {
                 .environment(themeManager)
                 .environment(storeKitManager)
                 .preferredColorScheme(themeManager.current.preferredScheme)
+                .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+                    // Issue #86: when Apple Calendar events change, reconcile body events.
+                    log.info("EKEventStoreChanged: reconciling body events")
+                    BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
+                }
                 .task {
                     // Request calendar permission once on first launch (Issue #60).
                     await CalendarPermissionService.shared.requestIfNeeded()
@@ -50,6 +56,8 @@ struct Note_takingApp: App {
                     // Clean up calendar events for completed/trashed tasks (handles CloudKit sync,
                     // reinstalls, and tasks completed on other devices).
                     await CalendarSyncService.shared.cleanupStaleEvents(in: container.mainContext)
+                    // Issue #86: reconcile body events — mark struck if deleted from Apple Calendar.
+                    BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
                     // Run all startup work on a background actor so the UI renders immediately.
                     let worker = StartupWorker(modelContainer: container)
                     await worker.run()
@@ -67,6 +75,8 @@ struct Note_takingApp: App {
             if newPhase == .active {
                 // Re-read iOS Settings toggles every time the app comes to foreground.
                 CalendarSelectionService.shared.refreshFromUserDefaults()
+                // Issue #86: reconcile on foreground return.
+                BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
             } else if newPhase == .inactive {
                 // iOS can kill apps from inactive without going through background —
                 // flush changes here too so nothing is lost.

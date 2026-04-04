@@ -16,7 +16,8 @@ final class CalendarSyncService {
     // Shared instance for use from Task save flows.
     static let shared = CalendarSyncService()
 
-    private let eventStore: EKEventStore
+    /// Exposed for two-way sync reconciliation (Issue #86).
+    let eventStore: EKEventStore
 
     init(eventStore: EKEventStore = EKEventStore()) {
         self.eventStore = eventStore
