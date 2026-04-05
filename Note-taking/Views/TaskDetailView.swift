@@ -468,8 +468,6 @@ struct TaskDetailView: View {
                 // → textDidChange → scheduleBodyEventSync → more calendar saves → freeze (Issue #89).
                 guard !isSuppressingTextDidChange else { return }
                 log.debug("textDidChange: ENTER len=\(tv.textStorage.length)")
-                // Keep attributedText in sync so saveBody() fallback is accurate when richTextView is nil on disappear.
-                attributedText = tv.attributedText ?? NSAttributedString()
                 handleReturnKey(tv: tv)
                 evaluateSlashCommand()
                 evaluateMarkdownHeader(tv: tv)
@@ -735,6 +733,8 @@ struct TaskDetailView: View {
 
     private func handleToolbarTap(_ id: String) {
         log.info("handleToolbarTap: '\(id)'")
+        // Sync binding from live UITextView (removed per-keystroke sync for perf, Issue #110).
+        if let tv = richTextView { attributedText = tv.attributedText ?? attributedText }
 
         // Special-case non-dispatcher actions first
         switch id {
@@ -1561,14 +1561,10 @@ struct TaskDetailView: View {
         let tc    = tv.textContainer
         let inset = tv.textContainerInset
 
-        // Force a complete layout pass before positioning quote bars.
-        // After image insertions or at the bottom of long notes, partial layout
-        // can produce stale glyph rects, causing quote bars to appear at wrong
-        // positions (Issue #98).
-        let fullRange = NSRange(location: 0, length: (tv.attributedText?.length ?? 0))
-        lm.ensureLayout(forCharacterRange: fullRange)
-
         for block in quoteBlocks {
+            // Ensure layout is up-to-date for this block — stale glyph rects
+            // after image insertions cause quote bars at wrong positions (Issue #98).
+            lm.ensureLayout(forCharacterRange: block)
             let glyphRange = lm.glyphRange(forCharacterRange: block, actualCharacterRange: nil)
             var blockRect  = lm.boundingRect(forGlyphRange: glyphRange, in: tc)
             blockRect.origin.x += inset.left
@@ -1632,6 +1628,8 @@ struct TaskDetailView: View {
 
     private func exportAsPDF() {
         log.info("exportAsPDF: exporting '\(task.title)'")
+        // Sync binding from live UITextView before export (Issue #110 perf: removed per-keystroke sync).
+        if let tv = richTextView { attributedText = tv.attributedText ?? attributedText }
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first?.rootViewController else {
             log.error("exportAsPDF: could not find root view controller")
@@ -1693,6 +1691,8 @@ struct TaskDetailView: View {
 
     private func shareTask() {
         log.info("shareTask: sharing '\(task.title)' as PDF")
+        // Sync binding from live UITextView before export.
+        if let tv = richTextView { attributedText = tv.attributedText ?? attributedText }
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first?.rootViewController else {
             log.error("shareTask: could not find root view controller")
