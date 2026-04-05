@@ -1,0 +1,168 @@
+{
+  "identifier" : "Dhakira",
+  "nonConsumableProducts" : [
+    {
+      "displayPrice" : "1.99",
+      "familySharable" : true,
+      "internalID" : "com.prodnote.theme.mango",
+      "localizations" : [
+        {
+          "description" : "Warm amber to crimson sunset gradient theme",
+          "displayName" : "Mango",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.prodnote.theme.mango",
+      "referenceName" : "Mango",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familySharable" : true,
+      "internalID" : "com.prodnote.theme.nebula",
+      "localizations" : [
+        {
+          "description" : "Deep indigo to vivid violet cosmic theme",
+          "displayName" : "Nebula",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.prodnote.theme.nebula",
+      "referenceName" : "Nebula",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familySharable" : true,
+      "internalID" : "com.prodnote.theme.neon",
+      "localizations" : [
+        {
+          "description" : "Multi-electric neon on deep black theme",
+          "displayName" : "Neon",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.prodnote.theme.neon",
+      "referenceName" : "Neon",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familySharable" : true,
+      "internalID" : "com.prodnote.theme.galaxy",
+      "localizations" : [
+        {
+          "description" : "Pure midnight navy blue theme",
+          "displayName" : "Galaxy",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.prodnote.theme.galaxy",
+      "referenceName" : "Galaxy",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familySharable" : true,
+      "internalID" : "com.prodnote.theme.cosmos",
+      "localizations" : [
+        {
+          "description" : "Deep ocean teal to slate blue theme",
+          "displayName" : "Cosmos",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.prodnote.theme.cosmos",
+      "referenceName" : "Cosmos",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familySharable" : true,
+      "internalID" : "com.prodnote.theme.twilight",
+      "localizations" : [
+        {
+          "description" : "Very dark to rich lavender purple fade theme",
+          "displayName" : "Twilight",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.prodnote.theme.twilight",
+      "referenceName" : "Twilight",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familySharable" : true,
+      "internalID" : "com.prodnote.theme.ember",
+      "localizations" : [
+        {
+          "description" : "Deep burnt amber to dark maroon theme",
+          "displayName" : "Ember",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.prodnote.theme.ember",
+      "referenceName" : "Ember",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familySharable" : true,
+      "internalID" : "com.prodnote.theme.crystal",
+      "localizations" : [
+        {
+          "description" : "Deep navy ice to dark indigo theme",
+          "displayName" : "Crystal",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.prodnote.theme.crystal",
+      "referenceName" : "Crystal",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familySharable" : true,
+      "internalID" : "com.prodnote.theme.pro",
+      "localizations" : [
+        {
+          "description" : "All 8 premium themes plus future theme updates, forever",
+          "displayName" : "Trending Bundle",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.prodnote.theme.pro",
+      "referenceName" : "Trending Bundle",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      }
+    ]
+  },
+  "version" : {
+    "formatVersion" : "2.0",
+    "storeKitVersion" : "2"
+  }
+}

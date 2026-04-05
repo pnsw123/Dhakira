@@ -25,7 +25,7 @@ final class StoreKitManager {
     ]
 
     // Secret developer phrase — typed in the theme search bar to unlock all themes
-    static let developerPhrase = "dhakira2026"
+    static let developerPhrase = "yazeedjameel"
     private let devUnlockKey = "dev.dhakira.unlocked"
 
     var products: [Product] = []
@@ -52,15 +52,22 @@ final class StoreKitManager {
 
     // MARK: — Fetch products (StoreKit 2, iOS 15+)
     func fetchProducts() async {
+        print("[StoreKit] Fetching \(Self.allProductIds.count) products…")
         do {
             products = try await Product.products(for: Self.allProductIds)
+            print("[StoreKit] ✅ Fetched \(products.count) products: \(products.map(\.id))")
+            if products.isEmpty {
+                print("[StoreKit] ⚠️ No products returned — make sure the StoreKit config file is active in your scheme (Product → Scheme → Edit Scheme → Run → StoreKit Config)")
+            }
         } catch {
             lastError = error.localizedDescription
+            print("[StoreKit] ❌ fetchProducts failed: \(error)")
         }
     }
 
     // MARK: — Purchase
     func purchase(_ product: Product) async {
+        print("[StoreKit] Starting purchase: \(product.id) (\(product.displayPrice))")
         isPurchasing = true
         defer { isPurchasing = false }
         do {
@@ -69,80 +76,95 @@ final class StoreKitManager {
             case .success(let verification):
                 let transaction = try verification.payloadValue
                 await transaction.finish()
-                purchasedIds.insert(transaction.productID)
-                // Pro bundle unlocks all paid themes
-                if transaction.productID == "com.prodnote.theme.pro" {
-                    purchasedIds.formUnion(Self.allProductIds)
-                }
-            case .pending:
-                break // Ask to Buy — wait for Transaction.updates
-            case .userCancelled:
-                break
-            @unknown default:
-                break
-            }
-        } catch {
-            lastError = error.localizedDescription
-        }
-    }
-
-    // MARK: — Restore / check current entitlements on launch
-    func restoreEntitlements() async {
-        for await result in StoreKit.Transaction.currentEntitlements {
-            if let transaction = try? result.payloadValue {
-                // Bug 6 fix: mutate @Observable state on main actor to prevent EXC_BAD_ACCESS
                 await MainActor.run {
                     purchasedIds.insert(transaction.productID)
                     if transaction.productID == "com.prodnote.theme.pro" {
                         purchasedIds.formUnion(Self.allProductIds)
                     }
                 }
+                print("[StoreKit] ✅ Purchase success: \(transaction.productID)")
+            case .pending:
+                print("[StoreKit] ⏳ Purchase pending (Ask to Buy)")
+            case .userCancelled:
+                print("[StoreKit] 🚫 User cancelled purchase")
+            @unknown default:
+                print("[StoreKit] ❓ Unknown purchase result")
+            }
+        } catch {
+            lastError = error.localizedDescription
+            print("[StoreKit] ❌ Purchase failed: \(error)")
+        }
+    }
+
+    // MARK: — Restore / check current entitlements on launch
+    func restoreEntitlements() async {
+        print("[StoreKit] Restoring entitlements…")
+        var count = 0
+        for await result in StoreKit.Transaction.currentEntitlements {
+            if let transaction = try? result.payloadValue {
+                await MainActor.run {
+                    purchasedIds.insert(transaction.productID)
+                    if transaction.productID == "com.prodnote.theme.pro" {
+                        purchasedIds.formUnion(Self.allProductIds)
+                    }
+                }
+                count += 1
+                print("[StoreKit] ↩️ Restored: \(transaction.productID)")
             }
         }
+        print("[StoreKit] Restore done — \(count) entitlements found")
     }
 
     // MARK: — Continuous listener for updates (family sharing, Ask to Buy approval, refunds)
     private func startTransactionListener() -> Task<Void, Error> {
         Task.detached(priority: .background) { [weak self] in
+            print("[StoreKit] Transaction listener started")
             for await result in StoreKit.Transaction.updates {
                 if let transaction = try? result.payloadValue {
+                    print("[StoreKit] 🔔 Transaction update: \(transaction.productID), revoked=\(transaction.revocationDate != nil)")
                     await self?.handleVerifiedTransaction(transaction)
                 }
             }
         }
     }
 
-    // Bug 6 fix: @MainActor ensures all purchasedIds mutations happen on the main thread
     @MainActor
     private func handleVerifiedTransaction(_ transaction: StoreKit.Transaction) async {
         if transaction.revocationDate != nil {
             purchasedIds.remove(transaction.productID)
+            print("[StoreKit] ❌ Entitlement revoked: \(transaction.productID)")
         } else {
             purchasedIds.insert(transaction.productID)
             if transaction.productID == "com.prodnote.theme.pro" {
                 purchasedIds.formUnion(Self.allProductIds)
             }
+            print("[StoreKit] ✅ Entitlement granted: \(transaction.productID)")
         }
         await transaction.finish()
     }
 
     // MARK: — Ownership check
     func isOwned(_ theme: AppTheme) -> Bool {
-        !theme.isPaid
+        let owned = !theme.isPaid
             || isDeveloperUnlocked
             || purchasedIds.contains(theme.productId ?? "")
             || purchasedIds.contains("com.prodnote.theme.pro")
+        return owned
     }
 
     // MARK: — Developer unlock (secret phrase)
     func activateDeveloperUnlock() {
+        print("[StoreKit] 🔓 Developer unlock activated")
         isDeveloperUnlocked = true
-        // Also add all IDs to purchasedIds so the Observable state updates immediately
         purchasedIds.formUnion(Self.allProductIds)
     }
 
     func product(for theme: AppTheme) -> Product? {
         guard let id = theme.productId else { return nil }
-        return products.first { $0.id == id }
+        let found = products.first { $0.id == id }
+        if found == nil {
+            print("[StoreKit] ⚠️ No product found for theme '\(theme.name)' (id: \(id)) — products loaded: \(products.map(\.id))")
+        }
+        return found
     }
 }
