@@ -84,6 +84,15 @@ struct TaskDetailView: View {
     /// Tracks whether a newline was inserted (Enter pressed) since the last sync.
     @State private var newlineDetectedSinceLastSync = false
 
+    /// Re-entrancy guard: prevents onSelectionChanged from firing recursively
+    /// when it modifies @State variables that trigger SwiftUI re-renders,
+    /// which cause RichTextKit to re-report the selection range (Issue #89).
+    @State private var isProcessingSelectionChange = false
+    /// Guards against EKEventStoreChanged → textDidChange cascades.
+    /// Set to true while we're programmatically updating tv.attributedText
+    /// from a non-user-edit path (calendar reconciliation, struck styling).
+    @State private var isSuppressingTextDidChange = false
+
     // Default toolbar order — most-used items first. User can drag-reorder; saved to UserDefaults.
     static let defaultToolbarItems: [EditorTool] = [
         .init(id: "fontSizeUp",       icon: "textformat.size.larger"),   // 1 — increase text size
@@ -341,8 +350,14 @@ struct TaskDetailView: View {
             // Issue #86: refresh strikethrough when calendar events change.
             BodyEventSyncService.shared.reconcileAppleEvents(for: task, context: modelContext)
             applyStruckThroughStyling()
+            // Push the updated attributedText into the live UITextView.
+            // IMPORTANT: suppress textDidChangeNotification during this update (Issue #89).
+            // Without this guard, setting tv.attributedText fires textDidChange → scheduleBodyEventSync
+            // → calendar saves → EKEventStoreChanged → this handler → infinite loop that freezes the UI.
             if let tv = richTextView {
+                isSuppressingTextDidChange = true
                 tv.attributedText = attributedText
+                isSuppressingTextDidChange = false
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -463,6 +478,11 @@ struct TaskDetailView: View {
             .padding(.horizontal, 4)
             .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidChangeNotification)) { note in
                 guard let tv = note.object as? UITextView, tv === richTextView else { return }
+                // Skip processing when we're programmatically setting tv.attributedText
+                // from non-user-edit paths (e.g. EKEventStoreChanged handler).
+                // Without this, calendar saves → EKEventStoreChanged → tv.attributedText = ...
+                // → textDidChange → scheduleBodyEventSync → more calendar saves → freeze (Issue #89).
+                guard !isSuppressingTextDidChange else { return }
                 // Keep attributedText in sync so saveBody() fallback is accurate when richTextView is nil on disappear.
                 attributedText = tv.attributedText ?? NSAttributedString()
                 handleReturnKey(tv: tv)
@@ -1703,6 +1723,13 @@ struct TaskDetailView: View {
     }
 
     private func onSelectionChanged(_ range: NSRange) {
+        // Re-entrancy guard: if we're already processing a selection change,
+        // skip this call to prevent the infinite loop:
+        // onSelectionChanged → @State update → SwiftUI re-render → selectedRange fires → onSelectionChanged
+        guard !isProcessingSelectionChange else { return }
+        isProcessingSelectionChange = true
+        defer { isProcessingSelectionChange = false }
+
         let hasSelection = range.length > 0
 
         // Check if the selection contains an attachment (image, etc.)
