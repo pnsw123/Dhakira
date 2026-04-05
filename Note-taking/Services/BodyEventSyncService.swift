@@ -375,9 +375,9 @@ final class BodyEventSyncService {
         let descriptor = FetchDescriptor<BodyCalendarEvent>(
             predicate: #Predicate<BodyCalendarEvent> { $0.isStruck == false && $0.googleCalendarEventId != nil }
         )
-        guard let records = try? context.fetch(descriptor), !records.isEmpty else { return }
+        guard let prefetchRecords = try? context.fetch(descriptor), !prefetchRecords.isEmpty else { return }
 
-        let googleIds = Set(records.compactMap { $0.googleCalendarEventId })
+        let googleIds = Set(prefetchRecords.compactMap { $0.googleCalendarEventId })
         guard !googleIds.isEmpty else { return }
 
         // Batch check — single API call (or paginated).
@@ -385,6 +385,11 @@ final class BodyEventSyncService {
             log.info("reconcileGoogleEvents: check skipped (token expired or API error)")
             return  // graceful skip — don't mark anything as deleted
         }
+
+        // Re-fetch after the await: other code (sync, EKEventStoreChanged handler) may have
+        // deleted or modified these SwiftData objects during the suspension — using stale
+        // references causes EXC_BAD_ACCESS.
+        guard let records = try? context.fetch(descriptor) else { return }
 
         var struckCount = 0
         for record in records {
