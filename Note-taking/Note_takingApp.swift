@@ -47,6 +47,7 @@ struct Note_takingApp: App {
                     // Issue #86: when Apple Calendar events change, reconcile body events.
                     log.info("EKEventStoreChanged: reconciling body events")
                     BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
+                    CalendarSyncService.shared.reconcileAllParentEvents(context: container.mainContext)
                 }
                 .task {
                     // Issue #88: configure notification delegate for foreground display.
@@ -60,6 +61,8 @@ struct Note_takingApp: App {
                     await CalendarSyncService.shared.cleanupStaleEvents(in: container.mainContext)
                     // Issue #86: reconcile body events — mark struck if deleted from Apple Calendar.
                     BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
+                    // Reconcile parent task events — clear calendarEventId if deleted externally.
+                    CalendarSyncService.shared.reconcileAllParentEvents(context: container.mainContext)
                     // Issue #87: reconcile body events against Google Calendar on app open.
                     await BodyEventSyncService.shared.reconcileGoogleEvents(context: container.mainContext)
                     // Run all startup work on a background actor so the UI renders immediately.
@@ -81,6 +84,12 @@ struct Note_takingApp: App {
                 CalendarSelectionService.shared.refreshFromUserDefaults()
                 // Issue #86: reconcile on foreground return.
                 BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
+                // Reconcile parent task events on foreground return.
+                CalendarSyncService.shared.reconcileAllParentEvents(context: container.mainContext)
+                // Issue #87: also reconcile Google Calendar on foreground return.
+                Task {
+                    await BodyEventSyncService.shared.reconcileGoogleEvents(context: container.mainContext)
+                }
             } else if newPhase == .inactive {
                 // iOS can kill apps from inactive without going through background —
                 // flush changes here too so nothing is lost.

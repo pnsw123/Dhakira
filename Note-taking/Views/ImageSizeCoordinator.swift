@@ -64,6 +64,7 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
 
     @objc func handleTap(_ gesture: UITapGestureRecognizer) {
         guard let tv = gesture.view as? UITextView else { dismissButtons(); return }
+        log.debug("ImageSizeCoordinator.handleTap: ENTER")
 
         let tapPoint = gesture.location(in: tv)
         let tcPoint  = CGPoint(x: tapPoint.x - tv.textContainerInset.left,
@@ -142,16 +143,19 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
         grow.frame    = CGRect(x: pillW / 2, y: 0, width: pillW / 2, height: pillH)
 
         // Position pill to the RIGHT of the image, vertically centred.
-        // Clamp so it stays within the window horizontally.
+        // Clamp both axes so the pill never escapes the visible window.
         var pillX = rectInWindow.maxX + 10
-        let pillY = rectInWindow.midY - pillH / 2
+        var pillY = rectInWindow.midY - pillH / 2
 
         // If no room on the right, flip to the left side.
         if pillX + pillW > window.bounds.width - 8 {
             pillX = rectInWindow.minX - pillW - 10
         }
-        // Final safety clamp
-        pillX = max(8, pillX)
+        // Final safety clamp — keep inside the window's safe area
+        // so the pill never hides behind the notch / Dynamic Island / home indicator.
+        let safe = window.safeAreaInsets
+        pillX = max(safe.left + 8, min(pillX, window.bounds.width  - pillW - safe.right  - 8))
+        pillY = max(safe.top  + 8, min(pillY, window.bounds.height - pillH - safe.bottom - 8))
 
         pill.frame.origin = CGPoint(x: pillX, y: pillY)
 
@@ -183,6 +187,7 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
     // mutating .bounds here directly updates the live attributed string TextKit renders.
 
     private func applyResize(factor: CGFloat) {
+        log.debug("ImageSizeCoordinator.applyResize: ENTER factor=\(factor)")
         guard let attachment = selectedAttachment,
               let tv          = textView,
               selectedCharIndex != NSNotFound else {
@@ -222,12 +227,15 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
            let window  = tv.window {
             let rectInWindow = tv.convert(newRect, to: window)
             let pillW = buttonsView?.bounds.width ?? 88
+            let pillH = buttonsView?.bounds.height ?? 38
             var pillX = rectInWindow.maxX + 10
             if pillX + pillW > window.bounds.width - 8 {
                 pillX = rectInWindow.minX - pillW - 10
             }
-            pillX = max(8, pillX)
-            buttonsView?.frame.origin = CGPoint(x: pillX, y: rectInWindow.midY - (buttonsView?.bounds.height ?? 38) / 2)
+            let safe = window.safeAreaInsets
+            pillX = max(safe.left + 8, min(pillX, window.bounds.width  - pillW - safe.right  - 8))
+            let pillY = max(safe.top  + 8, min(rectInWindow.midY - pillH / 2, window.bounds.height - pillH - safe.bottom - 8))
+            buttonsView?.frame.origin = CGPoint(x: pillX, y: pillY)
         }
     }
 

@@ -28,6 +28,7 @@ final class LinkTapCoordinator: NSObject, ObservableObject, UIGestureRecognizerD
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
         guard let tv = textView else { return }
+        log.debug("LinkTapCoordinator.handleTap: ENTER")
 
         let point   = gesture.location(in: tv)
         let tcPoint = CGPoint(x: point.x - tv.textContainerInset.left,

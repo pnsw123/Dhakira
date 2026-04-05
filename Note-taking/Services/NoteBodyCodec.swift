@@ -52,9 +52,13 @@ enum NoteBodyCodec {
         // can persist on surrounding characters (ghost links). Cleaning them here prevents
         // the ghost links from being saved and resurrected on next decode.
         let cleaned = stripGhostFileLinks(from: text)
+        // Strip CheckboxAttachment objects and replace with [cb:0]/[cb:1] placeholders
+        // BEFORE RTF encoding. RTF cannot preserve custom NSTextAttachment subclasses —
+        // they are silently destroyed on round-trip. We handle them just like images.
+        let withoutCheckboxes = stripCheckboxes(from: cleaned)
         // Strip image attachments so the RTF blob contains only text + placeholder markers.
         // Actual image content lives on disk.
-        let stripped = stripImages(from: cleaned)
+        let stripped = stripImages(from: withoutCheckboxes)
         let range = NSRange(location: 0, length: stripped.length)
         guard let rtf = try? stripped.data(
             from: range,
@@ -104,8 +108,8 @@ enum NoteBodyCodec {
             rtfResult = result
         }
 
-        // Restore image placeholders from disk.
-        return rtfResult.map { restoreImages(in: $0, taskId: taskId) }
+        // Restore image placeholders from disk, then restore checkbox placeholders.
+        return rtfResult.map { restoreCheckboxes(in: restoreImages(in: $0, taskId: taskId)) }
     }
 
     // MARK: Private
@@ -225,6 +229,49 @@ enum NoteBodyCodec {
             mutable.replaceCharacters(in: match.range, with: attachStr as NSAttributedString)
             log.debug("restoreImages: restored image \(attachmentId.uuidString)")
         }
+        return mutable
+    }
+
+    /// Replace CheckboxAttachment objects with text placeholders before RTF encoding.
+    /// Uses [cb:1] for checked and [cb:0] for unchecked.
+    /// RTF cannot preserve custom NSTextAttachment subclasses — they must be serialized
+    /// as text markers just like images are serialized as [img:UUID] markers.
+    private static func stripCheckboxes(from source: NSAttributedString) -> NSAttributedString {
+        let mutable = NSMutableAttributedString(attributedString: source)
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        var replacements: [(NSRange, Bool)] = []
+        mutable.enumerateAttribute(.attachment, in: fullRange, options: []) { value, range, _ in
+            if let cb = value as? CheckboxAttachment {
+                replacements.append((range, cb.isChecked))
+            }
+        }
+        // Replace in reverse order so indices stay valid
+        for (range, isChecked) in replacements.reversed() {
+            mutable.replaceCharacters(in: range, with: isChecked ? "[cb:1]" : "[cb:0]")
+        }
+        log.debug("NoteBodyCodec.stripCheckboxes: replaced \(replacements.count) checkbox(es)")
+        return mutable
+    }
+
+    /// Restore [cb:0]/[cb:1] placeholders back to CheckboxAttachment objects after RTF decode.
+    private static func restoreCheckboxes(in source: NSAttributedString) -> NSAttributedString {
+        let mutable = NSMutableAttributedString(attributedString: source)
+        let pattern = "\\[cb:([01])\\]"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return mutable }
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        let matches = regex.matches(in: mutable.string, options: [], range: fullRange)
+        // Replace in reverse so indices stay valid
+        for match in matches.reversed() {
+            guard match.numberOfRanges == 2,
+                  let flagRange = Range(match.range(at: 1), in: mutable.string) else { continue }
+            let isChecked = mutable.string[flagRange] == "1"
+            let checkbox = CheckboxAttachment(checked: isChecked)
+            let attachStr = NSMutableAttributedString(attachment: checkbox)
+            attachStr.addAttribute(.foregroundColor, value: UIColor.label,
+                                   range: NSRange(location: 0, length: attachStr.length))
+            mutable.replaceCharacters(in: match.range, with: attachStr as NSAttributedString)
+        }
+        log.debug("NoteBodyCodec.restoreCheckboxes: restored \(matches.count) checkbox(es)")
         return mutable
     }
 }

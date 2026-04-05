@@ -1,6 +1,7 @@
 #if canImport(UIKit)
 import UIKit
 import Combine
+import OSLog
 
 // MARK: - ColorLongPressCoordinator
 // Adds a UILongPressGestureRecognizer to the UITextView.
@@ -10,6 +11,8 @@ import Combine
 
 final class ColorLongPressCoordinator: NSObject, ObservableObject, UIGestureRecognizerDelegate {
 
+    private let log = Logger(subsystem: "notes.Note-taking", category: "ColorLongPress")
+
     /// Non-nil when a long press fires — drives color palette presentation in TaskDetailView.
     @Published private(set) var pressGlobalRect: CGRect? = nil
 
@@ -18,15 +21,18 @@ final class ColorLongPressCoordinator: NSObject, ObservableObject, UIGestureReco
     // MARK: - Long press handling
 
     @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        log.debug("handleLongPress: state=\(gesture.state.rawValue)")
         guard gesture.state == .began,
               let tv = gesture.view as? UITextView else { return }
 
         let point = gesture.location(in: tv)
+        log.debug("handleLongPress: BEGAN at \(point.x),\(point.y)")
 
         // Get the caret rect at the press location and convert to window coordinates
         guard let textPosition = tv.closestPosition(to: point) else { return }
         let caretRect = tv.caretRect(for: textPosition)
         pressGlobalRect = tv.convert(caretRect, to: nil)
+        log.debug("handleLongPress: EXIT pressGlobalRect set")
     }
 
     // MARK: - UIGestureRecognizerDelegate

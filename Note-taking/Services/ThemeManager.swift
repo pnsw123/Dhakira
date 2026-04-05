@@ -45,9 +45,14 @@ final class ThemeManager {
 
     // MARK: — Init
     init() {
-        // Restore last selected theme
+        // Restore last selected theme.
+        // If the saved ID no longer exists (e.g. theme was removed), reset to "default"
+        // so the app doesn't get stuck in a zombie state with mismatched theme/background.
         if let saved = AppTheme.all.first(where: { $0.id == selectedThemeId }) {
             current = saved
+        } else if selectedThemeId != "default" && selectedThemeId != "midnight" {
+            log.info("Saved theme '\(self.selectedThemeId)' no longer exists — resetting to default")
+            selectedThemeId = "default"
         }
         // Restore background image — UIKit only (WWDC18 #416)
         // Bug 1 fix: store and restore as plain path string, not file:// URL absoluteString
@@ -161,6 +166,7 @@ final class ThemeManager {
 
     // MARK: — App Group sync (widgets read from here)
     private func syncToAppGroup() {
+        log.debug("syncToAppGroup: ENTER")
         guard let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking") else {
             log.error("syncToAppGroup: failed to open App Group UserDefaults — widget will not update")
             return
@@ -182,6 +188,7 @@ final class ThemeManager {
         }
         #endif
         defaults.synchronize()
+        log.debug("syncToAppGroup: EXIT (synchronize complete)")
     }
 
     // MARK: — Downsampling (WWDC18 #416, UIKit only)

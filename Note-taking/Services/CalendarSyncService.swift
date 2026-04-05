@@ -562,6 +562,43 @@ final class CalendarSyncService {
         log.info("cleanupStaleEvents: removed \(cleaned) stale event(s) ✓")
     }
 
+    // MARK: - Parent event reconciliation
+
+    /// Check whether a single task's parent calendar event still exists in Apple Calendar.
+    /// If the event has been deleted externally, clear the stored ID so the app doesn't
+    /// treat the task as still synced.
+    @MainActor
+    func reconcileParentEvent(for task: TaskItem) {
+        guard let eventId = task.calendarEventId, !eventId.isEmpty else { return }
+        if eventStore.event(withIdentifier: eventId) == nil {
+            log.info("reconcileParentEvent: event '\(eventId)' no longer exists — clearing calendarEventId for '\(task.title)'")
+            task.calendarEventId = nil
+        }
+    }
+
+    /// Reconcile ALL tasks' parent calendar events against Apple Calendar.
+    /// Called on launch, foreground return, and EKEventStoreChanged.
+    @MainActor
+    func reconcileAllParentEvents(context: ModelContext) {
+        let descriptor = FetchDescriptor<TaskItem>(
+            predicate: #Predicate<TaskItem> { $0.calendarEventId != nil }
+        )
+        guard let tasks = try? context.fetch(descriptor) else { return }
+        var cleared = 0
+        for task in tasks {
+            guard let eventId = task.calendarEventId, !eventId.isEmpty else { continue }
+            if eventStore.event(withIdentifier: eventId) == nil {
+                log.info("reconcileAllParentEvents: event '\(eventId)' missing — clearing for '\(task.title)'")
+                task.calendarEventId = nil
+                cleared += 1
+            }
+        }
+        if cleared > 0 {
+            try? context.save()
+            log.info("reconcileAllParentEvents: cleared \(cleared) stale parent event ID(s) ✓")
+        }
+    }
+
     // MARK: - Calendar selection
 
     /// Returns the preferred Apple/iCloud calendar for event sync.

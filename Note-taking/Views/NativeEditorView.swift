@@ -28,7 +28,11 @@ struct NativeEditorView: View {
         ) { view in
             // viewConfiguration fires once inside makeUIView — safe to capture here.
             if let tv = view as? UITextView {
-                log.debug("NativeEditorView: UITextView ready")
+                // FIX: Force TextKit 1 at creation to avoid mid-selection freeze.
+                // 5+ call sites use tv.layoutManager — if the switch happens lazily
+                // during a layout pass (e.g. text selection), it deadlocks the UI.
+                _ = tv.layoutManager
+                log.debug("NativeEditorView: UITextView ready (TextKit 1 forced)")
                 // Use adaptive .label color so text is visible in both light and dark mode.
                 // Without this, UIKit defaults to black which disappears on dark backgrounds.
                 tv.isScrollEnabled = true

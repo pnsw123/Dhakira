@@ -59,6 +59,10 @@ final class GoogleCalendarAPIService {
     /// Safe to call with a stale ID — does nothing if the event no longer exists.
     func deleteEvent(id: String) async {
         guard let token = await GoogleAuthService.shared.validToken() else { return }
+        await deleteEvent(id: id, token: token, isRetry: false)
+    }
+
+    private func deleteEvent(id: String, token: String, isRetry: Bool) async {
         guard let url = URL(string: "\(Self.baseURL)/\(id)") else { return }
 
         var request = URLRequest(url: url)
@@ -70,6 +74,12 @@ final class GoogleCalendarAPIService {
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if status == 204 || status == 404 {
                 log.info("deleteEvent: '\(id)' removed (status \(status)) ✓")
+            } else if status == 401 && !isRetry {
+                // Token expired — clear stale token and retry once with a fresh one.
+                log.warning("deleteEvent: 401 — refreshing token and retrying")
+                await GoogleAuthService.shared.clearAccessToken()
+                guard let freshToken = await GoogleAuthService.shared.validToken() else { return }
+                await deleteEvent(id: id, token: freshToken, isRetry: true)
             } else {
                 log.warning("deleteEvent: unexpected status \(status) for '\(id)'")
             }
@@ -91,7 +101,10 @@ final class GoogleCalendarAPIService {
             log.warning("existingEventIds: no valid token — skipping check")
             return nil  // nil = skip, not "all deleted"
         }
+        return await existingEventIds(from: ids, token: token, isRetry: false)
+    }
 
+    private func existingEventIds(from ids: Set<String>, token: String, isRetry: Bool) async -> Set<String>? {
         // Fetch recent + upcoming events (30 days back, 365 days ahead) in batches.
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -114,6 +127,12 @@ final class GoogleCalendarAPIService {
             do {
                 let (data, response) = try await URLSession.shared.data(for: req)
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                if status == 401 && !isRetry {
+                    log.warning("existingEventIds: 401 — refreshing token and retrying")
+                    await GoogleAuthService.shared.clearAccessToken()
+                    guard let freshToken = await GoogleAuthService.shared.validToken() else { return nil }
+                    return await existingEventIds(from: ids, token: freshToken, isRetry: true)
+                }
                 guard (200..<300).contains(status) else {
                     log.warning("existingEventIds: HTTP \(status) — aborting check")
                     return nil  // don't mark anything as deleted on error

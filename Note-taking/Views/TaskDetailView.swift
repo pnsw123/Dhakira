@@ -348,6 +348,8 @@ struct TaskDetailView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
             // Issue #86: refresh strikethrough when calendar events change.
+            // Also clear parent event ID if the event was deleted from Apple Calendar.
+            CalendarSyncService.shared.reconcileParentEvent(for: task)
             BodyEventSyncService.shared.reconcileAppleEvents(for: task, context: modelContext)
             applyStruckThroughStyling()
             // Push the updated attributedText into the live UITextView.
@@ -389,10 +391,12 @@ struct TaskDetailView: View {
         }
         // Show color palette on long press (no text selection needed)
         .onChange(of: colorLongPressCoordinator.pressGlobalRect) { _, rect in
+            log.debug("onChange(pressGlobalRect): rect=\(rect.debugDescription)")
             guard let rect else { return }
             selectionGlobalRect = rect
             showColorPalette = true
             colorLongPressCoordinator.clear()
+            log.debug("onChange(pressGlobalRect): EXIT palette shown")
         }
         // Keyboard navigation: on iPad/Mac give first responder to interceptor so
         // arrow keys route to the slash menu instead of moving the text cursor.
@@ -483,6 +487,7 @@ struct TaskDetailView: View {
                 // Without this, calendar saves → EKEventStoreChanged → tv.attributedText = ...
                 // → textDidChange → scheduleBodyEventSync → more calendar saves → freeze (Issue #89).
                 guard !isSuppressingTextDidChange else { return }
+                log.debug("textDidChange: ENTER len=\(tv.textStorage.length)")
                 // Keep attributedText in sync so saveBody() fallback is accurate when richTextView is nil on disappear.
                 attributedText = tv.attributedText ?? NSAttributedString()
                 handleReturnKey(tv: tv)
@@ -517,6 +522,7 @@ struct TaskDetailView: View {
                 DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
             }
             .onChange(of: richTextContext.selectedRange) { _, range in
+                log.debug("onChange(selectedRange): FIRED range=\(range.location)+\(range.length)")
                 // Defer to the next run loop iteration (Issue #89).
                 // RichTextKit publishes selectedRange DURING UITextView's layout pass
                 // (TextKit 1 compatibility mode switch). Accessing tv.attributedText
@@ -1515,6 +1521,7 @@ struct TaskDetailView: View {
     /// The "│" glyphs have typographic line-height gaps between them; the UIView spans
     /// the full block height and fills those gaps — one tall continuous bar per block.
     private func refreshQuoteBorderViews(in tv: UITextView) {
+        log.debug("refreshQuoteBorderViews: ENTER")
         let quoteViewTag = 0x71756F74
         tv.subviews.filter { $0.tag == quoteViewTag }.forEach { $0.removeFromSuperview() }
 
@@ -1577,6 +1584,7 @@ struct TaskDetailView: View {
             tv.insertSubview(borderView, at: 0)
             log.debug("refreshQuoteBorderViews: block \(block.location)+\(block.length) → y=\(blockRect.minY) h=\(blockRect.height)")
         }
+        log.debug("refreshQuoteBorderViews: EXIT (\(quoteBlocks.count) blocks)")
     }
 
     /// Continue a quote line: insert "│  " at the start of the new paragraph.
@@ -1718,8 +1726,13 @@ struct TaskDetailView: View {
             let lineLength = (line as NSString).length
             let lineRange = NSRange(location: charIndex, length: lineLength)
             let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            // Strip U+FFFC (object replacement chars from attachments) before matching,
+            // since lineText stored in BodyCalendarEvent was recorded without them.
+            let cleanedLine = trimmedLine
+                .replacingOccurrences(of: "\u{FFFC}", with: "")
+                .trimmingCharacters(in: .whitespaces)
 
-            if struckRecords.contains(where: { $0.lineText == trimmedLine }) {
+            if struckRecords.contains(where: { BodyEventSyncService.fuzzyMatch($0.lineText, cleanedLine) >= 0.80 }) {
                 mutable.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: lineRange)
                 mutable.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: lineRange)
             }
@@ -1735,6 +1748,7 @@ struct TaskDetailView: View {
         guard !isProcessingSelectionChange else { return }
         isProcessingSelectionChange = true
         defer { isProcessingSelectionChange = false }
+        log.debug("onSelectionChanged: ENTER range=\(range.location)+\(range.length)")
 
         let hasSelection = range.length > 0
 
@@ -1836,6 +1850,7 @@ struct TaskDetailView: View {
         let ctx = modelContext
         let checked = extractCheckedLines(from: liveText)
         Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx, checkedLines: checked) }
+        log.debug("saveBody: EXIT (async calendar+bodyEvent sync dispatched)")
     }
 
     // MARK: - Calendar Sync (Issue #63)
@@ -1877,6 +1892,7 @@ struct TaskDetailView: View {
     /// Resets the 2-second debounce timer. When the timer fires and a newline
     /// was detected, triggers a body-line event sync without a full saveBody().
     private func scheduleBodyEventSync() {
+        log.debug("scheduleBodyEventSync: ENTER")
         bodyEventDebounceTimer?.invalidate()
         bodyEventDebounceTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { _ in
             Task { @MainActor in

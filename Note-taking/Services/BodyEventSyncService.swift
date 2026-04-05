@@ -108,7 +108,7 @@ final class BodyEventSyncService {
 
         for (lineText, detectedDate) in datedLines {
             // Try to find a fuzzy match in unmatched records.
-            if let idx = unmatched.firstIndex(where: { fuzzyMatch($0.lineText, lineText) >= 0.80 }) {
+            if let idx = unmatched.firstIndex(where: { BodyEventSyncService.fuzzyMatch($0.lineText, lineText) >= 0.80 }) {
                 let record = unmatched[idx]
                 matched.insert(record.id)
                 unmatched.remove(at: idx)
@@ -448,7 +448,7 @@ final class BodyEventSyncService {
 
     /// Returns a similarity score (0.0–1.0) between two strings using
     /// Jaccard similarity on word tokens. 1.0 = identical, 0.0 = nothing in common.
-    private func fuzzyMatch(_ a: String, _ b: String) -> Double {
+    static func fuzzyMatch(_ a: String, _ b: String) -> Double {
         let wordsA = Set(a.lowercased().split(separator: " "))
         let wordsB = Set(b.lowercased().split(separator: " "))
         guard !wordsA.isEmpty || !wordsB.isEmpty else { return 1.0 }
