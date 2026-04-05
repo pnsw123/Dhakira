@@ -155,6 +155,11 @@ final class NativeExportService {
     /// Prevents dark-theme white text from becoming invisible on a white PDF page.
     /// Also replaces CheckboxAttachment SF Symbols with .alwaysOriginal images
     /// to prevent them rendering as solid black boxes (Issue #106).
+    /// Testable entry point — same as normalizeForPDF but accessible from test target.
+    static func normalizeForPDFTestable(_ source: NSAttributedString) -> NSAttributedString {
+        normalizeForPDF(source)
+    }
+
     private static func normalizeForPDF(_ source: NSAttributedString) -> NSAttributedString {
         let mutable = NSMutableAttributedString(attributedString: source)
         let fullRange = NSRange(location: 0, length: mutable.length)
