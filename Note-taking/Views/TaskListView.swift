@@ -443,14 +443,24 @@ struct TaskListView: View {
         log.info("toggleComplete: '\(task.title)' → \(willComplete ? "complete" : "incomplete")")
 
         // Register undo — reverse the completion toggle
+        // The undo closure registers redo (the reverse), which is what makes redo work.
         let wasCompleted = task.isCompleted
         let oldCompletedAt = task.completedAt
+        let um = undoManager
+        let ctx = modelContext
         undoManager?.registerUndo(withTarget: task) { t in
+            // Register redo: flip back to what we just undid
+            um?.registerUndo(withTarget: t) { t2 in
+                t2.isCompleted = willComplete
+                t2.completedAt = willComplete ? Date() : nil
+                try? ctx.save()
+            }
+            um?.setActionName(willComplete ? "Complete Task" : "Uncomplete Task")
             withAnimation(.easeInOut(duration: 0.3)) {
                 t.isCompleted = wasCompleted
                 t.completedAt = oldCompletedAt
             }
-            try? modelContext.save()
+            try? ctx.save()
         }
         undoManager?.setActionName(willComplete ? "Complete Task" : "Uncomplete Task")
         undoVersion += 1
@@ -516,9 +526,17 @@ struct TaskListView: View {
 
         // Register undo — restore previous priority
         let oldPriority = task.priority
+        let um = undoManager
+        let ctx = modelContext
         undoManager?.registerUndo(withTarget: task) { t in
+            // Register redo: flip back to newPriority
+            um?.registerUndo(withTarget: t) { t2 in
+                t2.priority = newPriority
+                try? ctx.save()
+            }
+            um?.setActionName("Set Priority")
             t.priority = oldPriority
-            try? modelContext.save()
+            try? ctx.save()
         }
         undoManager?.setActionName("Set Priority")
         undoVersion += 1
@@ -535,9 +553,22 @@ struct TaskListView: View {
         log.info("softDeleteTask: '\(task.title)'")
 
         // Register undo — restore task from trash
+        // The undo closure registers redo (re-delete) so redo works.
         let savedCalendarId = task.calendarEventId
         let savedGoogleId   = task.googleCalendarEventId
+        let um = undoManager
+        let ctx = modelContext
         undoManager?.registerUndo(withTarget: task) { t in
+            // Register redo: trash it again
+            um?.registerUndo(withTarget: t) { t2 in
+                withAnimation(.smooth(duration: 0.3)) {
+                    t2.isTrashed = true
+                    t2.deletedAt = Date()
+                }
+                LocalStateLedger.shared.markDeleted(t2.id)
+                try? ctx.save()
+            }
+            um?.setActionName("Delete Task")
             withAnimation(.smooth(duration: 0.3)) {
                 t.isTrashed = false
                 t.deletedAt = nil
@@ -545,12 +576,11 @@ struct TaskListView: View {
             t.calendarEventId = savedCalendarId
             t.googleCalendarEventId = savedGoogleId
             LocalStateLedger.shared.unmarkDeleted(t.id)
-            try? modelContext.save()
+            try? ctx.save()
             // Issue #85: re-scan body to recreate body-line events after untrash.
             if let bodyData = t.body,
                case .success(let attrStr) = NoteBodyCodec.decode(bodyData, taskId: t.id) {
                 let bodyText = attrStr.string
-                let ctx = modelContext
                 Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx) }
             }
         }
