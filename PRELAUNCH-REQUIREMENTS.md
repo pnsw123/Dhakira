@@ -20,8 +20,9 @@
 | Google Cloud Project | ✅ Done | Moved to "Dhakira" project |
 | Paywall (StoreKit 2) | ✅ Done | $2.99/theme · $14.99 bundle · dev unlock |
 | App Icon | ⚠️ Partial | File exists, not yet placed in Xcode |
-| iPhone Screenshots | ✅ Done | 5 screenshots at 1320×2868 in `app-store-screenshots/` |
-| iPad Screenshots | 🔲 Remaining | 5 screenshots needed at 2064×2752 |
+| iPhone Screenshots | ✅ Done | 5 screenshots at 1320×2868 |
+| iPad Screenshots | ✅ Done | 5 screenshots at 2064×2752 — ready to export at localhost:3005 |
+| Mac Screenshots | ✅ Done | 5 screenshots at 2880×1800 — ready to export at localhost:3005 |
 | Landing Page | 🔲 Remaining | dhakira.app — domain purchased, page not built |
 | Google OAuth Verification | 🔲 Remaining | Needs live dhakira.app with privacy policy |
 | App Store Submission | 🔲 Remaining | Description, keywords, archive, submit |
@@ -55,22 +56,22 @@
 
 ---
 
-### App Store Screenshots
-| Device | Required size | Status | Location |
-|--------|--------------|--------|----------|
-| iPhone 6.9" (Pro Max) | 1320×2868 | ✅ **5 screenshots ready** | `app-store-screenshots/` |
-| iPad Pro 13" | 2064×2752 | ❌ **Missing** | Not found anywhere |
+### App Store Screenshots — All 3 devices ready at `localhost:3005`
 
-**iPhone screenshots found (1320×2868) — `app-store-screenshots/`:**
-1. `MAIN-01-task-list.png`
-2. `MAIN-02-rich-editor.png`
-3. `MAIN-03-home-folders.png`
-4. `MAIN-04-calendar-month.png`
-5. `MAIN-05-calendar-day.png`
+| Device | Size | Status | Export |
+|--------|------|--------|--------|
+| iPhone 6.9" | 1320×2868 | ✅ 5 ready | iPhone tab → Export All 5 |
+| iPad Pro 13" | 2064×2752 | ✅ 5 ready | iPad tab → Export All 5 |
+| Mac | 2880×1800 | ✅ 5 ready | Mac tab → Export All 5 |
 
-**iPad screenshots:** ❌ None found anywhere on disk. No resized versions exist.
+All 5 screens across all devices:
+1. Task List
+2. Rich Editor
+3. Folders
+4. Calendar Month
+5. Calendar Day
 
-**Action needed:** Run the app on iPad Pro 13" simulator in Xcode → take 5 screenshots → they must be 2064×2752. Apple requires these if your app supports iPad.
+**Action needed:** Go to `localhost:3005`, click each tab, hit "Export All 5" to download the files, then upload to App Store Connect.
 
 ---
 
