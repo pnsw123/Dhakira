@@ -298,7 +298,10 @@ final class BodyEventSyncService {
     @MainActor
     func reconcileAppleEvents(for task: TaskItem, context: ModelContext) {
         let eventStore = calendarSync.eventStore
-        let records = (task.bodyCalendarEvents ?? []).filter { !$0.isStruck && $0.calendarEventId != nil }
+        let graceCutoff = Date().addingTimeInterval(-30) // skip records created < 30s ago
+        let records = (task.bodyCalendarEvents ?? []).filter {
+            !$0.isStruck && $0.calendarEventId != nil && $0.createdAt < graceCutoff
+        }
         guard !records.isEmpty else { return }
 
         var struckCount = 0
@@ -332,8 +335,9 @@ final class BodyEventSyncService {
         isReconcilingApple = true
         defer { isReconcilingApple = false }
 
+        let graceCutoff = Date().addingTimeInterval(-30) // skip records created < 30s ago
         let descriptor = FetchDescriptor<BodyCalendarEvent>(
-            predicate: #Predicate<BodyCalendarEvent> { $0.isStruck == false && $0.calendarEventId != nil }
+            predicate: #Predicate<BodyCalendarEvent> { $0.isStruck == false && $0.calendarEventId != nil && $0.createdAt < graceCutoff }
         )
         guard let records = try? context.fetch(descriptor), !records.isEmpty else { return }
 
