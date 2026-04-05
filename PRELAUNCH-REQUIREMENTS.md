@@ -19,8 +19,9 @@
 | Reminders Import | ✅ Done | |
 | Google Cloud Project | ✅ Done | Moved to "Dhakira" project |
 | Paywall (StoreKit 2) | ✅ Done | $2.99/theme · $14.99 bundle · dev unlock |
-| Branding + Logo | 🔲 Remaining | App icon 1024×1024 |
-| App Store Screenshots | 🔲 Remaining | 5 per device, iPhone 6.9" + iPad Pro 13" |
+| App Icon | ⚠️ Partial | File exists, not yet placed in Xcode |
+| iPhone Screenshots | ✅ Done | 5 screenshots at 1320×2868 in `app-store-screenshots/` |
+| iPad Screenshots | 🔲 Remaining | 5 screenshots needed at 2064×2752 |
 | Landing Page | 🔲 Remaining | dhakira.app — domain purchased, page not built |
 | Google OAuth Verification | 🔲 Remaining | Needs live dhakira.app with privacy policy |
 | App Store Submission | 🔲 Remaining | Description, keywords, archive, submit |
@@ -43,9 +44,31 @@
 
 ## Priority 1 — Branding & Logo
 
-- [ ] App icon — 1024×1024 PNG, no alpha, no rounded corners (Apple applies mask)
-- [ ] App Store screenshots — 5 per device
-- [ ] Devices: iPhone 6.9", iPad Pro 13"
+### App Icon
+| Slot | Status | Location |
+|------|--------|----------|
+| Icon file exists (1024×1024) | ✅ | `.playwright-mcp/dakira-icon-1024x1024.png` |
+| Icon file exists (1024×1024) variant | ✅ | `.playwright-mcp/dakira-icon-4-D-spark-1024x1024.png` |
+| Icon set in Xcode (`AppIcon.appiconset`) | ❌ **Not done** | Slot exists but no image assigned |
+
+**Action needed:** Drag your chosen 1024×1024 PNG into Xcode → `Assets.xcassets → AppIcon`. No alpha channel, no rounded corners (Apple applies the mask automatically).
+
+---
+
+### App Store Screenshots
+| Device | Required size | Status | Location |
+|--------|--------------|--------|----------|
+| iPhone 6.9" (Pro Max) | 1320×2868 | ✅ **5 screenshots ready** | `app-store-screenshots/` |
+| iPad Pro 13" | 2064×2752 | ❌ **Missing** | Not found anywhere |
+
+**iPhone screenshots found (1320×2868):**
+1. `MAIN-01-task-list.png`
+2. `MAIN-02-rich-editor.png`
+3. `MAIN-03-home-folders.png`
+4. `MAIN-04-calendar-month.png`
+5. `MAIN-05-calendar-day.png`
+
+**Action needed:** Create 5 iPad Pro 13" screenshots (2064×2752). You can run the app on iPad simulator and capture them.
 
 ---
 
