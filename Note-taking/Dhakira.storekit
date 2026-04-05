@@ -2,7 +2,7 @@
   "identifier" : "Dhakira",
   "nonConsumableProducts" : [
     {
-      "displayPrice" : "1.99",
+      "displayPrice" : "2.99",
       "familySharable" : true,
       "internalID" : "com.prodnote.theme.mango",
       "localizations" : [
@@ -17,7 +17,7 @@
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "1.99",
+      "displayPrice" : "2.99",
       "familySharable" : true,
       "internalID" : "com.prodnote.theme.nebula",
       "localizations" : [
@@ -32,7 +32,7 @@
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "1.99",
+      "displayPrice" : "2.99",
       "familySharable" : true,
       "internalID" : "com.prodnote.theme.neon",
       "localizations" : [
@@ -47,7 +47,7 @@
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "1.99",
+      "displayPrice" : "2.99",
       "familySharable" : true,
       "internalID" : "com.prodnote.theme.galaxy",
       "localizations" : [
@@ -62,7 +62,7 @@
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "1.99",
+      "displayPrice" : "2.99",
       "familySharable" : true,
       "internalID" : "com.prodnote.theme.cosmos",
       "localizations" : [
@@ -77,7 +77,7 @@
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "1.99",
+      "displayPrice" : "2.99",
       "familySharable" : true,
       "internalID" : "com.prodnote.theme.twilight",
       "localizations" : [
@@ -92,7 +92,7 @@
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "1.99",
+      "displayPrice" : "2.99",
       "familySharable" : true,
       "internalID" : "com.prodnote.theme.ember",
       "localizations" : [
@@ -107,7 +107,7 @@
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "1.99",
+      "displayPrice" : "2.99",
       "familySharable" : true,
       "internalID" : "com.prodnote.theme.crystal",
       "localizations" : [
@@ -122,7 +122,7 @@
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "9.99",
+      "displayPrice" : "14.99",
       "familySharable" : true,
       "internalID" : "com.prodnote.theme.pro",
       "localizations" : [

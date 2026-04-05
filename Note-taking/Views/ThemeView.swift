@@ -148,7 +148,7 @@ struct ThemeView: View {
                 Text("Trending Bundle")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.primaryText)
-                Text("All 8 themes · $9.99 lifetime")
+                Text("All 8 themes · $14.99 lifetime")
                     .font(.system(size: 13))
                     .foregroundStyle(Color.secondaryText)
             }

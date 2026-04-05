@@ -78,7 +78,7 @@ struct ThemeDetailView: View {
                             }
                             .modifier(GlassButtonStyle(prominent: true))
                         } else {
-                            Button("Unlock – $1.99") {
+                            Button("Unlock – $2.99") {
                                 showPaywall = true
                             }
                             .modifier(GlassButtonStyle(prominent: true))
