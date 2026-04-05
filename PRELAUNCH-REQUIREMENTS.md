@@ -61,14 +61,16 @@
 | iPhone 6.9" (Pro Max) | 1320×2868 | ✅ **5 screenshots ready** | `app-store-screenshots/` |
 | iPad Pro 13" | 2064×2752 | ❌ **Missing** | Not found anywhere |
 
-**iPhone screenshots found (1320×2868):**
+**iPhone screenshots found (1320×2868) — `app-store-screenshots/`:**
 1. `MAIN-01-task-list.png`
 2. `MAIN-02-rich-editor.png`
 3. `MAIN-03-home-folders.png`
 4. `MAIN-04-calendar-month.png`
 5. `MAIN-05-calendar-day.png`
 
-**Action needed:** Create 5 iPad Pro 13" screenshots (2064×2752). You can run the app on iPad simulator and capture them.
+**iPad screenshots:** ❌ None found anywhere on disk. No resized versions exist.
+
+**Action needed:** Run the app on iPad Pro 13" simulator in Xcode → take 5 screenshots → they must be 2064×2752. Apple requires these if your app supports iPad.
 
 ---
 
