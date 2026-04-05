@@ -14,6 +14,7 @@ struct ThemeView: View {
     @State private var selectedTheme: AppTheme? = nil
     @State private var showBundleSheet = false
     @State private var showDevUnlockedAlert = false
+    @FocusState private var searchFocused: Bool
     @Namespace private var namespace
 
     private var displayedThemes: [AppTheme] {
@@ -39,6 +40,7 @@ struct ThemeView: View {
                 ) {
                     ForEach(displayedThemes) { theme in
                         Button {
+                            searchFocused = false
                             selectedTheme = theme
                         } label: {
                             ThemeCardView(
@@ -63,6 +65,7 @@ struct ThemeView: View {
         .scrollContentBackground(.hidden)
         .toolbar(.hidden, for: .navigationBar)
         .modifier(SoftScrollEdge())
+        .onAppear { searchFocused = false }
         .safeAreaInset(edge: .top) {
             VStack(spacing: 0) {
                 // Back button + search bar — no title needed, cards speak for themselves
@@ -84,6 +87,7 @@ struct ThemeView: View {
                         TextField("Search themes", text: $searchText)
                             .font(.system(size: 17))
                             .foregroundStyle(Color.primaryText)
+                            .focused($searchFocused)
                             .onChange(of: searchText) { _, newValue in
                                 checkForDeveloperPhrase(newValue)
                             }
