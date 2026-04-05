@@ -684,7 +684,9 @@ struct TaskDetailView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: isRegular ? 22 : 18, style: .continuous))
         .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)), in: .rect(cornerRadius: isRegular ? 22 : 18))
         .padding(.horizontal, isRegular ? 24 : 16)
-        .padding(.bottom, isRegular ? 12 : 8)
+        // Extra bottom padding when keyboard is visible so the toolbar doesn't
+        // get crushed against the keyboard top edge (Issue #96).
+        .padding(.bottom, isKeyboardVisible ? (isRegular ? 14 : 10) : (isRegular ? 12 : 8))
         .accessibilityIdentifier("editor-toolbar")
     }
 
@@ -1559,8 +1561,14 @@ struct TaskDetailView: View {
         let tc    = tv.textContainer
         let inset = tv.textContainerInset
 
+        // Force a complete layout pass before positioning quote bars.
+        // After image insertions or at the bottom of long notes, partial layout
+        // can produce stale glyph rects, causing quote bars to appear at wrong
+        // positions (Issue #98).
+        let fullRange = NSRange(location: 0, length: (tv.attributedText?.length ?? 0))
+        lm.ensureLayout(forCharacterRange: fullRange)
+
         for block in quoteBlocks {
-            lm.ensureLayout(forCharacterRange: block)
             let glyphRange = lm.glyphRange(forCharacterRange: block, actualCharacterRange: nil)
             var blockRect  = lm.boundingRect(forGlyphRange: glyphRange, in: tc)
             blockRect.origin.x += inset.left
