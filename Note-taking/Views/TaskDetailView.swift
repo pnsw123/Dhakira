@@ -517,7 +517,13 @@ struct TaskDetailView: View {
                 DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
             }
             .onChange(of: richTextContext.selectedRange) { _, range in
-                onSelectionChanged(range)
+                // Defer to the next run loop iteration (Issue #89).
+                // RichTextKit publishes selectedRange DURING UITextView's layout pass
+                // (TextKit 1 compatibility mode switch). Accessing tv.attributedText
+                // synchronously inside that layout pass crashes because TextKit is
+                // still mutating internal state. DispatchQueue.main.async pushes our
+                // handler to AFTER the layout cycle completes.
+                DispatchQueue.main.async { onSelectionChanged(range) }
             }
 
             DrawingCanvasView(
@@ -1736,7 +1742,11 @@ struct TaskDetailView: View {
         // If so: hide palette + dismiss keyboard — no text formatting applies to attachments.
         var selectionIsAttachment = false
         if hasSelection, let tv = richTextView {
-            let nsText = tv.attributedText ?? NSAttributedString()
+            // Use tv.textStorage instead of tv.attributedText (Issue #89).
+            // tv.attributedText creates a full COPY of the text — if called during
+            // a TextKit layout pass or mode switch, it crashes with EXC_BAD_ACCESS.
+            // textStorage is the live backing store, always safe to read.
+            let nsText: NSTextStorage = tv.textStorage
             let safeLen = min(range.location + range.length, nsText.length) - range.location
             let safeRange = NSRange(location: min(range.location, nsText.length), length: max(0, safeLen))
             if safeRange.length > 0 {
