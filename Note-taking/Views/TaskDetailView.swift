@@ -824,6 +824,12 @@ struct TaskDetailView: View {
             tv.selectedRange = savedRange
             attributedText = updated
         }
+        // Scroll the selection into view AFTER the toolbar action so the user stays
+        // at the same position — prevents aggressive jumping at the bottom of long
+        // notes when applying formatting (Issue #94).
+        DispatchQueue.main.async {
+            tv.scrollRangeToVisible(tv.selectedRange)
+        }
     }
 
     /// Apply or remove a colour attribute directly on the UITextView, then sync the binding.

@@ -132,14 +132,40 @@ final class NativeExportService {
 
     /// Replaces dynamic (theme-aware) colors with static print-safe equivalents.
     /// Prevents dark-theme white text from becoming invisible on a white PDF page.
+    /// Also replaces CheckboxAttachment SF Symbols with .alwaysOriginal images
+    /// to prevent them rendering as solid black boxes (Issue #106).
     private static func normalizeForPDF(_ source: NSAttributedString) -> NSAttributedString {
         let mutable = NSMutableAttributedString(attributedString: source)
         let fullRange = NSRange(location: 0, length: mutable.length)
-        // Collect changes first — mutating an NSMutableAttributedString DURING
-        // enumerateAttributes is undefined behavior and can crash on iOS.
+
+        // Pass 1: Replace CheckboxAttachment template images with print-safe originals.
+        // SF Symbol .alwaysTemplate images fill with the foreground color in print
+        // contexts, producing solid black boxes. Re-render with .alwaysOriginal.
+        var checkboxUpdates: [(NSRange, NSTextAttachment)] = []
+        mutable.enumerateAttribute(.attachment, in: fullRange, options: []) { value, range, _ in
+            guard let cb = value as? CheckboxAttachment else { return }
+            let symbolName = cb.isChecked ? "checkmark.square.fill" : "square"
+            let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+                .applying(UIImage.SymbolConfiguration(paletteColors: [.black]))
+            if let img = UIImage(systemName: symbolName, withConfiguration: config)?
+                .withRenderingMode(.alwaysOriginal) {
+                let printAttachment = NSTextAttachment()
+                printAttachment.image = img
+                printAttachment.bounds = CGRect(x: 0, y: -3, width: 16, height: 16)
+                checkboxUpdates.append((range, printAttachment))
+            }
+        }
+        for (range, attachment) in checkboxUpdates.reversed() {
+            mutable.removeAttribute(.attachment, range: range)
+            mutable.addAttribute(.attachment, value: attachment, range: range)
+        }
+
+        // Pass 2: Force all text to black and remove dark backgrounds.
+        // Collect changes first — mutating during enumerateAttributes is undefined behavior.
+        let updatedRange = NSRange(location: 0, length: mutable.length)
         var colorUpdates: [NSRange] = []
         var bgRemoves: [NSRange] = []
-        mutable.enumerateAttributes(in: fullRange, options: []) { attrs, range, _ in
+        mutable.enumerateAttributes(in: updatedRange, options: []) { attrs, range, _ in
             colorUpdates.append(range)
             if let bg = attrs[.backgroundColor] as? UIColor {
                 var white: CGFloat = 0
@@ -153,6 +179,32 @@ final class NativeExportService {
         for range in bgRemoves {
             mutable.removeAttribute(.backgroundColor, range: range)
         }
+
+        // Pass 3: Make quote bar characters visible for PDF (AFTER color normalization).
+        // In the editor, "│" is drawn with .clear foreground (a UIView overlay
+        // provides the visible bar). PDFs don't have overlays, so we make the
+        // actual character blue and ensure proper indentation (Issue #105).
+        let str = mutable.string as NSString
+        var loc = 0
+        while loc < mutable.length {
+            let parRange = str.paragraphRange(for: NSRange(location: loc, length: 0))
+            let parText = str.substring(with: parRange)
+            if parText.hasPrefix("│ ") || parText == "│" || parText == "│\n" {
+                // Make the bar character blue and visible (overrides the black from pass 2)
+                let barRange = NSRange(location: parRange.location, length: 1)
+                mutable.addAttribute(.foregroundColor, value: UIColor.systemBlue, range: barRange)
+                // Ensure quote text has proper indentation in PDF
+                let style = NSMutableParagraphStyle()
+                style.headIndent = 28
+                style.firstLineHeadIndent = 28
+                style.tailIndent = -16
+                mutable.addAttribute(.paragraphStyle, value: style, range: parRange)
+            }
+            let next = parRange.location + parRange.length
+            if next <= loc { break }
+            loc = next
+        }
+
         return mutable
     }
 
