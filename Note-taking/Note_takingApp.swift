@@ -24,6 +24,10 @@ struct Note_takingApp: App {
 
     @Environment(\.scenePhase) private var scenePhase
 
+    /// Debounce token for EKEventStoreChanged — Apple fires this 3-5× per event change.
+    /// Cancelling + restarting ensures only ONE reconciliation runs after the burst settles.
+    @State private var calendarChangeBounce: Task<Void, Never>? = nil
+
 
     init() {
         log.info("App init — building ModelContainer via AppSchemaBuilder")
@@ -44,10 +48,17 @@ struct Note_takingApp: App {
                 .environment(storeKitManager)
                 .preferredColorScheme(themeManager.current.preferredScheme)
                 .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
-                    // Issue #86: when Apple Calendar events change, reconcile body events.
-                    log.info("EKEventStoreChanged: reconciling body events")
-                    BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
-                    CalendarSyncService.shared.reconcileAllParentEvents(context: container.mainContext)
+                    // Apple fires EKEventStoreChanged 3-5× per event change.
+                    // Debounce: cancel any pending run and wait 600 ms for the burst to settle,
+                    // then run exactly once. Prevents concurrent context.save() crashes.
+                    calendarChangeBounce?.cancel()
+                    calendarChangeBounce = Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(600))
+                        guard !Task.isCancelled else { return }
+                        log.info("EKEventStoreChanged: reconciling (debounced)")
+                        BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
+                        CalendarSyncService.shared.reconcileAllParentEvents(context: container.mainContext)
+                    }
                 }
                 .task {
                     // Issue #88: configure notification delegate for foreground display.

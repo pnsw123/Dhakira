@@ -31,6 +31,10 @@ final class BodyEventSyncService {
     /// Key = task UUID string, value = true while sync is running.
     private var activeSyncs: Set<UUID> = []
 
+    /// Global guard — EKEventStoreChanged can fire 3-5× per change.
+    /// Prevents concurrent reconcileAllAppleEvents runs from racing on the same context.
+    private var isReconcilingApple = false
+
     // MARK: - Public API
 
     /// Scans ALL body lines, diffs against stored BodyCalendarEvent records,
@@ -321,6 +325,13 @@ final class BodyEventSyncService {
     /// Called on app launch and EKEventStoreChangedNotification.
     @MainActor
     func reconcileAllAppleEvents(context: ModelContext) {
+        guard !isReconcilingApple else {
+            log.debug("reconcileAllAppleEvents: already running — skipping duplicate call")
+            return
+        }
+        isReconcilingApple = true
+        defer { isReconcilingApple = false }
+
         let descriptor = FetchDescriptor<BodyCalendarEvent>(
             predicate: #Predicate<BodyCalendarEvent> { $0.isStruck == false && $0.calendarEventId != nil }
         )

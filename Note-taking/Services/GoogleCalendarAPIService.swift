@@ -72,7 +72,8 @@ final class GoogleCalendarAPIService {
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if status == 204 || status == 404 {
+            if status == 204 || status == 404 || status == 410 {
+                // 204 = deleted, 404 = not found, 410 = permanently gone — all mean success.
                 log.info("deleteEvent: '\(id)' removed (status \(status)) ✓")
             } else if status == 401 && !isRetry {
                 // Token expired — clear stale token and retry once with a fresh one.

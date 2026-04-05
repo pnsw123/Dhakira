@@ -576,10 +576,19 @@ final class CalendarSyncService {
         }
     }
 
+    private var isReconcilingParents = false
+
     /// Reconcile ALL tasks' parent calendar events against Apple Calendar.
     /// Called on launch, foreground return, and EKEventStoreChanged.
     @MainActor
     func reconcileAllParentEvents(context: ModelContext) {
+        guard !isReconcilingParents else {
+            log.debug("reconcileAllParentEvents: already running — skipping duplicate call")
+            return
+        }
+        isReconcilingParents = true
+        defer { isReconcilingParents = false }
+
         let descriptor = FetchDescriptor<TaskItem>(
             predicate: #Predicate<TaskItem> { $0.calendarEventId != nil }
         )
