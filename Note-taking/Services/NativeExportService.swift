@@ -18,6 +18,7 @@ final class NativeExportService {
         let pageRect  = CGRect(x: 0, y: 0, width: 595.2, height: 841.8) // A4
         let margin: CGFloat = 40
         let printableRect = pageRect.insetBy(dx: margin, dy: margin + 20)
+        let printableWidth  = printableRect.width
         let printableHeight = printableRect.height
 
         // Prepend title as bold heading
@@ -30,36 +31,56 @@ final class NativeExportService {
         }
         full.append(normalizeForPDF(content))
 
-        // UISimpleTextPrintFormatter uses TextKit — correctly renders NSTextAttachment images.
-        let formatter = UISimpleTextPrintFormatter(attributedText: full)
-        let renderer  = UIPrintPageRenderer()
-        renderer.addPrintFormatter(formatter, startingAtPageAt: 0)
-        renderer.setValue(NSValue(cgRect: pageRect),     forKey: "paperRect")
-        renderer.setValue(NSValue(cgRect: printableRect), forKey: "printableRect")
+        // Use TextKit 1 (NSLayoutManager + NSTextContainer) for manual page breaking
+        // instead of UISimpleTextPrintFormatter which produces inconsistent page breaks
+        // with only 2 lines on some pages (Issue #107).
+        let textStorage = NSTextStorage(attributedString: full)
+        let layoutManager = NSLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+
+        // Create one text container per page — TextKit fills them sequentially.
+        var containers: [NSTextContainer] = []
+        func addContainer() -> NSTextContainer {
+            let tc = NSTextContainer(size: CGSize(width: printableWidth, height: printableHeight))
+            tc.lineFragmentPadding = 0
+            layoutManager.addTextContainer(tc)
+            containers.append(tc)
+            return tc
+        }
+        _ = addContainer()
+
+        // Force layout so we know exactly how many containers are needed.
+        layoutManager.ensureLayout(for: containers[0])
+        // Keep adding containers until all glyphs are laid out.
+        while layoutManager.glyphRange(for: containers.last!).upperBound < layoutManager.numberOfGlyphs {
+            let tc = addContainer()
+            layoutManager.ensureLayout(for: tc)
+        }
 
         let pdfData = NSMutableData()
         UIGraphicsBeginPDFContextToData(pdfData, pageRect, nil)
-        renderer.prepare(forDrawingPages: NSRange(location: 0, length: renderer.numberOfPages))
-        for i in 0..<renderer.numberOfPages {
-            UIGraphicsBeginPDFPage()
-            renderer.drawPage(at: i, in: pageRect)
 
-            // Overlay PKDrawing — position it on the correct page at the correct offset.
-            // drawing.bounds gives us the position in the UITextView's coordinate space.
-            // We map that to the paginated PDF: which page and at what Y offset on that page.
+        for (i, tc) in containers.enumerated() {
+            UIGraphicsBeginPDFPage()
+            let ctx = UIGraphicsGetCurrentContext()!
+            ctx.saveGState()
+            ctx.translateBy(x: printableRect.origin.x, y: printableRect.origin.y)
+
+            let glyphRange = layoutManager.glyphRange(for: tc)
+            layoutManager.drawBackground(forGlyphRange: glyphRange, at: .zero)
+            layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: .zero)
+
+            ctx.restoreGState()
+
+            // Overlay PKDrawing if present
             if let drawing, !drawing.strokes.isEmpty {
                 let bounds = drawing.bounds
-                // Scale factor: screen points to PDF points (A4 width / screen width)
-                let screenWidth = printableRect.width
-                let drawingScale = min(screenWidth / max(bounds.width, 1), 1.0)
-
-                // Which page does the drawing start on?
+                let drawingScale = min(printableWidth / max(bounds.width, 1), 1.0)
                 let drawingTopInDoc = bounds.origin.y * drawingScale
                 let drawingPage = Int(drawingTopInDoc / printableHeight)
 
                 if i == drawingPage {
                     let drawingImage = drawing.image(from: bounds, scale: 2.0)
-                    // Y position on this page = drawing's Y minus page offset
                     let yOnPage = drawingTopInDoc - (CGFloat(drawingPage) * printableHeight)
                     let drawSize = CGSize(
                         width: bounds.width * drawingScale,

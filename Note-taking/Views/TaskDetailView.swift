@@ -415,6 +415,15 @@ struct TaskDetailView: View {
                     ) { _ in
                         let sel = tv.selectedRange
                         guard sel.length == 0, sel.location > 0 else { return }
+
+                        // Safety net: if typing foreground is .clear (from quote bar
+                        // character inheritance), force it back to .label so newly
+                        // typed text isn't invisible (Issue #95).
+                        if let fg = tv.typingAttributes[.foregroundColor] as? UIColor,
+                           fg == .clear {
+                            tv.typingAttributes[.foregroundColor] = UIColor.label
+                        }
+
                         let nsStr = tv.text as NSString
                         let prevChar = nsStr.substring(with: NSRange(location: sel.location - 1, length: 1))
                         if prevChar == "\n" {
@@ -1260,8 +1269,9 @@ struct TaskDetailView: View {
             tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
         case "quote":
             let quoteStyle = NSMutableParagraphStyle()
-            quoteStyle.headIndent  = 16
-            quoteStyle.tailIndent  = -16
+            quoteStyle.headIndent          = 28
+            quoteStyle.firstLineHeadIndent = 28
+            quoteStyle.tailIndent          = -16
             tv.typingAttributes[.paragraphStyle]  = quoteStyle
             tv.typingAttributes[.foregroundColor] = UIColor.label
         default:
@@ -1570,38 +1580,42 @@ struct TaskDetailView: View {
     }
 
     /// Continue a quote line: insert "│  " at the start of the new paragraph.
+    /// Uses textStorage mutations (not tv.attributedText replacement) so the
+    /// undo manager records incremental changes instead of a full-document
+    /// replacement — prevents undo from wiping the entire quote block (Issue #97).
     private func continueQuoteLine(tv: UITextView, cursorLoc: Int) {
-        guard let tvText = tv.attributedText else { return }
-        let mutable    = NSMutableAttributedString(attributedString: tvText)
-        let safeInsert = max(0, min(cursorLoc, mutable.length))
+        let ts = tv.textStorage
+        let safeInsert = max(0, min(cursorLoc, ts.length))
 
         let bar = NSAttributedString(string: "│ ", attributes: [
             .font:            UIFont.preferredFont(forTextStyle: .body),
             .foregroundColor: UIColor.clear,
         ])
-        mutable.insert(bar, at: safeInsert)
+        ts.beginEditing()
+        ts.insert(bar, at: safeInsert)
 
         // Hang-indent so wrapped lines align under the quoted text.
-        let newParRange = (mutable.string as NSString).paragraphRange(
+        let newParRange = (ts.string as NSString).paragraphRange(
             for: NSRange(location: safeInsert, length: 0))
-        if newParRange.length > 0, newParRange.location < mutable.length {
-            let safeLen = min(newParRange.length, mutable.length - newParRange.location)
+        if newParRange.length > 0, newParRange.location < ts.length {
+            let safeLen = min(newParRange.length, ts.length - newParRange.location)
             if safeLen > 0 {
                 let quoteStyle = NSMutableParagraphStyle()
-                quoteStyle.headIndent = 16
-                quoteStyle.tailIndent = -16
-                mutable.addAttribute(.paragraphStyle, value: quoteStyle,
-                                     range: NSRange(location: newParRange.location, length: safeLen))
+                quoteStyle.headIndent      = 28
+                quoteStyle.firstLineHeadIndent = 28
+                quoteStyle.tailIndent      = -16
+                ts.addAttribute(.paragraphStyle, value: quoteStyle,
+                                range: NSRange(location: newParRange.location, length: safeLen))
             }
         }
+        ts.endEditing()
 
-        let newCursor = min(safeInsert + 2, mutable.length)
-        tv.attributedText = mutable
+        let newCursor = min(safeInsert + 2, ts.length)
         tv.selectedRange  = NSRange(location: newCursor, length: 0)
         tv.typingAttributes[.foregroundColor] = UIColor.label
         tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
-        prevTextLength = mutable.length
-        attributedText = mutable
+        prevTextLength = ts.length
+        attributedText = tv.attributedText ?? NSAttributedString()
         log.debug("handleReturnKey: continued quote, cursor=\(newCursor)")
         DispatchQueue.main.async { self.refreshQuoteBorderViews(in: tv) }
     }
