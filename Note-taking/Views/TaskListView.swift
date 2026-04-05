@@ -384,6 +384,22 @@ struct TaskListView: View {
         } catch {
             log.error("commitNewTask: modelContext.save() failed — \(error.localizedDescription)")
         }
+
+        // Register undo — deletes the task if the user immediately undoes creation
+        let ctx = modelContext
+        undoManager?.registerUndo(withTarget: newTask) { t in
+            if let eventId = t.calendarEventId {
+                Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
+            }
+            if let googleId = t.googleCalendarEventId {
+                Task { await CalendarSyncService.shared.deleteGoogleEvent(googleId) }
+            }
+            ctx.delete(t)
+            try? ctx.save()
+        }
+        undoManager?.setActionName("Create Task")
+        undoVersion += 1
+
         // Detect any date/time in the title and create a calendar event immediately.
         // Fire-and-forget — never blocks the UI.
         let created = newTask
@@ -687,5 +703,5 @@ private func previewTaskList(theme: AppTheme? = nil) -> some View {
 }
 
 #Preview("Task List — Default") { previewTaskList() }
-#Preview("Task List — Coral") { previewTaskList(theme: .coral) }
-#Preview("Task List — Forest") { previewTaskList(theme: .forest) }
+#Preview("Task List — Nebula") { previewTaskList(theme: .nebula) }
+#Preview("Task List — Galaxy") { previewTaskList(theme: .galaxy) }
