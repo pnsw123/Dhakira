@@ -1716,28 +1716,60 @@ struct TaskDetailView: View {
     private func applyStruckThroughStyling() {
         let struckRecords = (task.bodyCalendarEvents ?? []).filter { $0.isStruck }
         guard !struckRecords.isEmpty else { return }
+        log.debug("applyStruckThroughStyling: \(struckRecords.count) struck record(s) to check")
 
         let mutable = NSMutableAttributedString(attributedString: attributedText)
-        let fullText = mutable.string
-        let lines = fullText.components(separatedBy: .newlines)
-        var charIndex = 0
+        let nsText = mutable.string as NSString
+        var location = 0
+        var applied = 0
 
-        for line in lines {
-            let lineLength = (line as NSString).length
-            let lineRange = NSRange(location: charIndex, length: lineLength)
-            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
-            // Strip U+FFFC (object replacement chars from attachments) before matching,
-            // since lineText stored in BodyCalendarEvent was recorded without them.
-            let cleanedLine = trimmedLine
-                .replacingOccurrences(of: "\u{FFFC}", with: "")
-                .trimmingCharacters(in: .whitespaces)
+        // Use paragraphRange (NSString API) instead of manual +1 charIndex so that
+        // CRLF, CR, Unicode line-separator, and other multi-char newlines are handled
+        // correctly. Manual +1 would drift and produce out-of-bounds ranges.
+        while location < nsText.length {
+            let paraRange = nsText.paragraphRange(for: NSRange(location: location, length: 0))
+            guard paraRange.length > 0 else { break }
 
-            if struckRecords.contains(where: { BodyEventSyncService.fuzzyMatch($0.lineText, cleanedLine) >= 0.80 }) {
-                mutable.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: lineRange)
-                mutable.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: lineRange)
+            // Content range = paragraph excluding its trailing newline/separator.
+            var contentEnd = paraRange.location + paraRange.length
+            if contentEnd > paraRange.location {
+                let last = nsText.character(at: contentEnd - 1)
+                if last == 0x000A || last == 0x000D || last == 0x2028 || last == 0x2029 {
+                    contentEnd -= 1
+                    // Collapse \r\n into a single separator
+                    if last == 0x000A && contentEnd > paraRange.location,
+                       nsText.character(at: contentEnd - 1) == 0x000D {
+                        contentEnd -= 1
+                    }
+                }
             }
-            charIndex += lineLength + 1  // +1 for newline
+            let contentRange = NSRange(location: paraRange.location,
+                                       length: max(0, contentEnd - paraRange.location))
+
+            if contentRange.length > 0 {
+                let line = nsText.substring(with: contentRange)
+                let cleaned = line
+                    .replacingOccurrences(of: "\u{FFFC}", with: "")
+                    .trimmingCharacters(in: .whitespaces)
+
+                if !cleaned.isEmpty,
+                   struckRecords.contains(where: { BodyEventSyncService.fuzzyMatch($0.lineText, cleaned) >= 0.80 }) {
+                    // Defensive bounds check before mutating attributed string.
+                    guard contentRange.location + contentRange.length <= mutable.length else {
+                        log.warning("applyStruckThroughStyling: range \(contentRange.location)+\(contentRange.length) out of bounds (\(mutable.length)) — skipping")
+                        break
+                    }
+                    mutable.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: contentRange)
+                    mutable.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: contentRange)
+                    applied += 1
+                    log.debug("applyStruckThroughStyling: struck '\(cleaned)'")
+                }
+            }
+
+            location = paraRange.location + paraRange.length
         }
+
+        log.debug("applyStruckThroughStyling: applied \(applied) strike(s)")
         attributedText = mutable
     }
 

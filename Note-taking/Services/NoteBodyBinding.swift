@@ -80,17 +80,22 @@ private extension NSAttributedString {
     func removingRTFDefaultBlack() -> NSAttributedString {
         let mutable = NSMutableAttributedString(attributedString: self)
         let fullRange = NSRange(location: 0, length: mutable.length)
+        // Collect ranges first — modifying an NSMutableAttributedString DURING
+        // enumerateAttribute is undefined behavior and can crash on iOS.
+        var blackRanges: [NSRange] = []
         mutable.enumerateAttribute(.foregroundColor, in: fullRange, options: []) { value, range, _ in
             guard let color = value as? UIColor else { return }
             var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
             color.getRed(&r, green: &g, blue: &b, alpha: &a)
             if r < 0.15 && g < 0.15 && b < 0.15 && a > 0.9 {
-                // Replace RTF-hardcoded black with the adaptive .label color so text
-                // is visible on both light and dark/themed backgrounds.
-                // Removing the attribute entirely causes UIKit to reset textColor to
-                // black when attributedText is set, making text invisible in dark mode.
-                mutable.addAttribute(.foregroundColor, value: UIColor.label, range: range)
+                blackRanges.append(range)
             }
+        }
+        // Apply all replacements after enumeration completes — safe to mutate now.
+        for range in blackRanges {
+            // Replace RTF-hardcoded black with adaptive .label so text is visible
+            // on both light and dark/themed backgrounds.
+            mutable.addAttribute(.foregroundColor, value: UIColor.label, range: range)
         }
         return mutable
     }

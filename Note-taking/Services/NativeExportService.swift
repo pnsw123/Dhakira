@@ -135,15 +135,23 @@ final class NativeExportService {
     private static func normalizeForPDF(_ source: NSAttributedString) -> NSAttributedString {
         let mutable = NSMutableAttributedString(attributedString: source)
         let fullRange = NSRange(location: 0, length: mutable.length)
+        // Collect changes first — mutating an NSMutableAttributedString DURING
+        // enumerateAttributes is undefined behavior and can crash on iOS.
+        var colorUpdates: [NSRange] = []
+        var bgRemoves: [NSRange] = []
         mutable.enumerateAttributes(in: fullRange, options: []) { attrs, range, _ in
-            // Force all text to black so it's visible on a white page
-            mutable.addAttribute(.foregroundColor, value: UIColor.black, range: range)
-            // Remove dark background highlights — they'd appear as black blocks on white
+            colorUpdates.append(range)
             if let bg = attrs[.backgroundColor] as? UIColor {
                 var white: CGFloat = 0
                 bg.getWhite(&white, alpha: nil)
-                if white < 0.5 { mutable.removeAttribute(.backgroundColor, range: range) }
+                if white < 0.5 { bgRemoves.append(range) }
             }
+        }
+        for range in colorUpdates {
+            mutable.addAttribute(.foregroundColor, value: UIColor.black, range: range)
+        }
+        for range in bgRemoves {
+            mutable.removeAttribute(.backgroundColor, range: range)
         }
         return mutable
     }

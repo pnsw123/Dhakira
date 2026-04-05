@@ -145,11 +145,15 @@ final class RichEditorCommands {
         let range = selectedRange
         guard range.length > 0, range.location + range.length <= mutable.length else { return }
 
+        // Collect (range, newFont) pairs first — mutating during enumerateAttribute is undefined behavior.
+        var fontUpdates: [(NSRange, UIFont)] = []
         mutable.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
             let font = (value as? UIFont) ?? UIFont.preferredFont(forTextStyle: .body)
             let currentSize = font.pointSize
             let newSize = increase ? currentSize + step : max(minSize, currentSize - step)
-            let newFont = UIFont(descriptor: font.fontDescriptor, size: newSize)
+            fontUpdates.append((subRange, UIFont(descriptor: font.fontDescriptor, size: newSize)))
+        }
+        for (subRange, newFont) in fontUpdates {
             mutable.addAttribute(.font, value: newFont, range: subRange)
         }
         attributedText = mutable
