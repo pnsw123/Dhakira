@@ -1737,6 +1737,7 @@ struct TaskDetailView: View {
                 if last == 0x000A || last == 0x000D || last == 0x2028 || last == 0x2029 {
                     contentEnd -= 1
                     // Collapse \r\n into a single separator
+         
                     if last == 0x000A && contentEnd > paraRange.location,
                        nsText.character(at: contentEnd - 1) == 0x000D {
                         contentEnd -= 1
@@ -1761,8 +1762,21 @@ struct TaskDetailView: View {
                     }
                     mutable.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: contentRange)
                     mutable.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: contentRange)
+                    // Auto-check any □ checkbox on this line so the visual matches ☑-checked lines.
+                    // Collect checkbox ranges first — safe mutation pattern (no mutation during enumeration).
+                    var uncheckedRanges: [(CheckboxAttachment, NSRange)] = []
+                    mutable.enumerateAttribute(.attachment, in: contentRange, options: []) { value, cbRange, _ in
+                        if let cb = value as? CheckboxAttachment, !cb.isChecked {
+                            uncheckedRanges.append((cb, cbRange))
+                        }
+                    }
+                    for (cb, cbRange) in uncheckedRanges {
+                        cb.toggle()
+                        mutable.removeAttribute(.attachment, range: cbRange)
+                        mutable.addAttribute(.attachment, value: cb, range: cbRange)
+                    }
                     applied += 1
-                    log.debug("applyStruckThroughStyling: struck '\(cleaned)'")
+                    log.debug("applyStruckThroughStyling: struck '\(cleaned)' (auto-checked \(uncheckedRanges.count) checkbox(es))")
                 }
             }
 

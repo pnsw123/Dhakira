@@ -310,6 +310,11 @@ final class BodyEventSyncService {
             if eventStore.event(withIdentifier: eventId) == nil {
                 record.isStruck = true
                 record.calendarEventId = nil
+                // Cross-calendar cleanup: also delete the Google event so both calendars stay in sync.
+                if let googleId = record.googleCalendarEventId {
+                    Task { await self.calendarSync.deleteGoogleEvent(googleId) }
+                    record.googleCalendarEventId = nil
+                }
                 struckCount += 1
                 log.info("reconcileAppleEvents: event '\(eventId)' deleted externally — struck line '\(record.lineText)'")
             }
@@ -348,6 +353,11 @@ final class BodyEventSyncService {
             if eventStore.event(withIdentifier: eventId) == nil {
                 record.isStruck = true
                 record.calendarEventId = nil
+                // Cross-calendar cleanup: also delete the Google event.
+                if let googleId = record.googleCalendarEventId {
+                    Task { await self.calendarSync.deleteGoogleEvent(googleId) }
+                    record.googleCalendarEventId = nil
+                }
                 struckCount += 1
                 log.info("reconcileAllAppleEvents: struck '\(record.lineText)'")
             }
@@ -401,6 +411,11 @@ final class BodyEventSyncService {
             if !existingIds.contains(gId) {
                 record.isStruck = true
                 record.googleCalendarEventId = nil
+                // Cross-calendar cleanup: also delete the Apple Calendar event so both calendars stay in sync.
+                if let appleId = record.calendarEventId {
+                    await calendarSync.deleteEvent(withId: appleId)
+                    record.calendarEventId = nil
+                }
                 struckCount += 1
                 log.info("reconcileGoogleEvents: struck '\(record.lineText)' (Google event \(gId) deleted)")
             }
