@@ -11,6 +11,7 @@ struct ThemeCardView: View {
     var namespace: Namespace.ID
 
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(StoreKitManager.self) private var store
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -41,6 +42,22 @@ struct ThemeCardView: View {
             if isSelected {
                 RoundedRectangle(cornerRadius: 20)
                     .strokeBorder(theme.accentColor, lineWidth: 2.5)
+            }
+
+            // Layer 6 — lock icon overlay for unowned paid themes
+            if theme.isPaid && !store.isOwned(theme) {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(8)
+                            .background(.black.opacity(0.45), in: Circle())
+                            .padding(10)
+                    }
+                    Spacer()
+                }
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 20))
@@ -205,12 +222,12 @@ private struct CardPennant: Shape {
         columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
         spacing: 16
     ) {
-        ThemeCardView(theme: .coral,   isSelected: false, namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .forest,  isSelected: false, namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .mint,    isSelected: false, namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .crimson, isSelected: true,  namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .sakura,     isSelected: false, namespace: Namespace().wrappedValue)
-        ThemeCardView(theme: .coral,       isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .nebula, isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .cosmos,       isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .nebula,       isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .galaxy,       isSelected: true,  namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .crystal,       isSelected: false, namespace: Namespace().wrappedValue)
+        ThemeCardView(theme: .ember,      isSelected: false, namespace: Namespace().wrappedValue)
     }
     .padding(16)
     .background(Color(red: 0.11, green: 0.11, blue: 0.12))

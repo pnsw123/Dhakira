@@ -18,6 +18,7 @@ struct ThemeDetailView: View {
 
     @State private var selectedScope: ThemeScope = .app
     @State private var mockPage = 0
+    @State private var showPaywall = false
 
     private let pageCount = 3
 
@@ -68,12 +69,17 @@ struct ThemeDetailView: View {
                                 dismiss()
                             }
                             .modifier(GlassButtonStyle(prominent: false))
-                        } else {
+                        } else if store.isOwned(theme) {
                             Button("Apply") {
                                 withAnimation(.easeInOut(duration: 0.35)) {
                                     themeManager.apply(theme)
                                 }
                                 dismiss()
+                            }
+                            .modifier(GlassButtonStyle(prominent: true))
+                        } else {
+                            Button("Unlock – $1.99") {
+                                showPaywall = true
                             }
                             .modifier(GlassButtonStyle(prominent: true))
                         }
@@ -128,6 +134,19 @@ struct ThemeDetailView: View {
             }
         }
         .navigationBarHidden(true)
+        .sheet(isPresented: $showPaywall) {
+            ThemePaywallView(theme: theme)
+                .environment(store)
+                .onDisappear {
+                    // Auto-apply if user just purchased this theme
+                    if store.isOwned(theme) {
+                        withAnimation(.easeInOut(duration: 0.35)) {
+                            themeManager.apply(theme)
+                        }
+                        dismiss()
+                    }
+                }
+        }
     }
 
     @ViewBuilder
@@ -188,7 +207,7 @@ struct ThemeDetailView: View {
 
 #Preview {
     NavigationStack {
-        ThemeDetailView(theme: .sakura, namespace: Namespace().wrappedValue)
+        ThemeDetailView(theme: .nebula, namespace: Namespace().wrappedValue)
     }
     .environment(ThemeManager.shared)
     .environment(StoreKitManager.shared)

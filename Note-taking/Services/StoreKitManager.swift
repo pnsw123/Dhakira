@@ -11,24 +11,33 @@ final class StoreKitManager {
 
     static let shared = StoreKitManager()
 
-    // All known product IDs
+    // All known product IDs — must match App Store Connect exactly
     static let allProductIds: Set<String> = [
-        "com.prodnote.theme.forest",
-        "com.prodnote.theme.void",
-        "com.prodnote.theme.ocean",
-        "com.prodnote.theme.lavender",
-        "com.prodnote.theme.aurora",
-
-        "com.prodnote.theme.terracotta",
-        "com.prodnote.theme.matrix",
-        "com.prodnote.theme.midnightblue",
-        "com.prodnote.theme.pro"
+        "com.prodnote.theme.mango",
+        "com.prodnote.theme.nebula",
+        "com.prodnote.theme.neon",
+        "com.prodnote.theme.galaxy",
+        "com.prodnote.theme.cosmos",
+        "com.prodnote.theme.twilight",
+        "com.prodnote.theme.ember",
+        "com.prodnote.theme.crystal",
+        "com.prodnote.theme.pro",
     ]
+
+    // Secret developer phrase — typed in the theme search bar to unlock all themes
+    static let developerPhrase = "dhakira2026"
+    private let devUnlockKey = "dev.dhakira.unlocked"
 
     var products: [Product] = []
     var purchasedIds: Set<String> = []
     var isPurchasing: Bool = false
     var lastError: String? = nil
+
+    /// True when the developer secret phrase has been entered on this device.
+    var isDeveloperUnlocked: Bool {
+        get { UserDefaults.standard.bool(forKey: devUnlockKey) }
+        set { UserDefaults.standard.set(newValue, forKey: devUnlockKey) }
+    }
 
     @ObservationIgnored
     private var transactionListener: Task<Void, Error>? = nil
@@ -120,8 +129,16 @@ final class StoreKitManager {
     // MARK: — Ownership check
     func isOwned(_ theme: AppTheme) -> Bool {
         !theme.isPaid
+            || isDeveloperUnlocked
             || purchasedIds.contains(theme.productId ?? "")
             || purchasedIds.contains("com.prodnote.theme.pro")
+    }
+
+    // MARK: — Developer unlock (secret phrase)
+    func activateDeveloperUnlock() {
+        isDeveloperUnlocked = true
+        // Also add all IDs to purchasedIds so the Observable state updates immediately
+        purchasedIds.formUnion(Self.allProductIds)
     }
 
     func product(for theme: AppTheme) -> Product? {

@@ -1,4 +1,6 @@
 import SwiftUI
+import StoreKit
+import UIKit
 
 // MARK: - ThemeView
 // 2-column LazyVGrid gallery of all themes.
@@ -10,6 +12,8 @@ struct ThemeView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var selectedTheme: AppTheme? = nil
+    @State private var showBundleSheet = false
+    @State private var showDevUnlockedAlert = false
     @Namespace private var namespace
 
     private var displayedThemes: [AppTheme] {
@@ -19,24 +23,35 @@ struct ThemeView: View {
 
     var body: some View {
         ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
-                spacing: 12
-            ) {
-                ForEach(displayedThemes) { theme in
-                    Button {
-                        selectedTheme = theme
-                    } label: {
-                        ThemeCardView(
-                            theme: theme,
-                            isSelected: themeManager.current.id == theme.id,
-                            namespace: namespace
-                        )
-                    }
-                    .buttonStyle(.plain)
+            VStack(spacing: 12) {
+
+                // Bundle upsell banner — hidden once user has the bundle or dev unlock
+                if !store.purchasedIds.contains("com.prodnote.theme.pro") && !store.isDeveloperUnlocked {
+                    bundleBanner
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
                 }
+
+                // Theme grid
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
+                    spacing: 12
+                ) {
+                    ForEach(displayedThemes) { theme in
+                        Button {
+                            selectedTheme = theme
+                        } label: {
+                            ThemeCardView(
+                                theme: theme,
+                                isSelected: themeManager.current.id == theme.id,
+                                namespace: namespace
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
             }
-            .padding(.horizontal, 16)
             .padding(.top, 8)
         }
         .navigationDestination(item: $selectedTheme) { theme in
@@ -61,7 +76,7 @@ struct ThemeView: View {
                     }
                     .buttonStyle(.plain)
 
-                    // Search field — fills remaining space
+                    // Search field — doubles as secret developer unlock input
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .foregroundStyle(Color.secondaryText)
@@ -69,6 +84,9 @@ struct ThemeView: View {
                         TextField("Search themes", text: $searchText)
                             .font(.system(size: 17))
                             .foregroundStyle(Color.primaryText)
+                            .onChange(of: searchText) { _, newValue in
+                                checkForDeveloperPhrase(newValue)
+                            }
                         if !searchText.isEmpty {
                             Button(action: { searchText = "" }) {
                                 Image(systemName: "xmark.circle.fill")
@@ -87,6 +105,77 @@ struct ThemeView: View {
             }
             .contentShape(Rectangle())
         }
+        // Bundle purchase sheet (StoreKit native UI)
+        .sheet(isPresented: $showBundleSheet) {
+            NavigationStack {
+                VStack(spacing: 24) {
+                    Text("Get every theme, forever.")
+                        .font(.title2.bold())
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 8)
+
+                    Text("All 8 premium themes included, plus any themes added in future updates.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    StoreView(ids: ["com.prodnote.theme.pro"])
+                        .storeButton(.visible, for: .restorePurchases)
+                }
+                .padding()
+                .navigationTitle("Trending Bundle")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { showBundleSheet = false }
+                    }
+                }
+            }
+        }
+        // Developer unlock confirmation
+        .alert("Developer Mode", isPresented: $showDevUnlockedAlert) {
+            Button("Nice", role: .cancel) { }
+        } message: {
+            Text("All themes unlocked on this device.")
+        }
+    }
+
+    // MARK: — Bundle banner
+
+    private var bundleBanner: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Trending Bundle")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.primaryText)
+                Text("All 8 themes · $9.99 lifetime")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.secondaryText)
+            }
+            Spacer()
+            Button("Get All") {
+                showBundleSheet = true
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color.themeAccent, in: Capsule())
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.secondaryText.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    // MARK: — Developer unlock phrase detection
+
+    private func checkForDeveloperPhrase(_ text: String) {
+        guard text == StoreKitManager.developerPhrase else { return }
+        let generator = UIImpactFeedbackGenerator(style: .heavy)
+        generator.impactOccurred()
+        store.activateDeveloperUnlock()
+        searchText = ""
+        showDevUnlockedAlert = true
     }
 }
 
