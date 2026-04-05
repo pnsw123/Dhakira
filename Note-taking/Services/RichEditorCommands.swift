@@ -116,8 +116,17 @@ final class RichEditorCommands {
     // MARK: - Inline Formatting (#39) — via RichTextContext
 
     static func toggleBold(context: RichTextContext) {
-        log.debug("toggleBold: toggling bold")
+        log.debug("toggleBold: toggling bold (size-preserving)")
+        // Use RichTextKit's built-in toggle, then immediately restore the
+        // original font size. RichTextKit's toggleStyle(.bold) can change
+        // the point size as a side effect because UIFontDescriptor.withSymbolicTraits
+        // sometimes returns a different font family whose metrics differ (Issue #102).
+        let sizeBefore = context.fontSize
         context.toggleStyle(.bold)
+        if context.fontSize != sizeBefore {
+            context.fontSize = sizeBefore
+            log.debug("toggleBold: restored fontSize \(context.fontSize)→\(sizeBefore)")
+        }
     }
 
     static func toggleItalic(context: RichTextContext) {
@@ -151,7 +160,15 @@ final class RichEditorCommands {
             let font = (value as? UIFont) ?? UIFont.preferredFont(forTextStyle: .body)
             let currentSize = font.pointSize
             let newSize = increase ? currentSize + step : max(minSize, currentSize - step)
-            fontUpdates.append((subRange, UIFont(descriptor: font.fontDescriptor, size: newSize)))
+            // Preserve bold/italic traits exactly — UIFont(descriptor:size:) can
+            // add or drop .traitBold when the font family changes at certain sizes,
+            // causing bold to appear as a side effect of resizing (Issue #103).
+            let traits = font.fontDescriptor.symbolicTraits
+            var newFont = UIFont(descriptor: font.fontDescriptor, size: newSize)
+            if let corrected = newFont.fontDescriptor.withSymbolicTraits(traits) {
+                newFont = UIFont(descriptor: corrected, size: newSize)
+            }
+            fontUpdates.append((subRange, newFont))
         }
         for (subRange, newFont) in fontUpdates {
             mutable.addAttribute(.font, value: newFont, range: subRange)
@@ -296,10 +313,13 @@ final class RichEditorCommands {
             mutable.insert(bar, at: parRange.location)
 
             // Hang-indent wrapped lines so they start under the quoted text, not under "│".
+            // Use 28pt head indent so quoted text is clearly offset from normal paragraphs
+            // (Issue #104 — 16pt was nearly identical to normal text padding).
             let newLen = min(parRange.length + 2, mutable.length - parRange.location)
             if newLen > 0 {
                 let quoteStyle = NSMutableParagraphStyle()
-                quoteStyle.headIndent  = 16
+                quoteStyle.headIndent      = 28
+                quoteStyle.firstLineHeadIndent = 28
                 quoteStyle.tailIndent  = -16
                 mutable.addAttribute(.paragraphStyle, value: quoteStyle,
                                      range: NSRange(location: parRange.location, length: newLen))

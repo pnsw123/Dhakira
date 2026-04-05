@@ -629,9 +629,12 @@ final class DateDetectionService {
     /// infers the year (current year if the date is still ahead, otherwise next
     /// year), and produces "MM/DD/YYYY".
     private func expandTwoPartDates(in text: String) -> String {
-        // Match M-D, MM-DD, M.D, MM.DD, M/D, MM/DD  — NOT already 3-part (year present)
+        // Match M/D, MM/DD, M.D, MM.DD  — NOT already 3-part (year present)
         // The negative lookahead (?!\d) ensures we don't re-match already-expanded dates.
-        let pattern = #"\b(\d{1,2})([-./])(\d{1,2})\b(?![-./]\d)"#
+        // IMPORTANT: Dashes are excluded because "8-9", "3-5", etc. are extremely common
+        // in natural text (page ranges, item numbers, score notation) and would create
+        // false-positive calendar events (Issue #108).
+        let pattern = #"\b(\d{1,2})([./])(\d{1,2})\b(?![./]\d)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
         var result = text
         let cal = Calendar.current

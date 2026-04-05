@@ -130,19 +130,28 @@ enum NoteBodyCodec {
     // MARK: Image placeholder helpers
 
     /// Strip image attachments and replace with text placeholders.
-    /// Returns a copy with images replaced by [img:UUID] markers.
+    /// Returns a copy with images replaced by [img:UUID] or [img:UUID:WxH] markers.
+    /// The WxH suffix persists the user's chosen display size so it survives
+    /// navigation round-trips (Issue #101).
     private static func stripImages(from source: NSAttributedString) -> NSAttributedString {
         let mutable = NSMutableAttributedString(attributedString: source)
         let fullRange = NSRange(location: 0, length: mutable.length)
-        var ranges: [(NSRange, String)] = []
+        var ranges: [(NSRange, String, CGRect?)] = []
         mutable.enumerateAttribute(.imageAttachmentId, in: fullRange, options: []) { value, range, _ in
             if let uuid = value as? String, UUID(uuidString: uuid) != nil {
-                ranges.append((range, uuid))
+                // Read the attachment bounds to persist user-chosen size
+                let attachment = mutable.attribute(.attachment, at: range.location, effectiveRange: nil) as? NSTextAttachment
+                let bounds = (attachment?.bounds.width ?? 0) > 0 ? attachment?.bounds : nil
+                ranges.append((range, uuid, bounds))
             }
         }
         // Replace in reverse order so indices stay valid
-        for (range, uuid) in ranges.reversed() {
-            mutable.replaceCharacters(in: range, with: "[img:\(uuid)]")
+        for (range, uuid, bounds) in ranges.reversed() {
+            if let b = bounds {
+                mutable.replaceCharacters(in: range, with: "[img:\(uuid):\(Int(b.width))x\(Int(b.height))]")
+            } else {
+                mutable.replaceCharacters(in: range, with: "[img:\(uuid)]")
+            }
         }
         log.debug("stripImages: replaced \(ranges.count) image(s) with placeholders")
         return mutable
@@ -200,17 +209,19 @@ enum NoteBodyCodec {
         return mutable
     }
 
-    /// Restore [img:UUID] placeholders back to real image attachments.
+    /// Restore [img:UUID] and [img:UUID:WxH] placeholders back to real image attachments.
+    /// The optional :WxH suffix restores user-chosen display size (Issue #101).
     private static func restoreImages(in source: NSAttributedString, taskId: UUID) -> NSAttributedString {
         let mutable = NSMutableAttributedString(attributedString: source)
-        let pattern = "\\[img:([A-F0-9-]+)\\]"
+        // Match both [img:UUID] and [img:UUID:123x456]
+        let pattern = "\\[img:([A-F0-9-]+)(?::(\\d+)x(\\d+))?\\]"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return mutable }
         let fullRange = NSRange(location: 0, length: mutable.length)
         let matches = regex.matches(in: mutable.string, options: [], range: fullRange)
 
         // Replace in reverse so indices stay valid
         for match in matches.reversed() {
-            guard match.numberOfRanges == 2,
+            guard match.numberOfRanges >= 2,
                   let uuidRange = Range(match.range(at: 1), in: mutable.string),
                   let attachmentId = UUID(uuidString: String(mutable.string[uuidRange])),
                   let image = AttachmentStore.shared.load(attachmentId: attachmentId, taskId: taskId)
@@ -218,16 +229,30 @@ enum NoteBodyCodec {
 
             let attachment = NSTextAttachment()
             attachment.image = image
-            // Scale to fit editor width (max ~280pt, matching AttachmentService)
-            let maxWidth: CGFloat = 280
-            if image.size.width > maxWidth {
-                let scale = maxWidth / image.size.width
-                attachment.bounds = CGRect(x: 0, y: 0, width: maxWidth, height: image.size.height * scale)
+
+            // Restore persisted display size if present, otherwise use default
+            let wRange = match.range(at: 2)
+            let hRange = match.range(at: 3)
+            if wRange.location != NSNotFound, hRange.location != NSNotFound,
+               let wStr = Range(wRange, in: mutable.string),
+               let hStr = Range(hRange, in: mutable.string),
+               let w = Int(mutable.string[wStr]),
+               let h = Int(mutable.string[hStr]),
+               w > 0, h > 0 {
+                // Use the saved user-chosen size (Issue #101)
+                attachment.bounds = CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h))
+                log.debug("restoreImages: restored image \(attachmentId.uuidString) at saved size \(w)x\(h)")
+            } else {
+                // Fallback: scale to default display width (matching AttachmentService)
+                let maxWidth: CGFloat = 180
+                let displayWidth = min(image.size.width, maxWidth)
+                let scale = displayWidth / max(1, image.size.width)
+                attachment.bounds = CGRect(x: 0, y: 0, width: displayWidth, height: image.size.height * scale)
+                log.debug("restoreImages: restored image \(attachmentId.uuidString) at default \(Int(displayWidth))pt")
             }
             let attachStr = NSMutableAttributedString(attachment: attachment)
             attachStr.addAttribute(.imageAttachmentId, value: attachmentId.uuidString, range: NSRange(location: 0, length: attachStr.length))
             mutable.replaceCharacters(in: match.range, with: attachStr as NSAttributedString)
-            log.debug("restoreImages: restored image \(attachmentId.uuidString)")
         }
         return mutable
     }

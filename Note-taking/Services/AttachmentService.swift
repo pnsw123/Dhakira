@@ -93,12 +93,13 @@ final class AttachmentService: NSObject {
 
         let attachment = NSTextAttachment()
         attachment.image = resized
-        let maxWidth: CGFloat = 280
-        if resized.size.width > maxWidth {
-            let scale = maxWidth / resized.size.width
-            attachment.bounds = CGRect(x: 0, y: 0, width: maxWidth, height: resized.size.height * scale)
-            log.debug("AttachmentService.appendImage: display-scaled \(resized.size.width)pt → \(maxWidth)pt")
-        }
+        // Default display width ~50% of typical editor area so images are not
+        // oversized on insertion. Users can resize via ➖/➕ pill (Issue #99).
+        let maxWidth: CGFloat = 180
+        let displayWidth = min(resized.size.width, maxWidth)
+        let scale = displayWidth / max(1, resized.size.width)
+        attachment.bounds = CGRect(x: 0, y: 0, width: displayWidth, height: resized.size.height * scale)
+        log.debug("AttachmentService.appendImage: display-scaled \(resized.size.width)pt → \(displayWidth)pt")
         // Persist resized image to disk and tag with UUID via custom attribute
         let attachmentId = AttachmentStore.shared.save(imageData: storageData, taskId: taskId)
         let attachStr = NSMutableAttributedString(string: "\n")

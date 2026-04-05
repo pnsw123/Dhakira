@@ -207,6 +207,12 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
         let newH   = newW * aspect
 
         isResizing = true
+        // Save typing attributes BEFORE the edit — textStorage.edited() can
+        // cause UITextView to re-derive typingAttributes from the attachment
+        // character, shrinking the cursor and font size (Issue #100).
+        let savedTypingAttrs = tv.typingAttributes
+        let savedSelection   = tv.selectedRange
+
         attachment.bounds = CGRect(x: 0, y: 0, width: newW, height: newH)
 
         tv.textStorage.edited(
@@ -214,6 +220,10 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
             range: NSRange(location: selectedCharIndex, length: 1),
             changeInLength: 0
         )
+
+        // Restore typing attributes so the cursor/font size stays unchanged.
+        tv.typingAttributes = savedTypingAttrs
+        tv.selectedRange    = savedSelection
 
         // Clear the flag after the current run loop so any KVO callbacks
         // triggered by the layout pass above are ignored.

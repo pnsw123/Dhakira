@@ -237,10 +237,10 @@ struct TaskDetailView: View {
 
                         Menu {
                             Button { shareTask() } label: {
-                                Label("Share", systemImage: "square.and.arrow.up")
+                                Label("Share as PDF", systemImage: "square.and.arrow.up")
                             }
-                            Button { exportAsPDF() } label: {
-                                Label("Export as PDF", systemImage: "doc.richtext")
+                            Button { exportAsWord() } label: {
+                                Label("Export as Word", systemImage: "doc.richtext")
                             }
                         } label: {
                             Image(systemName: "square.and.arrow.up")
@@ -593,7 +593,7 @@ struct TaskDetailView: View {
                             withAnimation { showExportOptions = false }
                             shareTask()
                         } label: {
-                            Label("Share", systemImage: "square.and.arrow.up")
+                            Label("Share as PDF", systemImage: "square.and.arrow.up")
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundStyle(Color.primaryText)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -606,9 +606,9 @@ struct TaskDetailView: View {
 
                         Button {
                             withAnimation { showExportOptions = false }
-                            exportAsPDF()
+                            exportAsWord()
                         } label: {
-                            Label("Export as PDF", systemImage: "doc.richtext")
+                            Label("Export as Word", systemImage: "doc.richtext")
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundStyle(Color.primaryText)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -753,7 +753,12 @@ struct TaskDetailView: View {
             let currentFont = tv.typingAttributes[.font] as? UIFont
                 ?? UIFont.preferredFont(forTextStyle: .body)
             let newSize = increase ? currentFont.pointSize + step : max(minSize, currentFont.pointSize - step)
-            let newFont = UIFont(descriptor: currentFont.fontDescriptor, size: newSize)
+            // Preserve bold/italic traits exactly when changing size (Issue #103).
+            let traits = currentFont.fontDescriptor.symbolicTraits
+            var newFont = UIFont(descriptor: currentFont.fontDescriptor, size: newSize)
+            if let corrected = newFont.fontDescriptor.withSymbolicTraits(traits) {
+                newFont = UIFont(descriptor: corrected, size: newSize)
+            }
             tv.typingAttributes[.font] = newFont
             // Apply to selected text only; if no selection, only the cursor changes.
             if range.length > 0 {
@@ -1659,13 +1664,15 @@ struct TaskDetailView: View {
     }
 
     private func shareTask() {
-        log.info("shareTask: sharing '\(task.title)'")
+        log.info("shareTask: sharing '\(task.title)' as PDF")
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first?.rootViewController else {
             log.error("shareTask: could not find root view controller")
             return
         }
-        NativeExportService.shareText(title: task.title, content: attributedText, from: root)
+        // Share as PDF by default instead of .txt (Issue #109).
+        let drawing = pkCanvasView?.drawing
+        NativeExportService.exportAsPDF(title: task.title, content: attributedText, drawing: drawing, from: root)
     }
 
     // MARK: - Save / Load — NoteBodyBinding (Issue #53)
