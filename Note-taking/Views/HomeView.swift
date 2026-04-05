@@ -90,6 +90,7 @@ struct HomeView: View {
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 16)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
 
@@ -110,6 +111,7 @@ struct HomeView: View {
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(Color.secondaryText)
                             }
+                            .contentShape(Rectangle())
                             .padding(.horizontal, 16)
                             .padding(.vertical, 16)
                         }
@@ -304,6 +306,7 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 16)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -368,5 +371,5 @@ private func previewHomeView(theme: AppTheme? = nil) -> some View {
 }
 
 #Preview("Folders — Default") { previewHomeView() }
-#Preview("Folders — Coral") { previewHomeView(theme: .coral) }
-#Preview("Folders — Forest") { previewHomeView(theme: .forest) }
+#Preview("Folders — Nebula") { previewHomeView(theme: .nebula) }
+#Preview("Folders — Cosmos") { previewHomeView(theme: .cosmos) }

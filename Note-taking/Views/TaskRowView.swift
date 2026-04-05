@@ -83,6 +83,8 @@ struct TaskRowView: View {
                                     .foregroundStyle(Color.primaryText)
                                     .strikethrough(task.isCompleted)
                                     .multilineTextAlignment(.leading)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
                                     .frame(maxWidth: .infinity, alignment: .leading)
 
                                 PennantShape()
@@ -102,6 +104,7 @@ struct TaskRowView: View {
                                 )
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
