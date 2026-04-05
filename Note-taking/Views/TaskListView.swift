@@ -133,10 +133,12 @@ struct TaskListView: View {
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
                             .buttonStyle(.plain)
+                            .padding(.leading, 8)
                             .opacity(undoVersion >= 0 && undoManager?.canRedo == true ? 1 : 0.35)
                             .accessibilityLabel("Redo")
 
                             settingsButton
+                                .padding(.leading, 8)
                             if isAddingTask || isEditingName {
                                 doneButton
                                     .padding(.leading, 8)
