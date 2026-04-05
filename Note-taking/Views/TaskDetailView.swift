@@ -123,38 +123,9 @@ struct TaskDetailView: View {
     // Attachment service — single enum replaces 6 Bool flags (Issue #49)
     @State private var attachmentService = AttachmentService()
 
-    private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMMM yyyy 'at' h:mma"
-        return formatter.string(from: task.createdAt)
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            Text(formattedDate)
-                .font(.caption)
-                .foregroundStyle(Color.secondaryText)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-
-            TextField("Untitled", text: $task.title, axis: .vertical)
-                .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(Color.primaryText)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 20)
-                .padding(.top, 4)
-                .padding(.bottom, 8)
-                .accessibilityIdentifier("task-title-field")
-                .onSubmit {
-                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                }
-
-            Rectangle()
-                .fill(Color.primaryText.opacity(0.15))
-                .frame(height: 1)
-                .padding(.horizontal, 20)
+            _TaskHeaderView(task: task)
 
             editorArea
 
@@ -380,7 +351,7 @@ struct TaskDetailView: View {
                 if !checked.isEmpty {
                     log.info("checkboxToggle: \(checked.count) checked line(s) — syncing body events")
                 }
-                Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx, checkedLines: checked) }
+                Task { await CalendarSyncCoordinator.shared.syncBodyEvents(bodyText: bodyText, task: t, context: ctx, checkedLines: checked) }
             }
         }
         // Sync attributedText after image resize so the new size is saved on next write.
@@ -1738,6 +1709,8 @@ struct TaskDetailView: View {
                     contentEnd -= 1
                     // Collapse \r\n into a single separator
          
+                    
+                    
                     if last == 0x000A && contentEnd > paraRange.location,
                        nsText.character(at: contentEnd - 1) == 0x000D {
                         contentEnd -= 1
@@ -1895,7 +1868,7 @@ struct TaskDetailView: View {
         // Pass checked checkbox lines so their events get deleted (subtask done → no reminder).
         let ctx = modelContext
         let checked = extractCheckedLines(from: liveText)
-        Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx, checkedLines: checked) }
+        Task { await CalendarSyncCoordinator.shared.syncBodyEvents(bodyText: bodyText, task: t, context: ctx, checkedLines: checked) }
         log.debug("saveBody: EXIT (async calendar+bodyEvent sync dispatched)")
     }
 
@@ -1951,12 +1924,54 @@ struct TaskDetailView: View {
                 let ctx = modelContext
                 let checked = extractCheckedLines(from: liveText)
                 log.info("bodyEventDebounce: firing sync for '\(t.title)' (\(checked.count) checked lines)")
-                Task { await BodyEventSyncService.shared.sync(bodyText: bodyText, task: t, context: ctx, checkedLines: checked) }
+                Task { await CalendarSyncCoordinator.shared.syncBodyEvents(bodyText: bodyText, task: t, context: ctx, checkedLines: checked) }
             }
         }
     }
 }
 
+
+// MARK: - _TaskHeaderView
+// Date stamp + editable title + hairline divider.
+// Private sub-view extracted from TaskDetailView (Issue #90).
+private struct _TaskHeaderView: View {
+    @Bindable var task: TaskItem
+
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMMM yyyy 'at' h:mma"
+        return formatter.string(from: task.createdAt)
+    }
+
+    var body: some View {
+        Group {
+            Text(formattedDate)
+                .font(.caption)
+                .foregroundStyle(Color.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+
+            TextField("Untitled", text: $task.title, axis: .vertical)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(Color.primaryText)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+                .accessibilityIdentifier("task-title-field")
+                .onSubmit {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+
+            Rectangle()
+                .fill(Color.primaryText.opacity(0.15))
+                .frame(height: 1)
+                .padding(.horizontal, 20)
+        }
+    }
+}
 
 // AttachmentCoordinator and AttachmentPresenters removed — replaced by AttachmentService (Issue #49)
 
@@ -2243,60 +2258,6 @@ struct DocumentScannerView: UIViewControllerRepresentable {
     }
 }
 #endif // os(iOS) — DocumentScannerView
-
-// MARK: - CheckboxTapCoordinator
-// Handles taps on CheckboxAttachment characters inside the UITextView.
-// Uses a published `toggleVersion` counter so TaskDetailView can observe
-// each toggle event without needing a mutable Binding captured in a closure.
-
-final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecognizerDelegate {
-    @Published private(set) var toggleVersion: Int = 0
-    private(set) var lastToggledText: NSAttributedString? = nil
-
-    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-        guard let tv = gesture.view as? UITextView,
-              let text = tv.attributedText else { return }
-
-        let point = gesture.location(in: tv)
-        // Convert UITextView coordinates to text container coordinates.
-        // lineFragmentPadding is intentionally NOT subtracted — characterIndex(for:in:)
-        // works in text-container space which already accounts for it.
-        let adjustedPoint = CGPoint(
-            x: point.x - tv.textContainerInset.left,
-            y: point.y - tv.textContainerInset.top
-        )
-        let charIndex = tv.layoutManager.characterIndex(
-            for: adjustedPoint,
-            in: tv.textContainer,
-            fractionOfDistanceBetweenInsertionPoints: nil
-        )
-        guard charIndex < text.length else { return }
-
-        // Check the tapped character AND the one before it: a tap can land on the
-        // space that immediately follows the checkbox (U+FFFC), so we check both.
-        func isCheckbox(at idx: Int) -> Bool {
-            guard idx >= 0, idx < text.length else { return false }
-            return text.attributes(at: idx, effectiveRange: nil)[.attachment] is CheckboxAttachment
-        }
-        guard isCheckbox(at: charIndex) || isCheckbox(at: charIndex - 1) else { return }
-        let checkboxIndex = isCheckbox(at: charIndex) ? charIndex : charIndex - 1
-
-        var mutableText = NSAttributedString(attributedString: text)
-        RichEditorCommands.toggleCheckbox(at: checkboxIndex, attributedText: &mutableText)
-        tv.attributedText = mutableText
-
-        // Publish the result so TaskDetailView can sync its @State binding.
-        lastToggledText = mutableText
-        toggleVersion += 1
-    }
-
-    // Allow this gesture to fire simultaneously with UITextView's built-in gestures
-    // so normal cursor placement is not blocked.
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                           shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-        return true
-    }
-}
 
 // MARK: - SlashMenuKeyInterceptor
 // Thin UIView that intercepts ↑/↓/↵/⎋ via UIKeyCommand when it holds first responder.

@@ -56,8 +56,7 @@ struct Note_takingApp: App {
                         try? await Task.sleep(for: .milliseconds(600))
                         guard !Task.isCancelled else { return }
                         log.info("EKEventStoreChanged: reconciling (debounced)")
-                        BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
-                        CalendarSyncService.shared.reconcileAllParentEvents(context: container.mainContext)
+                        await CalendarSyncCoordinator.shared.reconcileAll(context: container.mainContext)
                     }
                 }
                 .task {
@@ -69,13 +68,9 @@ struct Note_takingApp: App {
                     await GoogleAuthService.shared.validateOnLaunch()
                     // Clean up calendar events for completed/trashed tasks (handles CloudKit sync,
                     // reinstalls, and tasks completed on other devices).
-                    await CalendarSyncService.shared.cleanupStaleEvents(in: container.mainContext)
-                    // Issue #86: reconcile body events — mark struck if deleted from Apple Calendar.
-                    BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
-                    // Reconcile parent task events — clear calendarEventId if deleted externally.
-                    CalendarSyncService.shared.reconcileAllParentEvents(context: container.mainContext)
-                    // Issue #87: reconcile body events against Google Calendar on app open.
-                    await BodyEventSyncService.shared.reconcileGoogleEvents(context: container.mainContext)
+                    await CalendarSyncCoordinator.shared.cleanupOrphans(context: container.mainContext)
+                    // Reconcile all calendar sources — Apple + Google, body events + parent events.
+                    await CalendarSyncCoordinator.shared.reconcileAll(context: container.mainContext)
                     // Run all startup work on a background actor so the UI renders immediately.
                     let worker = StartupWorker(modelContainer: container)
                     await worker.run()
@@ -93,13 +88,9 @@ struct Note_takingApp: App {
             if newPhase == .active {
                 // Re-read iOS Settings toggles every time the app comes to foreground.
                 CalendarSelectionService.shared.refreshFromUserDefaults()
-                // Issue #86: reconcile on foreground return.
-                BodyEventSyncService.shared.reconcileAllAppleEvents(context: container.mainContext)
-                // Reconcile parent task events on foreground return.
-                CalendarSyncService.shared.reconcileAllParentEvents(context: container.mainContext)
-                // Issue #87: also reconcile Google Calendar on foreground return.
+                // Reconcile all calendar sources on foreground return (Apple + Google).
                 Task {
-                    await BodyEventSyncService.shared.reconcileGoogleEvents(context: container.mainContext)
+                    await CalendarSyncCoordinator.shared.reconcileAll(context: container.mainContext)
                 }
             } else if newPhase == .inactive {
                 // iOS can kill apps from inactive without going through background —

@@ -166,29 +166,67 @@ final class ThemeManager {
 
     // MARK: — App Group sync (widgets read from here)
     private func syncToAppGroup() {
-        log.debug("syncToAppGroup: ENTER")
-        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking") else {
-            log.error("syncToAppGroup: failed to open App Group UserDefaults — widget will not update")
-            return
-        }
-        // When auto-theme ("default"), widgetThemeId is "default" which AppTheme.all doesn't
-        // contain — the widget would always fall back to .defaultLight even in dark mode.
-        // Write the actual resolved theme id (e.g. "midnight") so the widget shows correctly.
-        let effectiveThemeId = isAutoTheme ? current.id : widgetThemeId
-        log.debug("syncToAppGroup: writing themeId='\(effectiveThemeId)' (autoTheme=\(self.isAutoTheme), current='\(self.current.id)', widgetThemeId='\(self.widgetThemeId)')")
-        defaults.set(effectiveThemeId, forKey: "themeId")
         #if canImport(UIKit)
-        // Copy background image JPEG to shared container so the widget can read it
-        let sharedURL = FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: "group.com.prodnote.notetaking")?
-            .appendingPathComponent("theme_background.jpg")
-        if let sharedURL, let img = backgroundImage,
-           let jpeg = img.jpegData(compressionQuality: 0.85) {
-            try? jpeg.write(to: sharedURL)
+        WidgetSyncBridge.syncTheme(
+            effectiveThemeId: isAutoTheme ? current.id : widgetThemeId,
+            backgroundImage: backgroundImage
+        )
+        #else
+        WidgetSyncBridge.syncTheme(
+            effectiveThemeId: isAutoTheme ? current.id : widgetThemeId,
+            backgroundImage: nil
+        )
+        #endif
+    }
+
+    // MARK: — WidgetSyncBridge
+    // Private helper that owns all App Group UserDefaults writes + WidgetCenter reloads.
+    // ThemeManager calls into this; no other type should access these keys directly.
+    private enum WidgetSyncBridge {
+        private static let suiteName = "group.com.prodnote.notetaking"
+
+        #if canImport(UIKit)
+        static func syncTheme(effectiveThemeId: String, backgroundImage: UIImage?) {
+            guard let defaults = UserDefaults(suiteName: suiteName) else {
+                log.error("WidgetSyncBridge.syncTheme: failed to open App Group — widget will not update")
+                return
+            }
+            log.debug("WidgetSyncBridge.syncTheme: writing themeId='\(effectiveThemeId)'")
+            defaults.set(effectiveThemeId, forKey: "themeId")
+            // Copy background JPEG to shared container so the widget can read it
+            if let sharedURL = FileManager.default
+                .containerURL(forSecurityApplicationGroupIdentifier: suiteName)?
+                .appendingPathComponent("theme_background.jpg"),
+               let img = backgroundImage,
+               let jpeg = img.jpegData(compressionQuality: 0.85) {
+                try? jpeg.write(to: sharedURL)
+            }
+            defaults.synchronize()
+            log.debug("WidgetSyncBridge.syncTheme: EXIT")
+        }
+        #else
+        static func syncTheme(effectiveThemeId: String, backgroundImage: (Any)?) {
+            guard let defaults = UserDefaults(suiteName: suiteName) else { return }
+            defaults.set(effectiveThemeId, forKey: "themeId")
+            defaults.synchronize()
         }
         #endif
-        defaults.synchronize()
-        log.debug("syncToAppGroup: EXIT (synchronize complete)")
+
+        static func syncTasks(_ tasks: [WidgetTask], totalCount: Int) {
+            guard let defaults = UserDefaults(suiteName: suiteName) else {
+                log.error("WidgetSyncBridge.syncTasks: failed to open App Group — widget task list will not update")
+                return
+            }
+            log.debug("WidgetSyncBridge.syncTasks: pushing \(tasks.count) task(s) (total=\(totalCount))")
+            defaults.set(totalCount, forKey: "activeTaskCount")
+            if let encoded = try? JSONEncoder().encode(tasks) {
+                defaults.set(encoded, forKey: "activeTasks")
+            } else {
+                log.error("WidgetSyncBridge.syncTasks: JSONEncoder failed — widget will show stale data")
+            }
+            defaults.synchronize()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 
     // MARK: — Downsampling (WWDC18 #416, UIKit only)
@@ -375,19 +413,6 @@ extension ThemeManager {
     /// Writes the top tasks to the shared App Group so the widget can display them.
     /// Called from TaskListView whenever the task list changes.
     func syncActiveTasks(_ tasks: [WidgetTask], totalCount: Int) {
-        guard let defaults = UserDefaults(suiteName: "group.com.prodnote.notetaking") else {
-            log.error("syncActiveTasks: failed to open App Group UserDefaults — widget task list will not update")
-            return
-        }
-        log.debug("syncActiveTasks: pushing \(tasks.count) task(s) (totalActive=\(totalCount)) to widget")
-        defaults.set(totalCount, forKey: "activeTaskCount")
-        if let encoded = try? JSONEncoder().encode(tasks) {
-            defaults.set(encoded, forKey: "activeTasks")
-        } else {
-            log.error("syncActiveTasks: JSONEncoder failed to encode tasks — widget will show stale data")
-        }
-        // Force flush to disk — App Group UserDefaults may not sync immediately
-        defaults.synchronize()
-        WidgetCenter.shared.reloadAllTimelines()
+        WidgetSyncBridge.syncTasks(tasks, totalCount: totalCount)
     }
 }
