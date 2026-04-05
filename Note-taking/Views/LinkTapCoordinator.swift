@@ -53,17 +53,38 @@ final class LinkTapCoordinator: NSObject, ObservableObject, UIGestureRecognizerD
         log.info("LinkTapCoordinator: tapped link \(url.absoluteString)")
 
         if url.isFileURL {
+            // Guard: file must exist on disk — deleted attachments leave ghost .link attributes
+            // that would crash QLPreviewController with a sandbox / nil-view error.
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                log.warning("LinkTapCoordinator: file does not exist at '\(url.path)' — removing ghost link and ignoring tap")
+                removeGhostLink(at: charIndex, in: tv.textStorage)
+                return
+            }
+
             // Guard: prevent double-presentation if user taps rapidly or preview is already open.
             guard docController == nil else {
                 log.warning("LinkTapCoordinator: preview already open — ignoring tap")
                 return
             }
+
+            // Guard: window hierarchy must be valid — presenting on a nil window or while another
+            // presentation is in flight causes "zoom transition from nil view" crash.
+            guard let window = tv.window,
+                  let rootVC = window.rootViewController else {
+                log.warning("LinkTapCoordinator: no valid window hierarchy — skipping preview")
+                return
+            }
+            let presenter = rootVC.presentedViewController ?? rootVC
+            guard presenter.view.window != nil else {
+                log.warning("LinkTapCoordinator: presenter has no window — skipping preview")
+                return
+            }
+
             let controller = UIDocumentInteractionController(url: url)
             controller.delegate = self
             docController = controller  // retain until dismissed
             if !controller.presentPreview(animated: true) {
                 // Preview not available — fall back to open-in menu
-                guard let window = tv.window else { return }
                 let rect = CGRect(x: point.x, y: point.y, width: 1, height: 1)
                 controller.presentOptionsMenu(from: rect, in: window, animated: true)
             }
@@ -72,13 +93,34 @@ final class LinkTapCoordinator: NSObject, ObservableObject, UIGestureRecognizerD
         }
     }
 
+    // MARK: - Ghost link cleanup
+
+    /// Removes .link attributes pointing to non-existent files from the text storage.
+    /// Scans the full effective range of the tapped link and strips it so the user
+    /// can't tap the same ghost link again.
+    private func removeGhostLink(at charIndex: Int, in textStorage: NSTextStorage) {
+        var effectiveRange = NSRange(location: 0, length: 0)
+        textStorage.attribute(.link, at: charIndex, effectiveRange: &effectiveRange)
+        guard effectiveRange.length > 0 else { return }
+        textStorage.beginEditing()
+        textStorage.removeAttribute(.link, range: effectiveRange)
+        textStorage.removeAttribute(.foregroundColor, range: effectiveRange)
+        textStorage.removeAttribute(.underlineStyle, range: effectiveRange)
+        textStorage.endEditing()
+        log.info("LinkTapCoordinator: removed ghost .link attribute in range \(effectiveRange)")
+    }
+
     // MARK: - UIDocumentInteractionControllerDelegate
 
     func documentInteractionControllerViewControllerForPreview(
         _ controller: UIDocumentInteractionController
     ) -> UIViewController {
         guard let window = textView?.window,
-              let root = window.rootViewController else { return UIViewController() }
+              let root = window.rootViewController else {
+            log.warning("LinkTapCoordinator: no root VC for preview — returning empty VC")
+            docController = nil  // release so future taps aren't blocked
+            return UIViewController()
+        }
         return root.presentedViewController ?? root
     }
 

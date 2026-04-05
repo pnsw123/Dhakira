@@ -47,9 +47,14 @@ enum NoteBodyCodec {
     // MARK: Encode
 
     static func encode(_ text: NSAttributedString) -> Result<Data, NoteBodyError> {
+        // Strip ghost .link attributes pointing to non-existent files before encoding.
+        // When a user deletes a file attachment by backspacing, invisible .link attributes
+        // can persist on surrounding characters (ghost links). Cleaning them here prevents
+        // the ghost links from being saved and resurrected on next decode.
+        let cleaned = stripGhostFileLinks(from: text)
         // Strip image attachments so the RTF blob contains only text + placeholder markers.
         // Actual image content lives on disk.
-        let stripped = stripImages(from: text)
+        let stripped = stripImages(from: cleaned)
         let range = NSRange(location: 0, length: stripped.length)
         guard let rtf = try? stripped.data(
             from: range,
@@ -136,6 +141,58 @@ enum NoteBodyCodec {
             mutable.replaceCharacters(in: range, with: "[img:\(uuid)]")
         }
         log.debug("stripImages: replaced \(ranges.count) image(s) with placeholders")
+        return mutable
+    }
+
+    /// Removes .link attributes that point to file:// URLs where the file no longer exists.
+    /// Also strips orphaned U+FFFC (object replacement) characters that have no NSTextAttachment.
+    /// This prevents ghost links from being persisted and crashing the app on next tap.
+    private static func stripGhostFileLinks(from source: NSAttributedString) -> NSAttributedString {
+        let mutable = NSMutableAttributedString(attributedString: source)
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        var ghostRanges: [NSRange] = []
+
+        mutable.enumerateAttribute(.link, in: fullRange, options: []) { value, range, _ in
+            let url: URL?
+            if let u = value as? URL { url = u }
+            else if let s = value as? String { url = URL(string: s) }
+            else { return }
+
+            guard let url, url.isFileURL else { return }
+            if !FileManager.default.fileExists(atPath: url.path) {
+                ghostRanges.append(range)
+            }
+        }
+
+        // Strip ghost .link attributes (reverse order to keep indices valid).
+        for range in ghostRanges.reversed() {
+            mutable.removeAttribute(.link, range: range)
+            mutable.removeAttribute(.foregroundColor, range: range)
+            mutable.removeAttribute(.underlineStyle, range: range)
+        }
+
+        // Strip orphaned U+FFFC characters that have no text attachment.
+        // These are invisible leftovers from deleted attachments.
+        let fffcScalar = Unicode.Scalar(0xFFFC)!
+        var orphanRanges: [NSRange] = []
+        let str = mutable.string
+        for (i, ch) in str.unicodeScalars.enumerated() {
+            if ch == fffcScalar {
+                let nsRange = NSRange(location: i, length: 1)
+                let attachment = mutable.attribute(.attachment, at: i, effectiveRange: nil) as? NSTextAttachment
+                let imageId = mutable.attribute(.imageAttachmentId, at: i, effectiveRange: nil)
+                if attachment == nil && imageId == nil {
+                    orphanRanges.append(nsRange)
+                }
+            }
+        }
+        for range in orphanRanges.reversed() {
+            mutable.deleteCharacters(in: range)
+        }
+
+        if !ghostRanges.isEmpty || !orphanRanges.isEmpty {
+            log.info("stripGhostFileLinks: removed \(ghostRanges.count) ghost link(s), \(orphanRanges.count) orphan U+FFFC char(s)")
+        }
         return mutable
     }
 

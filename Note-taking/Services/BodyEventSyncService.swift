@@ -260,15 +260,27 @@ final class BodyEventSyncService {
     }
 
     /// Clear all Google Calendar event IDs for a task's body events
-    /// (used when Google account is disconnected or switched).
+    /// and reset struck status so events can be re-created on the new account.
+    /// (used when Google account is disconnected or switched — Issue #89).
     @MainActor
     func clearGoogleEventIds(for task: TaskItem, context: ModelContext) {
         let records = task.bodyCalendarEvents ?? []
+        var cleared = 0
+        var resetStruck = 0
         for record in records {
-            record.googleCalendarEventId = nil
+            if record.googleCalendarEventId != nil {
+                record.googleCalendarEventId = nil
+                cleared += 1
+            }
+            // Reset struck status — old account's deletions don't apply to the new account.
+            if record.isStruck {
+                record.isStruck = false
+                resetStruck += 1
+            }
         }
         do {
             try context.save()
+            log.info("clearGoogleEventIds: cleared \(cleared) ID(s), reset \(resetStruck) struck record(s) for '\(task.title)'")
         } catch {
             log.error("clearGoogleEventIds: context.save() failed — \(error.localizedDescription)")
         }

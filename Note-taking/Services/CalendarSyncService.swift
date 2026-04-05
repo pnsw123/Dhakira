@@ -401,8 +401,12 @@ final class CalendarSyncService {
     /// Re-syncs all incomplete tasks that have dates to the newly connected calendar.
     /// Call after the user first connects Google Calendar (or toggles it on) so that
     /// tasks created before the connection still get events.
+    ///
+    /// Syncs BOTH title-level dates AND body-line dates (Issue #89).
+    /// Previously only title dates were re-synced, leaving body events orphaned
+    /// on Google Calendar after account reconnection.
     func resyncAllTasks(in context: ModelContext) async {
-        log.info("resyncAllTasks: starting bulk re-sync of existing tasks")
+        log.info("resyncAllTasks: starting bulk re-sync of existing tasks (title + body events)")
         let descriptor = FetchDescriptor<TaskItem>(
             predicate: #Predicate { !$0.isCompleted && !$0.isTrashed }
         )
@@ -410,58 +414,112 @@ final class CalendarSyncService {
             log.error("resyncAllTasks: failed to fetch tasks")
             return
         }
-        var synced = 0
+        var syncedTitle = 0
+        var syncedBody = 0
         for task in tasks {
+            // Title-level date sync.
             await syncTaskIfNeeded(task)
-            synced += 1
+            syncedTitle += 1
+
+            // Body-line date sync — extract plain text from the stored body Data.
+            if let bodyData = task.body {
+                let bodyText: String
+                switch NoteBodyCodec.decode(bodyData, taskId: task.id) {
+                case .success(let attrStr):
+                    bodyText = attrStr.string
+                case .failure:
+                    bodyText = ""
+                }
+                if !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    await BodyEventSyncService.shared.sync(
+                        bodyText: bodyText, task: task, context: context
+                    )
+                    syncedBody += 1
+                }
+            }
         }
         try? context.save()
-        log.info("resyncAllTasks: re-synced \(synced) active tasks ✓")
+        log.info("resyncAllTasks: re-synced \(syncedTitle) title events + \(syncedBody) body event tasks ✓")
     }
 
     // MARK: - Account switch cleanup
 
-    /// Deletes all Google Calendar events AND clears stored IDs.
+    /// Deletes all Google Calendar events (title + body) AND clears stored IDs.
     /// Call BEFORE disconnecting (while we still have the old account's token)
     /// so events are actually removed from the old account's calendar.
     func deleteAllGoogleEvents(in context: ModelContext) async {
-        log.info("deleteAllGoogleEvents: deleting all Google Calendar events + clearing IDs")
+        log.info("deleteAllGoogleEvents: deleting all Google Calendar events + clearing IDs (title + body)")
         let descriptor = FetchDescriptor<TaskItem>()
         guard let allTasks = try? context.fetch(descriptor) else {
             log.error("deleteAllGoogleEvents: failed to fetch tasks")
             return
         }
-        var deleted = 0
+        var deletedTitle = 0
+        var deletedBody = 0
         for task in allTasks {
+            // Delete title-level Google event.
             if let googleId = task.googleCalendarEventId {
-                log.info("deleteAllGoogleEvents: deleting '\(googleId)' for task '\(task.title)'")
+                log.info("deleteAllGoogleEvents: deleting title event '\(googleId)' for task '\(task.title)'")
                 await deleteGoogleEvent(googleId)
                 await MainActor.run { task.googleCalendarEventId = nil }
-                deleted += 1
+                deletedTitle += 1
+            }
+            // Delete body-level Google events and reset struck status (Issue #89).
+            for record in (task.bodyCalendarEvents ?? []) {
+                if let googleId = record.googleCalendarEventId {
+                    log.info("deleteAllGoogleEvents: deleting body event '\(googleId)' for line '\(record.lineText)'")
+                    await deleteGoogleEvent(googleId)
+                    record.googleCalendarEventId = nil
+                    deletedBody += 1
+                }
+                if record.isStruck {
+                    record.isStruck = false
+                }
             }
         }
-        if deleted > 0 { try? context.save() }
-        log.info("deleteAllGoogleEvents: deleted \(deleted) event(s) ✓")
+        if deletedTitle + deletedBody > 0 { try? context.save() }
+        log.info("deleteAllGoogleEvents: deleted \(deletedTitle) title + \(deletedBody) body event(s) ✓")
     }
 
-    /// Clears all stored Google Calendar event IDs (without deleting the events).
+    /// Clears all stored Google Calendar event IDs (without deleting the events)
+    /// and resets struck status on body events so they can be re-synced to the new account.
+    ///
     /// Use when the old token is already gone and we can't delete from the API.
+    /// On Google account switch, old event IDs belong to the previous account — they must
+    /// be cleared. Struck records must also be reset because the "user deleted from Calendar"
+    /// signal is meaningless across different accounts (Issue #89).
     func clearAllGoogleEventIds(in context: ModelContext) async {
-        log.info("clearAllGoogleEventIds: wiping all stored Google event IDs")
+        log.info("clearAllGoogleEventIds: wiping all stored Google event IDs + resetting struck status")
         let descriptor = FetchDescriptor<TaskItem>()
         guard let allTasks = try? context.fetch(descriptor) else {
             log.error("clearAllGoogleEventIds: failed to fetch tasks")
             return
         }
-        var cleared = 0
+        var clearedTitle = 0
+        var clearedBody = 0
+        var resetStruck = 0
         for task in allTasks {
+            // Clear title-level Google event ID.
             if task.googleCalendarEventId != nil {
                 task.googleCalendarEventId = nil
-                cleared += 1
+                clearedTitle += 1
+            }
+            // Clear body-level Google event IDs and reset struck status.
+            for record in (task.bodyCalendarEvents ?? []) {
+                if record.googleCalendarEventId != nil {
+                    record.googleCalendarEventId = nil
+                    clearedBody += 1
+                }
+                // Reset struck status — the struck flag was set because the event was missing
+                // on the OLD account. On the new account, it should be recreated.
+                if record.isStruck {
+                    record.isStruck = false
+                    resetStruck += 1
+                }
             }
         }
-        if cleared > 0 { try? context.save() }
-        log.info("clearAllGoogleEventIds: cleared \(cleared) event ID(s) ✓")
+        if clearedTitle + clearedBody + resetStruck > 0 { try? context.save() }
+        log.info("clearAllGoogleEventIds: cleared \(clearedTitle) title + \(clearedBody) body event ID(s), reset \(resetStruck) struck record(s) ✓")
     }
 
     // MARK: - Startup cleanup
