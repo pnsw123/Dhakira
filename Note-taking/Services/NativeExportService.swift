@@ -204,9 +204,9 @@ final class NativeExportService {
             guard let cb = value as? CheckboxAttachment else { return }
             let symbolName = cb.isChecked ? "checkmark.square.fill" : "square"
             let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-                .applying(UIImage.SymbolConfiguration(paletteColors: [.black]))
+                .applying(UIImage.SymbolConfiguration(hierarchicalColor: .black))
             if let img = UIImage(systemName: symbolName, withConfiguration: config)?
-                .withRenderingMode(.alwaysOriginal) {
+                .withTintColor(.black, renderingMode: .alwaysOriginal) {
                 let printAttachment = NSTextAttachment()
                 printAttachment.image = img
                 printAttachment.bounds = CGRect(x: 0, y: -3, width: 16, height: 16)
