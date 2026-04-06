@@ -3,6 +3,7 @@ import SwiftUI
 enum SortOption: String, CaseIterable {
     case manual = "Manual"
     case creationDate = "Creation Date"
+    case priority = "Priority"
 }
 
 struct SettingsMenuView: View {

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "FolderSection")
@@ -12,9 +13,13 @@ struct FolderSectionView: View {
     var indentLevel: Int = 0
     var autoRenameId: UUID? = nil
 
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.undoManager) private var undoManager
+
     /// Expanded folder IDs persisted in UserDefaults so state survives data refreshes.
     @AppStorage("expandedFolderIds_v2") private var expandedFolderIdsStorage: String = ""
     @State private var expandedFolderIds: Set<UUID> = []
+    @State private var isRootDropTargeted: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,6 +40,30 @@ struct FolderSectionView: View {
                 }
             }
         }
+        // Root-level drop zone — drag any subfolder here to unnest it back to a root folder.
+        // Applied to the entire VStack so dropping between folders works.
+        .dropDestination(for: FolderTransferID.self) { items, _ in
+            guard indentLevel == 0,
+                  let transfer = items.first,
+                  let draggedFolder = modelContext.model(for: transfer.rawID) as? Folder,
+                  draggedFolder.parentFolder != nil else { return false }
+            let previousParent = draggedFolder.parentFolder
+            draggedFolder.parentFolder = nil
+            undoManager?.registerUndo(withTarget: draggedFolder) { f in
+                f.parentFolder = previousParent
+            }
+            undoManager?.setActionName("Move Folder to Root")
+            log.info("Drag-drop: '\(draggedFolder.name)' moved to root")
+            return true
+        } isTargeted: { targeted in
+            if indentLevel == 0 {
+                withAnimation(.easeInOut(duration: 0.2)) { isRootDropTargeted = targeted }
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isRootDropTargeted ? Color.accentColor : .clear, lineWidth: 2)
+        )
         .onAppear {
             // Restore persisted expanded state
             let persisted = Set(expandedFolderIdsStorage.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
@@ -91,12 +120,15 @@ struct FolderRowView: View {
     var indentLevel: Int = 0
     var startEditingOnAppear: Bool = false
 
+    @Environment(\.undoManager) private var undoManager
+
     @State private var isRenaming: Bool = false
     @State private var renameText: String = ""
     @FocusState private var isRenameFocused: Bool
     @State private var showDeleteConfirm: Bool = false
     @State private var autoRenameListId: UUID? = nil
     @State private var autoRenameSubfolderId: UUID? = nil
+    @State private var isDropTargeted: Bool = false
 
     private var taskListsForFolder: [TaskList] {
         allTaskLists.filter { $0.folder?.id == folder.id }
@@ -144,6 +176,30 @@ struct FolderRowView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 16)
             .contentShape(Rectangle())
+            .draggable(FolderTransferID(rawID: folder.persistentModelID))
+            .dropDestination(for: FolderTransferID.self) { items, _ in
+                guard let transfer = items.first,
+                      let draggedFolder = modelContext.model(for: transfer.rawID) as? Folder,
+                      draggedFolder.id != folder.id,
+                      !Self.isAncestor(draggedFolder, of: folder) else { return false }
+                let targetDepth = Self.depth(of: folder) + 1
+                guard targetDepth <= 10 else { return false }
+                let previousParent = draggedFolder.parentFolder
+                draggedFolder.parentFolder = folder
+                // Register undo so the user can reverse drag-nest
+                undoManager?.registerUndo(withTarget: draggedFolder) { f in
+                    f.parentFolder = previousParent
+                }
+                undoManager?.setActionName("Move Folder")
+                log.info("Drag-drop: '\(draggedFolder.name)' moved into '\(folder.name)'")
+                return true
+            } isTargeted: { targeted in
+                isDropTargeted = targeted
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isDropTargeted ? Color.accentColor : .clear, lineWidth: 2)
+            )
             .onTapGesture { onToggle() }
             .onAppear {
                 if startEditingOnAppear {
@@ -271,6 +327,27 @@ struct FolderRowView: View {
         let newList = TaskList(name: "", folder: folder)
         modelContext.insert(newList)
         autoRenameListId = newList.id
+    }
+
+    /// Returns true if `potentialAncestor` is an ancestor of `folder` (prevents circular nesting).
+    private static func isAncestor(_ potentialAncestor: Folder, of folder: Folder) -> Bool {
+        var current = folder.parentFolder
+        while let parent = current {
+            if parent.id == potentialAncestor.id { return true }
+            current = parent.parentFolder
+        }
+        return false
+    }
+
+    /// Returns the nesting depth of a folder (root = 0).
+    private static func depth(of folder: Folder) -> Int {
+        var d = 0
+        var current = folder.parentFolder
+        while let parent = current {
+            d += 1
+            current = parent.parentFolder
+        }
+        return d
     }
 
     private func addSubfolder() {

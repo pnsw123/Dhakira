@@ -69,8 +69,18 @@ struct TaskListView: View {
             let notCompleted = !task.isCompleted || recentlyCompletedIds.contains(task.id)
             return belongsHere && notCompleted
         }
-        if sortBy == .creationDate {
+        switch sortBy {
+        case .creationDate:
             result.sort { $0.createdAt < $1.createdAt }
+        case .priority:
+            result.sort { lhs, rhs in
+                let lw = Self.priorityWeight(lhs.priority)
+                let rw = Self.priorityWeight(rhs.priority)
+                if lw != rw { return lw < rw }
+                return lhs.createdAt < rhs.createdAt
+            }
+        case .manual:
+            break
         }
         return result
     }
@@ -602,7 +612,17 @@ struct TaskListView: View {
         }
     }
 
+    private static func priorityWeight(_ priority: String) -> Int {
+        switch priority {
+        case "high":   return 0
+        case "medium": return 1
+        default:       return 2
+        }
+    }
+
     private func moveTask(from source: IndexSet, to destination: Int) {
+        // Manual drag = user wants their own order — switch back to Manual
+        if sortBy != .manual { sortBy = .manual }
         var reordered = filteredTasks
         reordered.move(fromOffsets: source, toOffset: destination)
         for (index, item) in reordered.enumerated() {

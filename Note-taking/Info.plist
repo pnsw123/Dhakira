@@ -62,6 +62,21 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Dhakira Folder ID</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.prodnote.notetaking.folderID</string>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

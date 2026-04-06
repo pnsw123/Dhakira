@@ -27,6 +27,15 @@ struct NativeEditorView: View {
             format: .rtf
         ) { view in
             // viewConfiguration fires once inside makeUIView — safe to capture here.
+            if let richTV = view as? RichTextView {
+                // Override RichTextKit's default theme font (16pt) to match
+                // the body font (17pt) used everywhere in this app.
+                richTV.theme = RichTextView.Theme(
+                    font: UIFont.preferredFont(forTextStyle: .body),
+                    fontColor: .label,
+                    backgroundColor: .clear
+                )
+            }
             if let tv = view as? UITextView {
                 // FIX: Force TextKit 1 at creation to avoid mid-selection freeze.
                 // 5+ call sites use tv.layoutManager — if the switch happens lazily
@@ -37,6 +46,8 @@ struct NativeEditorView: View {
                 // Without this, UIKit defaults to black which disappears on dark backgrounds.
                 tv.isScrollEnabled = true
                 tv.textColor = .label
+                tv.font = UIFont.preferredFont(forTextStyle: .body)
+                tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
                 tv.typingAttributes[.foregroundColor] = UIColor.label
                 // Match the editor area background to the active theme so bright / dark
                 // themes don't leave a system-white or system-black rectangle behind.

@@ -1435,6 +1435,53 @@ struct TaskDetailView: View {
         }()
 
         guard hasBullet || isTodo || hasQuote else {
+            // Reset cursor to body font after pressing Enter on a heading line.
+            // Headings are single-paragraph styles — they should NOT propagate.
+            // We check BOTH the previous paragraph AND the current newline character,
+            // because UIKit copies the heading font onto the inserted \n before we run.
+            let headingSizes: Set<CGFloat> = [28, 18, 15, 13]
+            var needsReset = false
+
+            // Check previous paragraph font
+            if prevParRange.length > 0, prevParRange.location < tvText.length {
+                let prevFont = tvText.attribute(.font, at: prevParRange.location,
+                                                 effectiveRange: nil) as? UIFont
+                if let sz = prevFont?.pointSize, headingSizes.contains(sz) {
+                    needsReset = true
+                }
+            }
+
+            // Also check the just-inserted \n itself — it may carry heading font
+            // from UIKit attribute inheritance even if the previous line was "empty"
+            let nlIndex = cursorLoc - 1
+            if !needsReset, nlIndex < tvText.length {
+                let nlFont = tvText.attribute(.font, at: nlIndex,
+                                               effectiveRange: nil) as? UIFont
+                if let sz = nlFont?.pointSize, headingSizes.contains(sz) {
+                    needsReset = true
+                }
+            }
+
+            if needsReset {
+                let bodyFont = UIFont.preferredFont(forTextStyle: .body)
+                // Scrub heading font off the newline AND the entire new (empty) paragraph
+                // so UIKit doesn't re-derive heading typingAttributes from adjacent chars.
+                let mutable = NSMutableAttributedString(attributedString: tvText)
+                // Scrub from the newline at the end of the heading paragraph through
+                // the current cursor position — this covers all \n chars between them.
+                let scrubStart = max(prevParRange.location + prevParRange.length - 1, 0)
+                let scrubEnd   = min(cursorLoc, mutable.length)
+                if scrubEnd > scrubStart {
+                    mutable.addAttribute(.font, value: bodyFont,
+                                         range: NSRange(location: scrubStart, length: scrubEnd - scrubStart))
+                }
+                // Set attributedText FIRST, then override typingAttributes AFTER,
+                // because setting attributedText causes UIKit to re-derive typingAttributes.
+                tv.attributedText = mutable
+                tv.typingAttributes[.font] = bodyFont
+                tv.typingAttributes[.foregroundColor] = UIColor.label
+                attributedText = mutable
+            }
             prevTextLength = textLen
             return
         }
