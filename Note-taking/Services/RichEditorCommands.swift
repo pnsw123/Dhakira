@@ -313,13 +313,12 @@ final class RichEditorCommands {
             mutable.insert(bar, at: parRange.location)
 
             // Hang-indent wrapped lines so they start under the quoted text, not under "│".
-            // Use 28pt head indent so quoted text is clearly offset from normal paragraphs
-            // (Issue #104 — 16pt was nearly identical to normal text padding).
+            // 18pt keeps text close to the blue bar without colliding with it.
             let newLen = min(parRange.length + 2, mutable.length - parRange.location)
             if newLen > 0 {
                 let quoteStyle = NSMutableParagraphStyle()
-                quoteStyle.headIndent      = 28
-                quoteStyle.firstLineHeadIndent = 28
+                quoteStyle.headIndent      = 18
+                quoteStyle.firstLineHeadIndent = 0
                 quoteStyle.tailIndent  = -16
                 mutable.addAttribute(.paragraphStyle, value: quoteStyle,
                                      range: NSRange(location: parRange.location, length: newLen))

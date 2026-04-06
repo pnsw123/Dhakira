@@ -70,6 +70,38 @@ final class NativeExportService {
             layoutManager.drawBackground(forGlyphRange: glyphRange, at: .zero)
             layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: .zero)
 
+            // Draw continuous quote bars — the "│" glyph splits across lines,
+            // so we draw a single blue rectangle spanning each contiguous quote block.
+            let charRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+            let nsStr = textStorage.string as NSString
+            var qLoc = charRange.location
+            while qLoc < charRange.location + charRange.length {
+                let parRange = nsStr.paragraphRange(for: NSRange(location: qLoc, length: 0))
+                let parText = nsStr.substring(with: parRange)
+                if parText.hasPrefix("│ ") || parText == "│" || parText == "│\n" {
+                    // Find the end of this contiguous quote block
+                    var blockEnd = parRange.location + parRange.length
+                    while blockEnd < charRange.location + charRange.length {
+                        let nextPar = nsStr.paragraphRange(for: NSRange(location: blockEnd, length: 0))
+                        let nextText = nsStr.substring(with: nextPar)
+                        guard nextText.hasPrefix("│ ") || nextText == "│" || nextText == "│\n" else { break }
+                        blockEnd = nextPar.location + nextPar.length
+                    }
+                    // Draw one continuous bar for the whole block
+                    let blockRange = NSRange(location: parRange.location, length: blockEnd - parRange.location)
+                    let blockGlyphs = layoutManager.glyphRange(forCharacterRange: blockRange, actualCharacterRange: nil)
+                    let blockRect = layoutManager.boundingRect(forGlyphRange: blockGlyphs, in: tc)
+                    let barRect = CGRect(x: 4, y: blockRect.minY, width: 3, height: blockRect.height)
+                    UIColor.systemBlue.setFill()
+                    UIBezierPath(roundedRect: barRect, cornerRadius: 1.5).fill()
+                    qLoc = blockEnd
+                } else {
+                    let next = parRange.location + parRange.length
+                    if next <= qLoc { break }
+                    qLoc = next
+                }
+            }
+
             ctx.restoreGState()
 
             // Overlay PKDrawing if present
@@ -216,13 +248,13 @@ final class NativeExportService {
             let parRange = str.paragraphRange(for: NSRange(location: loc, length: 0))
             let parText = str.substring(with: parRange)
             if parText.hasPrefix("│ ") || parText == "│" || parText == "│\n" {
-                // Make the bar character blue and visible (overrides the black from pass 2)
+                // Hide the │ glyph — the continuous bar is drawn in the PDF render pass
                 let barRange = NSRange(location: parRange.location, length: 1)
-                mutable.addAttribute(.foregroundColor, value: UIColor.systemBlue, range: barRange)
+                mutable.addAttribute(.foregroundColor, value: UIColor.clear, range: barRange)
                 // Ensure quote text has proper indentation in PDF
                 let style = NSMutableParagraphStyle()
-                style.headIndent = 28
-                style.firstLineHeadIndent = 28
+                style.headIndent = 18
+                style.firstLineHeadIndent = 0
                 style.tailIndent = -16
                 mutable.addAttribute(.paragraphStyle, value: style, range: parRange)
             }

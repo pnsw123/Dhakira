@@ -23,6 +23,8 @@ struct TaskDetailView: View {
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @Environment(\.scenePhase) private var scenePhase
     private var isRegular: Bool { hSizeClass == .regular }
+    /// Must match SlashCommandMenuView .frame(maxHeight:) — single source of truth.
+    private static let slashMenuMaxHeight: CGFloat = 320
 
     // RichTextKit bindings — attributed string is the source of truth for RTF content
     @State private var attributedText: NSAttributedString = NSAttributedString()
@@ -34,12 +36,15 @@ struct TaskDetailView: View {
     @State private var showToolbar = true
     @State private var showExportOptions = false
     @State private var isKeyboardVisible = false
+    @State private var keyboardHeight: CGFloat = 0
     @State private var isDrawingMode = false
     /// References to PencilKit objects — created once, embedded inside UITextView.
     @State private var pkCanvasView: PKCanvasView?
     @State private var pkToolPicker: PKToolPicker?
     /// KVO observer for syncing canvas size with UITextView.contentSize.
     @State private var contentSizeObserver: NSKeyValueObservation?
+    /// KVO observer — refresh quote bars after layout reflow.
+    @State private var layoutObserver: NSKeyValueObservation?
     // Slash command coordinator — replaces 3 @State vars + double evaluate() (Issue #48)
     @StateObject private var slashCoordinator = SlashCommandCoordinator()
     // Checkbox tap coordinator — wires a UITapGestureRecognizer to the UITextView
@@ -235,14 +240,7 @@ struct TaskDetailView: View {
                         .opacity(richTextView?.undoManager?.canRedo == true ? 1 : 0.35)
                         .accessibilityLabel("Redo")
 
-                        Menu {
-                            Button { shareTask() } label: {
-                                Label("Share as PDF", systemImage: "square.and.arrow.up")
-                            }
-                            Button { exportAsWord() } label: {
-                                Label("Export as Word", systemImage: "doc.richtext")
-                            }
-                        } label: {
+                        Button { shareTask() } label: {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Color.themeAccent)
@@ -311,10 +309,14 @@ struct TaskDetailView: View {
         )
         .onAppear { loadToolbarOrder(); loadBody() }
         .onDisappear { saveBody() }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notif in
+            if let frame = notif.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                keyboardHeight = frame.height
+            }
             withAnimation(.easeOut(duration: 0.2)) { isKeyboardVisible = true }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardHeight = 0
             withAnimation(.easeOut(duration: 0.2)) { isKeyboardVisible = false }
         }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
@@ -338,7 +340,9 @@ struct TaskDetailView: View {
                 saveBody()
             }
         }
-        // Sync checkbox toggle back to the @State binding (Bug #1 fix)
+        // Sync checkbox toggle back to the @State binding.
+        // The coordinator edits textStorage directly (no scroll reset),
+        // so we only update the binding here — do NOT set tv.attributedText.
         .onChange(of: checkboxCoordinator.toggleVersion) { _, _ in
             if let toggled = checkboxCoordinator.lastToggledText {
                 attributedText = toggled
@@ -380,6 +384,22 @@ struct TaskDetailView: View {
             } else if !visible && keyInterceptor.isFirstResponder {
                 richTextView?.becomeFirstResponder()
             }
+            // Delay menu rendering by one frame so the cursor rect is settled.
+            if visible {
+                DispatchQueue.main.async { slashMenuReady = true }
+            } else {
+                slashMenuReady = false
+            }
+            // Scroll the editor so the cursor + slash menu are visible
+            // above the keyboard. SlashCommandMenuView maxHeight is 320pt.
+            if visible, let tv = richTextView {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    let cursorRect = tv.caretRect(for: tv.selectedTextRange?.start ?? tv.endOfDocument)
+                    var visibleRect = cursorRect
+                    visibleRect.size.height += Self.slashMenuMaxHeight
+                    tv.scrollRectToVisible(visibleRect, animated: true)
+                }
+            }
         }
     }
 
@@ -394,6 +414,8 @@ struct TaskDetailView: View {
                 context: richTextContext,
                 onEditorReady: { tv in
                     richTextView = tv
+                    // Dismiss keyboard when user scrolls up — keyboard reappears on typing.
+                    tv.keyboardDismissMode = .onDrag
                     // RichTextKit's updateUIView() is intentionally empty, so changes to
                     // attributedText after makeUIView don't reach the UITextView automatically.
                     // onAppear → loadBody() runs before onEditorReady fires (async dispatch),
@@ -456,6 +478,12 @@ struct TaskDetailView: View {
 
                     // Sync drawing canvas scroll with text view so strokes stay in place.
                     syncCanvasScrollWithTextView(tv)
+
+                    // Refresh quote bar overlays whenever layout reflows (contentSize change).
+                    // Fixes bars disappearing after edits that trigger relayout.
+                    layoutObserver = tv.observe(\.contentSize, options: [.new]) { _, _ in
+                        DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
+                    }
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -608,21 +636,6 @@ struct TaskDetailView: View {
                                 .padding(.vertical, 13)
                         }
                         .buttonStyle(.plain)
-
-                        Divider().padding(.horizontal, 12)
-
-                        Button {
-                            withAnimation { showExportOptions = false }
-                            exportAsWord()
-                        } label: {
-                            Label("Export as Word", systemImage: "doc.richtext")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(Color.primaryText)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 13)
-                        }
-                        .buttonStyle(.plain)
                     }
                     .frame(width: 210)
                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.25)), in: .rect(cornerRadius: 14))
@@ -633,27 +646,58 @@ struct TaskDetailView: View {
         }
     }
 
+    /// Compute fresh cursor rect directly from UITextView — avoids stale @State on first frame.
+    private var liveCaretGlobalRect: CGRect {
+        guard let tv = richTextView else { return slashCursorGlobalRect }
+        tv.layoutManager.ensureLayout(for: tv.textContainer)
+        let safeLoc = min(tv.selectedRange.location, max(0, (tv.text as NSString).length))
+        guard let pos = tv.position(from: tv.beginningOfDocument, offset: safeLoc) else {
+            return slashCursorGlobalRect
+        }
+        let r = tv.caretRect(for: pos)
+        guard !r.isNull, !r.isInfinite, r.height > 0 else { return slashCursorGlobalRect }
+        return tv.convert(r, to: nil)
+    }
+
+    @State private var slashMenuReady = false
+
     @ViewBuilder private var slashMenuOverlay: some View {
-        if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty {
+        if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty && slashMenuReady {
             GeometryReader { geo in
                 let gf = geo.frame(in: .global)
-                let caretMaxY: CGFloat = slashCursorGlobalRect == .zero ? gf.minY + 40 : slashCursorGlobalRect.maxY
+                let screenH = UIScreen.main.bounds.height
+                let caretRect = liveCaretGlobalRect
+                let caretMaxY: CGFloat = caretRect == .zero ? gf.minY + 40 : caretRect.maxY
+                let caretMinY: CGFloat = caretRect == .zero ? gf.minY + 20 : caretRect.minY
 
-                let localX: CGFloat = slashCursorGlobalRect == .zero
+                let localX: CGFloat = caretRect == .zero
                     ? 16
-                    : max(0, min(slashCursorGlobalRect.minX - gf.minX, geo.size.width - 264))
-                let localY: CGFloat = caretMaxY - gf.minY + 6
-                if localY < geo.size.height {
-                    SlashCommandMenuView(
-                        commands: slashCoordinator.filteredCommands,
-                        selectedIndex: slashCoordinator.selectedIndex,
-                        onSelect: { cmd in applySlashCommand(cmd) },
-                        onDismiss: { slashCoordinator.dismiss() }
-                    )
-                    .offset(x: localX, y: localY)
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.15), value: slashCoordinator.isMenuVisible)
-                }
+                    : max(0, min(caretRect.minX - gf.minX, geo.size.width - 264))
+
+                // Available space below cursor (above keyboard)
+                let menuH = Self.slashMenuMaxHeight
+                // Toolbar height = bar + padding (isRegular: 62+14+14=90, compact: 52+10+10=72)
+                let toolbarH: CGFloat = isRegular ? 90 : 72
+                let kbTop = screenH - keyboardHeight - toolbarH
+                let spaceBelow = kbTop - caretMaxY
+
+                // Show below the cursor by default.
+                // Only flip above when: no room below AND enough room above.
+                let spaceAbove = caretMinY - gf.minY
+                let showAbove = spaceBelow < menuH && spaceAbove > menuH && keyboardHeight > 0
+                let localY: CGFloat = showAbove
+                    ? max(0, caretMinY - gf.minY - menuH - 6)
+                    : caretMaxY - gf.minY + 6
+
+                SlashCommandMenuView(
+                    commands: slashCoordinator.filteredCommands,
+                    selectedIndex: slashCoordinator.selectedIndex,
+                    onSelect: { cmd in applySlashCommand(cmd) },
+                    onDismiss: { slashCoordinator.dismiss() }
+                )
+                .offset(x: localX, y: localY)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.15), value: slashCoordinator.isMenuVisible)
             }
         }
     }
@@ -778,8 +822,10 @@ struct TaskDetailView: View {
                     attributedText: &attributedText,
                     selectedRange: range
                 )
+                let savedOffset = tv.contentOffset
                 tv.attributedText = attributedText
                 tv.selectedRange = range
+                tv.setContentOffset(savedOffset, animated: false)
                 saveBody()
             }
             return
@@ -794,13 +840,10 @@ struct TaskDetailView: View {
             let parRange = nsStr.paragraphRange(for: range)
             let wasBulleted = nsStr.substring(with: parRange).hasPrefix("• ")
             RichEditorCommands.toggleBulletList(attributedText: &attributedText, selectedRange: range)
-            tv.attributedText = attributedText
-            // If we just added "• ": shift cursor +2 so it lands after the prefix, not before it.
-            // If we just removed "• ": shift cursor -2 so it stays on the same content character.
             let shift = wasBulleted ? -2 : 2
-            let maxLoc = (tv.text as NSString).length
+            let maxLoc = attributedText.length
             let newLoc = max(0, min(range.location + shift, maxLoc))
-            tv.selectedRange = NSRange(location: newLoc, length: 0)
+            applyText(attributedText, to: tv, cursor: NSRange(location: newLoc, length: 0))
             prevTextLength = attributedText.length
             return
         case "checklist":
@@ -812,8 +855,7 @@ struct TaskDetailView: View {
                 attributedText: &attributedText,
                 cursorLocation: cursorLoc
             )
-            tv.attributedText = attributedText
-            tv.selectedRange = NSRange(location: newCursor, length: 0)
+            applyText(attributedText, to: tv, cursor: NSRange(location: newCursor, length: 0))
             prevTextLength = attributedText.length
             return
         default:
@@ -829,10 +871,12 @@ struct TaskDetailView: View {
         let savedRange = tv.selectedRange
         var ctx = EditorContext(textView: tv, richTextContext: richTextContext)
         if let updated = RichEditorCommandDispatcher.dispatch(command, context: &ctx, attributedText: &attributedText) {
-            // Push structural changes (font size, lists, tables) into the live UITextView
-            // so the user sees the result immediately — the binding alone isn't enough.
+            // Push structural changes into the live UITextView.
+            // Save/restore scroll position — setting attributedText resets contentOffset.
+            let savedOffset = tv.contentOffset
             tv.attributedText = updated
             tv.selectedRange = savedRange
+            tv.setContentOffset(savedOffset, animated: false)
             attributedText = updated
         }
         // Scroll the selection into view AFTER the toolbar action so the user stays
@@ -852,83 +896,87 @@ struct TaskDetailView: View {
                                      value: Any?,
                                      range: NSRange) {
         guard let tv = richTextView,
-              let current = tv.attributedText else {
+              tv.attributedText != nil else {
             log.debug("applyColorAttribute: skipped — missing textView")
             return
         }
         tv.becomeFirstResponder()
 
         // Apply to selected range when text is selected.
+        // Use textStorage directly — setting attributedText resets scroll position.
         if range.length > 0 {
-            let mutable = current.mutableCopy() as! NSMutableAttributedString
-            let loc  = min(range.location, mutable.length)
-            let len  = min(range.length,   mutable.length - loc)
+            let ts = tv.textStorage
+            let loc  = min(range.location, ts.length)
+            let len  = min(range.length,   ts.length - loc)
             if len > 0 {
                 let safe  = NSRange(location: loc, length: len)
-                let nsStr = mutable.string as NSString
+                let nsStr = ts.string as NSString
                 var applied = 0
 
+                // Helper: check if character at index is a checkbox attachment
+                func isCheckbox(at idx: Int) -> Bool {
+                    guard idx < ts.length else { return false }
+                    return ts.attribute(.attachment, at: idx, effectiveRange: nil) is CheckboxAttachment
+                }
+
+                ts.beginEditing()
                 if key == .backgroundColor && value != nil {
                     // Word-like highlight: keep spaces BETWEEN words but skip
                     // trailing whitespace on each line and blank lines entirely.
-                    // Uses a "pending whitespace" buffer: flush it only when real
-                    // content follows (inter-word), discard it on newline (trailing).
+                    // Also skip checkbox attachments — they must not be colored.
                     var pendingWSStart = -1
                     var i = safe.location
                     let end = safe.location + safe.length
                     while i < end {
-                        guard i < mutable.length else { break }
+                        guard i < ts.length else { break }
                         let scalar = nsStr.character(at: i)
-                        // Covers \n, \r, Unicode line/paragraph separators
                         let isNewline = scalar == 0x0A || scalar == 0x0D ||
                                         scalar == 0x2028 || scalar == 0x2029
-                        // Covers space, tab, non-breaking space
                         let isSpace   = scalar == 0x20 || scalar == 0x09 || scalar == 0xA0
-                        if isNewline {
-                            pendingWSStart = -1        // discard trailing whitespace
+                        if isCheckbox(at: i) {
+                            pendingWSStart = -1  // skip checkbox + discard pending whitespace
+                        } else if isNewline {
+                            pendingWSStart = -1
                         } else if isSpace {
                             if pendingWSStart < 0 { pendingWSStart = i }
                         } else {
-                            // Real content — flush any buffered whitespace first
                             if pendingWSStart >= 0 {
                                 let wsLen = i - pendingWSStart
                                 let wsRange = NSRange(location: pendingWSStart, length: wsLen)
-                                mutable.addAttribute(key, value: value!, range: wsRange)
+                                ts.addAttribute(key, value: value!, range: wsRange)
                                 applied += wsLen
                                 pendingWSStart = -1
                             }
-                            mutable.addAttribute(key, value: value!,
-                                                 range: NSRange(location: i, length: 1))
+                            ts.addAttribute(key, value: value!,
+                                            range: NSRange(location: i, length: 1))
                             applied += 1
                         }
                         i += 1
                     }
                 } else {
-                    // Font color: skip all whitespace.
-                    // Highlight removal: remove from entire range (removing a missing
-                    // attribute is harmless and simpler than character-walking).
                     if key == .backgroundColor {
-                        mutable.removeAttribute(key, range: safe)
+                        ts.removeAttribute(key, range: safe)
                         applied = safe.length
                     } else {
                         for i in safe.location ..< (safe.location + safe.length) {
-                            guard i < mutable.length else { break }
+                            guard i < ts.length else { break }
+                            if isCheckbox(at: i) { continue }  // skip checkboxes
                             let charRange = NSRange(location: i, length: 1)
                             let scalar    = nsStr.character(at: i)
                             if scalar == 0x20 || scalar == 0x09 || scalar == 0x0A ||
                                scalar == 0x0D || scalar == 0xA0 { continue }
                             if let v = value {
-                                mutable.addAttribute(key, value: v, range: charRange)
+                                ts.addAttribute(key, value: v, range: charRange)
                             } else {
-                                mutable.removeAttribute(key, range: charRange)
+                                ts.removeAttribute(key, range: charRange)
                             }
                             applied += 1
                         }
                     }
                 }
-                tv.attributedText = mutable
-                tv.selectedRange  = range   // restore selection (setting attributedText resets it)
-                attributedText    = mutable
+                ts.endEditing()
+                // Sync the binding without resetting the UITextView
+                attributedText = NSAttributedString(attributedString: ts)
                 log.debug("applyColorAttribute: \(key.rawValue) — \(applied) chars coloured")
             }
         }
@@ -990,11 +1038,10 @@ struct TaskDetailView: View {
         log.debug("⚠️ SLASH: isMenuVisible=\(slashCoordinator.isMenuVisible), commands=\(slashCoordinator.filteredCommands.count)")
 
         if slashCoordinator.isMenuVisible {
+            // Force layout so caretRect reflects the just-typed "/" character.
+            tv.layoutManager.ensureLayout(for: tv.textContainer)
             let safeLoc = min(cursorLoc, max(0, (tv.text as NSString).length))
             if let pos = tv.position(from: tv.beginningOfDocument, offset: safeLoc) {
-                // caretRect(for:) is the correct API for an insertion-point rect —
-                // it always returns a full line-height rect, unlike firstRect(for: emptyRange)
-                // which can return zero height and cause the menu to land on top of the cursor.
                 let r = tv.caretRect(for: pos)
                 let converted = tv.convert(r, to: nil)
                 log.debug("⚠️ SLASH: caretRect=\(converted.debugDescription), isNull=\(r.isNull), isInf=\(r.isInfinite), height=\(converted.height)")
@@ -1271,8 +1318,8 @@ struct TaskDetailView: View {
             tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
         case "quote":
             let quoteStyle = NSMutableParagraphStyle()
-            quoteStyle.headIndent          = 28
-            quoteStyle.firstLineHeadIndent = 28
+            quoteStyle.headIndent          = 18
+            quoteStyle.firstLineHeadIndent = 0
             quoteStyle.tailIndent          = -16
             tv.typingAttributes[.paragraphStyle]  = quoteStyle
             tv.typingAttributes[.foregroundColor] = UIColor.label
@@ -1313,8 +1360,7 @@ struct TaskDetailView: View {
             // Remove the \n that was just inserted.
             let mutable = NSMutableAttributedString(attributedString: tvText)
             mutable.deleteCharacters(in: NSRange(location: cursorLoc - 1, length: 1))
-            tv.attributedText = mutable
-            tv.selectedRange  = NSRange(location: cursorLoc - 1, length: 0)
+            applyText(mutable, to: tv, cursor: NSRange(location: cursorLoc - 1, length: 0))
             attributedText    = mutable
             prevTextLength    = mutable.length
             applySlashCommand(firstCmd)
@@ -1436,8 +1482,7 @@ struct TaskDetailView: View {
                       length: max(0, prevParRange.length - prefixLen)))
         clear(curParRange)
 
-        tv.attributedText = mutable
-        tv.selectedRange  = NSRange(location: min(adjusted, mutable.length), length: 0)
+        applyText(mutable, to: tv, cursor: NSRange(location: min(adjusted, mutable.length), length: 0))
         tv.typingAttributes = [
             .font:            UIFont.preferredFont(forTextStyle: .body),
             .foregroundColor: UIColor.label,
@@ -1473,8 +1518,7 @@ struct TaskDetailView: View {
         }
 
         let newCursor = min(safeInsert + 2, mutable.length)
-        tv.attributedText = mutable
-        tv.selectedRange  = NSRange(location: newCursor, length: 0)
+        applyText(mutable, to: tv, cursor: NSRange(location: newCursor, length: 0))
         tv.typingAttributes[.foregroundColor] = UIColor.label
         tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
         prevTextLength = mutable.length
@@ -1499,8 +1543,7 @@ struct TaskDetailView: View {
         mutable.insert(item, at: safeInsert)
 
         let newCursor = min(safeInsert + 2, mutable.length)
-        tv.attributedText = mutable
-        tv.selectedRange  = NSRange(location: newCursor, length: 0)
+        applyText(mutable, to: tv, cursor: NSRange(location: newCursor, length: 0))
         tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
         tv.typingAttributes[.foregroundColor] = UIColor.label
         prevTextLength = mutable.length
@@ -1519,12 +1562,14 @@ struct TaskDetailView: View {
         let quoteViewTag = 0x71756F74
         tv.subviews.filter { $0.tag == quoteViewTag }.forEach { $0.removeFromSuperview() }
 
-        let str = tv.attributedText?.string ?? ""
+        let ts = tv.textStorage
+        let str = ts.string
         guard !str.isEmpty else { return }
         let nsStr = str as NSString
         let totalLen = nsStr.length
 
         // Walk paragraphs and collect contiguous ranges of quote lines.
+        // Also force the "│" character to stay invisible (.clear foreground).
         var quoteBlocks: [NSRange] = []
         var blockStart: Int = -1
         var blockEnd:   Int = -1
@@ -1538,6 +1583,15 @@ struct TaskDetailView: View {
                 let isQuote = parText.hasPrefix("│ ") || parText == "│"
 
                 if isQuote {
+                    // Force the "│" character to .clear — prevents it from becoming
+                    // visible when typing attributes bleed onto it.
+                    let barRange = NSRange(location: parRange.location, length: 1)
+                    if barRange.location < ts.length {
+                        let currentColor = ts.attribute(.foregroundColor, at: barRange.location, effectiveRange: nil) as? UIColor
+                        if currentColor != .clear {
+                            ts.addAttribute(.foregroundColor, value: UIColor.clear, range: barRange)
+                        }
+                    }
                     if blockStart < 0 { blockStart = parRange.location }
                     blockEnd = parRange.location + parRange.length
                 } else {
@@ -1570,7 +1624,7 @@ struct TaskDetailView: View {
             blockRect.origin.x += inset.left
             blockRect.origin.y += inset.top
 
-            let barX = inset.left + 4
+            let barX = inset.left + 6
             let borderView = UIView(frame: CGRect(x: barX, y: blockRect.minY,
                                                   width: 3, height: blockRect.height))
             borderView.backgroundColor        = .systemBlue
@@ -1591,23 +1645,25 @@ struct TaskDetailView: View {
         let ts = tv.textStorage
         let safeInsert = max(0, min(cursorLoc, ts.length))
 
+        let quoteStyle = NSMutableParagraphStyle()
+        quoteStyle.headIndent          = 18
+        quoteStyle.firstLineHeadIndent = 0
+        quoteStyle.tailIndent          = -16
+
         let bar = NSAttributedString(string: "│ ", attributes: [
             .font:            UIFont.preferredFont(forTextStyle: .body),
             .foregroundColor: UIColor.clear,
+            .paragraphStyle:  quoteStyle,
         ])
         ts.beginEditing()
         ts.insert(bar, at: safeInsert)
 
-        // Hang-indent so wrapped lines align under the quoted text.
+        // Apply consistent paragraph style to the whole new paragraph
         let newParRange = (ts.string as NSString).paragraphRange(
             for: NSRange(location: safeInsert, length: 0))
         if newParRange.length > 0, newParRange.location < ts.length {
             let safeLen = min(newParRange.length, ts.length - newParRange.location)
             if safeLen > 0 {
-                let quoteStyle = NSMutableParagraphStyle()
-                quoteStyle.headIndent      = 28
-                quoteStyle.firstLineHeadIndent = 28
-                quoteStyle.tailIndent      = -16
                 ts.addAttribute(.paragraphStyle, value: quoteStyle,
                                 range: NSRange(location: newParRange.location, length: safeLen))
             }
@@ -1616,12 +1672,23 @@ struct TaskDetailView: View {
 
         let newCursor = min(safeInsert + 2, ts.length)
         tv.selectedRange  = NSRange(location: newCursor, length: 0)
+        // Set typing attributes so the NEXT keystroke inherits quote style
         tv.typingAttributes[.foregroundColor] = UIColor.label
         tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
+        tv.typingAttributes[.paragraphStyle]  = quoteStyle
         prevTextLength = ts.length
         attributedText = tv.attributedText ?? NSAttributedString()
         log.debug("handleReturnKey: continued quote, cursor=\(newCursor)")
         DispatchQueue.main.async { self.refreshQuoteBorderViews(in: tv) }
+    }
+
+    /// Push new attributed text into the UITextView without resetting scroll position.
+    /// UITextView.attributedText setter resets contentOffset — this preserves it.
+    private func applyText(_ text: NSAttributedString, to tv: UITextView, cursor: NSRange? = nil) {
+        let savedOffset = tv.contentOffset
+        tv.attributedText = text
+        if let cursor { tv.selectedRange = cursor }
+        tv.setContentOffset(savedOffset, animated: false)
     }
 
     // MARK: - Export (Issue #45 — native, no WKWebView)

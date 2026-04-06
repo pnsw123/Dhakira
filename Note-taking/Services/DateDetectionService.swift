@@ -86,8 +86,16 @@ final class DateDetectionService {
         log.debug("detectDates: original='\(text)' normalized='\(normalized)' duration=\(extractedDuration.map { "\($0)s" } ?? "default")")
         let nsRange = NSRange(normalized.startIndex..., in: normalized)
         let matches = detector.matches(in: normalized, options: [], range: nsRange)
+        // Reject bare "digit-digit" patterns (e.g. "8-9", "3-5") that NSDataDetector
+        // aggressively interprets as dates. Only allow if am/pm is present.
+        let bareDigitDash = try? NSRegularExpression(pattern: #"^\d{1,2}\s*[-–—]\s*\d{1,2}$"#)
+        let textTrimmed = text.trimmingCharacters(in: .whitespaces)
+        let isBareRange = bareDigitDash?.firstMatch(in: textTrimmed, range: NSRange(textTrimmed.startIndex..., in: textTrimmed)) != nil
+
         let results = matches.compactMap { match -> DetectedDate? in
             guard let date = match.date else { return nil }
+            // Skip false positives from bare number ranges like "8-9"
+            if isBareRange { return nil }
             let range = Range(match.range, in: normalized).flatMap { normRange -> Range<String.Index>? in
                 let token = String(normalized[normRange])
                 return text.range(of: token, options: .caseInsensitive)

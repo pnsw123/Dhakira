@@ -43,8 +43,19 @@ final class ThemeManager {
     @ObservationIgnored
     @AppStorage("backgroundImagePath") private var backgroundImagePath: String = ""
 
+    /// iCloud key-value store — survives app reinstalls
+    private let iCloud = NSUbiquitousKeyValueStore.default
+
     // MARK: — Init
     init() {
+        // If UserDefaults was wiped (reinstall), restore from iCloud
+        if selectedThemeId == "default",
+           let cloudId = iCloud.string(forKey: "selectedThemeId"),
+           cloudId != "default" {
+            log.info("Restored theme '\(cloudId)' from iCloud after reinstall")
+            selectedThemeId = cloudId
+        }
+
         // Restore last selected theme.
         // If the saved ID no longer exists (e.g. theme was removed), reset to "default"
         // so the app doesn't get stuck in a zombie state with mismatched theme/background.
@@ -88,6 +99,7 @@ final class ThemeManager {
     func applyApp(_ theme: AppTheme) {
         current = theme
         selectedThemeId = theme.id
+        iCloud.set(theme.id, forKey: "selectedThemeId")
         backgroundColorOverride = nil
         backgroundGradientColors = nil
     }
@@ -96,6 +108,7 @@ final class ThemeManager {
     func resetToDefault() {
         current = .defaultLight
         selectedThemeId = "default"
+        iCloud.set("default", forKey: "selectedThemeId")
         backgroundColorOverride = nil
         backgroundGradientColors = nil
         #if canImport(UIKit)
@@ -108,6 +121,7 @@ final class ThemeManager {
     /// Apply theme to widgets only.
     func applyWidget(_ theme: AppTheme) {
         widgetThemeId = theme.id
+        iCloud.set(theme.id, forKey: "widgetThemeId")
         syncToAppGroup()
         WidgetCenter.shared.reloadAllTimelines()
     }
