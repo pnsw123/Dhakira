@@ -102,6 +102,9 @@ final class StoreKitManager {
         var count = 0
         for await result in StoreKit.Transaction.currentEntitlements {
             if let transaction = try? result.payloadValue {
+                // Finish every restored transaction — unfinished transactions
+                // block future purchases and leave them stuck in "pending".
+                await transaction.finish()
                 await MainActor.run {
                     purchasedIds.insert(transaction.productID)
                     if transaction.productID == "com.prodnote.theme.pro" {
@@ -132,6 +135,14 @@ final class StoreKitManager {
     private func handleVerifiedTransaction(_ transaction: StoreKit.Transaction) async {
         if transaction.revocationDate != nil {
             purchasedIds.remove(transaction.productID)
+            // If the pro bundle is revoked (refund, family sharing removal),
+            // also remove all individual theme IDs that were granted by the bundle.
+            if transaction.productID == "com.prodnote.theme.pro" {
+                purchasedIds.subtract(Self.allProductIds)
+                // Re-check: user may still own individual themes purchased separately.
+                // Re-run restore to pick those up.
+                Task { await restoreEntitlements() }
+            }
             print("[StoreKit] ❌ Entitlement revoked: \(transaction.productID)")
         } else {
             purchasedIds.insert(transaction.productID)

@@ -46,8 +46,15 @@ final class ThemeManager {
     /// iCloud key-value store — survives app reinstalls
     private let iCloud = NSUbiquitousKeyValueStore.default
 
+    @ObservationIgnored
+    private var iCloudObserver: Any?
+
     // MARK: — Init
     init() {
+        // Kick iCloud KVS to sync — important after a fresh reinstall where
+        // local UserDefaults is empty but iCloud still has the purchased theme.
+        iCloud.synchronize()
+
         // If UserDefaults was wiped (reinstall), restore from iCloud
         if selectedThemeId == "default",
            let cloudId = iCloud.string(forKey: "selectedThemeId"),
@@ -77,6 +84,30 @@ final class ThemeManager {
         #endif
         // Ensure the App Group always has the current themeId on launch so the
         // widget shows the correct theme even if the user has never opened Theme settings.
+        syncToAppGroup()
+
+        // Listen for iCloud KVS arriving late — after a reinstall, the local
+        // store may still be empty at init time. When iCloud delivers the real
+        // value moments later, apply the purchased theme automatically.
+        iCloudObserver = NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: iCloud,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleICloudSync(notification)
+        }
+    }
+
+    /// Called when iCloud KVS syncs new values (e.g. after reinstall).
+    /// If the synced theme differs from the current one, apply it.
+    private func handleICloudSync(_ notification: Notification) {
+        guard let cloudId = iCloud.string(forKey: "selectedThemeId"),
+              cloudId != "default",
+              cloudId != selectedThemeId,
+              let theme = AppTheme.all.first(where: { $0.id == cloudId }) else { return }
+        log.info("iCloud KVS sync delivered theme '\(cloudId)' — applying")
+        selectedThemeId = cloudId
+        current = theme
         syncToAppGroup()
     }
 

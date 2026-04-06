@@ -97,6 +97,9 @@ struct TaskDetailView: View {
     /// Set to true while we're programmatically updating tv.attributedText
     /// from a non-user-edit path (calendar reconciliation, struck styling).
     @State private var isSuppressingTextDidChange = false
+    /// Reentrance guard: prevents refreshQuoteBorderViews from looping
+    /// when ensureLayout triggers a contentSize change (KVO observer).
+    @State private var isRefreshingQuoteBorders = false
 
     // Default toolbar order — most-used items first. User can drag-reorder; saved to UserDefaults.
     static let defaultToolbarItems: [EditorTool] = [
@@ -317,7 +320,14 @@ struct TaskDetailView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardHeight = 0
-            withAnimation(.easeOut(duration: 0.2)) { isKeyboardVisible = false }
+            // Kill the palette instantly — no animation delay.
+            // The keyboard's own slide-down is the visual cue; the palette
+            // just needs to vanish at the same moment.
+            showColorPalette = false
+            selectionGlobalRect = .zero
+            withAnimation(.easeOut(duration: 0.2)) {
+                isKeyboardVisible = false
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
             // Issue #86: refresh strikethrough when calendar events change.
@@ -514,7 +524,9 @@ struct TaskDetailView: View {
                 guard let newText = note.object as? NSAttributedString,
                       let tv = richTextView else { return }
                 log.debug("attachmentAppended: received \(newText.length) chars")
+                isSuppressingTextDidChange = true
                 tv.attributedText = newText
+                isSuppressingTextDidChange = false
                 attributedText = newText
                 prevTextLength = newText.length
                 // Place cursor right after the inserted attachment (not at end)
@@ -867,6 +879,23 @@ struct TaskDetailView: View {
               let tv = richTextView else {
             log.warning("handleToolbarTap: unrecognised toolbar id '\(id)'")
             return
+        }
+
+        // Strikethrough must not apply to checkbox/todo lines — checking the box
+        // already crosses out the text automatically. Manual strikethrough would conflict.
+        if id == "strikethrough" {
+            let range = tv.selectedRange
+            let ts = tv.textStorage
+            let nsStr = ts.string as NSString
+            let parRange = nsStr.paragraphRange(for: range)
+            var hasCheckbox = false
+            ts.enumerateAttribute(.attachment, in: parRange, options: []) { val, _, stop in
+                if val is CheckboxAttachment { hasCheckbox = true; stop.pointee = true }
+            }
+            if hasCheckbox {
+                log.debug("handleToolbarTap: strikethrough skipped — checkbox line")
+                return
+            }
         }
         let savedRange = tv.selectedRange
         var ctx = EditorContext(textView: tv, richTextContext: richTextContext)
@@ -1558,6 +1587,9 @@ struct TaskDetailView: View {
     /// The "│" glyphs have typographic line-height gaps between them; the UIView spans
     /// the full block height and fills those gaps — one tall continuous bar per block.
     private func refreshQuoteBorderViews(in tv: UITextView) {
+        guard !isRefreshingQuoteBorders else { return }
+        isRefreshingQuoteBorders = true
+        defer { isRefreshingQuoteBorders = false }
         log.debug("refreshQuoteBorderViews: ENTER")
         let quoteViewTag = 0x71756F74
         tv.subviews.filter { $0.tag == quoteViewTag }.forEach { $0.removeFromSuperview() }
@@ -1567,6 +1599,10 @@ struct TaskDetailView: View {
         guard !str.isEmpty else { return }
         let nsStr = str as NSString
         let totalLen = nsStr.length
+
+        // Quick bail: if the document has no "│" character at all, skip the walk entirely.
+        // This avoids O(n) paragraph scanning on notes that have zero quotes.
+        guard str.contains("│") else { return }
 
         // Walk paragraphs and collect contiguous ranges of quote lines.
         // Also force the "│" character to stay invisible (.clear foreground).
@@ -1578,9 +1614,17 @@ struct TaskDetailView: View {
         while loc <= totalLen {
             if loc < totalLen {
                 let parRange = nsStr.paragraphRange(for: NSRange(location: loc, length: 0))
-                var parText = nsStr.substring(with: parRange)
-                if parText.hasSuffix("\n") { parText = String(parText.dropLast()) }
-                let isQuote = parText.hasPrefix("│ ") || parText == "│"
+                let parStart = parRange.location
+                let parEnd = parStart + parRange.length
+                // Check prefix without creating a substring — avoids O(n) String allocations.
+                let firstChar: unichar = nsStr.character(at: parStart)
+                let isQuote: Bool = {
+                    // "│" is U+2502 (BOX DRAWINGS LIGHT VERTICAL)
+                    guard firstChar == 0x2502 else { return false }
+                    let contentLen = parRange.length - (nsStr.character(at: parEnd - 1) == 0x0A ? 1 : 0)
+                    // "│" alone or "│ " prefix
+                    return contentLen == 1 || (contentLen >= 2 && nsStr.character(at: parStart + 1) == 0x20)
+                }()
 
                 if isQuote {
                     // Force the "│" character to .clear — prevents it from becoming
@@ -1615,9 +1659,17 @@ struct TaskDetailView: View {
         let tc    = tv.textContainer
         let inset = tv.textContainerInset
 
+        // Only draw quote bars for blocks that are currently visible on screen.
+        // For a 5000-line note with 2 quote blocks off-screen, this skips expensive
+        // ensureLayout + boundingRect calls entirely.
+        let visibleRect = CGRect(origin: tv.contentOffset, size: tv.bounds.size)
+        let visibleGlyphRange = lm.glyphRange(forBoundingRect: visibleRect, in: tc)
+        let visibleCharRange = lm.characterRange(forGlyphRange: visibleGlyphRange, actualGlyphRange: nil)
+
         for block in quoteBlocks {
-            // Ensure layout is up-to-date for this block — stale glyph rects
-            // after image insertions cause quote bars at wrong positions (Issue #98).
+            // Skip blocks entirely outside the visible range.
+            guard NSIntersectionRange(block, visibleCharRange).length > 0 else { continue }
+
             lm.ensureLayout(forCharacterRange: block)
             let glyphRange = lm.glyphRange(forCharacterRange: block, actualCharacterRange: nil)
             var blockRect  = lm.boundingRect(forGlyphRange: glyphRange, in: tc)
@@ -1632,9 +1684,7 @@ struct TaskDetailView: View {
             borderView.isUserInteractionEnabled = false
             borderView.tag = quoteViewTag
             tv.insertSubview(borderView, at: 0)
-            log.debug("refreshQuoteBorderViews: block \(block.location)+\(block.length) → y=\(blockRect.minY) h=\(blockRect.height)")
         }
-        log.debug("refreshQuoteBorderViews: EXIT (\(quoteBlocks.count) blocks)")
     }
 
     /// Continue a quote line: insert "│  " at the start of the new paragraph.
@@ -1902,6 +1952,11 @@ struct TaskDetailView: View {
             if let tv = richTextView {
                 let afterAttachment = min(range.location + range.length, (tv.text as NSString).length)
                 tv.selectedRange = NSRange(location: afterAttachment, length: 0)
+                // Reset typing attributes to normal body text — without this,
+                // the cursor inherits the attachment's attributes (shrunken font
+                // size from a resized image, wrong color, etc.).
+                tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
+                tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
                 log.debug("onSelectionChanged: cleared selection, cursor at \(afterAttachment)")
             }
             return
@@ -1939,7 +1994,27 @@ struct TaskDetailView: View {
         withAnimation(.easeInOut(duration: 0.2)) { showColorPalette = hasSelection }
 
         // UIKit resets typingAttributes to match text at new cursor position on every move.
-        if let color = activeFontColor, let tv = richTextView {
+        // When the cursor lands right next to an attachment (image), UIKit copies the
+        // attachment's attributes into typingAttributes — causing wrong font size and color.
+        // Detect this and reset to normal body text.
+        if let tv = richTextView, !hasSelection {
+            let loc = range.location
+            let ts = tv.textStorage
+            // Check if the character just before or at the cursor is an attachment
+            let nearAttachment: Bool = {
+                if loc > 0, loc <= ts.length,
+                   ts.attribute(.attachment, at: loc - 1, effectiveRange: nil) != nil { return true }
+                if loc < ts.length,
+                   ts.attribute(.attachment, at: loc, effectiveRange: nil) != nil { return true }
+                return false
+            }()
+            if nearAttachment {
+                tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
+                tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
+            } else if let color = activeFontColor {
+                tv.typingAttributes[.foregroundColor] = color
+            }
+        } else if let color = activeFontColor, let tv = richTextView {
             tv.typingAttributes[.foregroundColor] = color
         }
     }

@@ -279,6 +279,8 @@ enum NoteBodyCodec {
     }
 
     /// Restore [cb:0]/[cb:1] placeholders back to CheckboxAttachment objects after RTF decode.
+    /// Also re-applies strikethrough + dim color on checked lines — RTF may not
+    /// preserve these visual attributes reliably across round-trips.
     private static func restoreCheckboxes(in source: NSAttributedString) -> NSAttributedString {
         let mutable = NSMutableAttributedString(attributedString: source)
         let pattern = "\\[cb:([01])\\]"
@@ -295,6 +297,46 @@ enum NoteBodyCodec {
             attachStr.addAttribute(.foregroundColor, value: UIColor.label,
                                    range: NSRange(location: 0, length: attachStr.length))
             mutable.replaceCharacters(in: match.range, with: attachStr as NSAttributedString)
+
+            // Re-apply strikethrough + dim on the rest of the line for checked items.
+            // The CheckboxTapCoordinator applies these at toggle time, but RTF
+            // round-trips can lose them — so we always reapply on decode.
+            let cbLoc = match.range.location  // after replacement, checkbox is at this index
+            let lineRange = (mutable.string as NSString).lineRange(
+                for: NSRange(location: cbLoc, length: 0))
+            let textStart = cbLoc + 1  // skip the checkbox character
+            let textEnd = lineRange.location + lineRange.length
+            if textStart < textEnd, textStart < mutable.length {
+                let textRange = NSRange(location: textStart,
+                                        length: min(textEnd - textStart, mutable.length - textStart))
+                if isChecked {
+                    mutable.addAttribute(.strikethroughStyle,
+                                         value: NSUnderlineStyle.single.rawValue, range: textRange)
+                    // Dim existing colors instead of replacing them — preserves
+                    // custom text colors (red, blue, etc.) the user applied.
+                    mutable.enumerateAttribute(.foregroundColor, in: textRange, options: []) { value, subRange, _ in
+                        if let color = value as? UIColor {
+                            mutable.addAttribute(.foregroundColor,
+                                                 value: color.withAlphaComponent(0.4), range: subRange)
+                        } else {
+                            mutable.addAttribute(.foregroundColor,
+                                                 value: UIColor.secondaryLabel, range: subRange)
+                        }
+                    }
+                } else {
+                    mutable.removeAttribute(.strikethroughStyle, range: textRange)
+                    // Restore full opacity on unchecked lines.
+                    mutable.enumerateAttribute(.foregroundColor, in: textRange, options: []) { value, subRange, _ in
+                        if let color = value as? UIColor {
+                            mutable.addAttribute(.foregroundColor,
+                                                 value: color.withAlphaComponent(1.0), range: subRange)
+                        } else {
+                            mutable.addAttribute(.foregroundColor,
+                                                 value: UIColor.label, range: subRange)
+                        }
+                    }
+                }
+            }
         }
         log.debug("NoteBodyCodec.restoreCheckboxes: restored \(matches.count) checkbox(es)")
         return mutable

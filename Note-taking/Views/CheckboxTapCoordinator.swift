@@ -63,6 +63,14 @@ final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecogni
         }
         ts.endEditing()
 
+        // Hide cursor — checkbox tap is a toggle, not a text editing action.
+        // Resign FIRST (hides cursor), then restore scroll position.
+        // Do NOT set selectedRange before resigning — that causes a brief
+        // cursor flash visible to the user.
+        let savedOffset = tv.contentOffset
+        tv.resignFirstResponder()
+        tv.setContentOffset(savedOffset, animated: false)
+
         // Publish snapshot so TaskDetailView can sync the binding
         lastToggledText = NSAttributedString(attributedString: ts)
         toggleVersion += 1

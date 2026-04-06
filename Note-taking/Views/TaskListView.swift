@@ -54,6 +54,14 @@ struct TaskListView: View {
     @State private var newTaskTitle: String = ""
     @FocusState private var newTaskFieldFocused: Bool
 
+    /// Lightweight fingerprint for widget sync — one onChange instead of four.
+    /// Builds a single string from count + priorities + titles + body sizes.
+    /// SwiftUI compares this one string instead of creating 4 separate arrays.
+    private var widgetSyncFingerprint: String {
+        let tasks = filteredTasks
+        return "\(tasks.count)|\(tasks.map { "\($0.priority)\($0.title.hashValue)\($0.body?.count ?? 0)" }.joined())"
+    }
+
 /// Tasks belonging to this task list (not soft-deleted).
     private var filteredTasks: [TaskItem] {
         var result = allTasks.filter { task in
@@ -311,11 +319,9 @@ struct TaskListView: View {
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 reconcileWithCloudKit()
             }
-            .onChange(of: filteredTasks.count) { _, _ in syncWidget() }
-            .onChange(of: filteredTasks.map(\.priority)) { _, _ in syncWidget() }
-            .onChange(of: filteredTasks.map(\.title)) { _, _ in syncWidget() }
-            // Watch body size so the widget asterisk updates immediately after content is saved.
-            .onChange(of: filteredTasks.map { $0.body?.count ?? 0 }) { _, _ in syncWidget() }
+            // Single widget sync trigger — cheaper than 4 separate onChange handlers
+            // that each create new arrays every render cycle.
+            .onChange(of: widgetSyncFingerprint) { _, _ in syncWidget() }
     }
 
     private func syncWidget() {
@@ -387,21 +393,6 @@ struct TaskListView: View {
             log.error("commitNewTask: modelContext.save() failed — \(error.localizedDescription)")
         }
 
-        // Register undo — deletes the task if the user immediately undoes creation
-        let ctx = modelContext
-        undoManager?.registerUndo(withTarget: newTask) { t in
-            if let eventId = t.calendarEventId {
-                Task { await CalendarSyncService.shared.deleteEvent(withId: eventId) }
-            }
-            if let googleId = t.googleCalendarEventId {
-                Task { await CalendarSyncService.shared.deleteGoogleEvent(googleId) }
-            }
-            ctx.delete(t)
-            try? ctx.save()
-        }
-        undoManager?.setActionName("Create Task")
-        undoVersion += 1
-
         // Detect any date/time in the title and create a calendar event immediately.
         // Fire-and-forget — never blocks the UI.
         let created = newTask
@@ -453,14 +444,14 @@ struct TaskListView: View {
             um?.registerUndo(withTarget: t) { t2 in
                 t2.isCompleted = willComplete
                 t2.completedAt = willComplete ? Date() : nil
-                try? ctx.save()
+                do { try ctx.save() } catch { print("[Undo] save failed: \(error.localizedDescription)") }
             }
             um?.setActionName(willComplete ? "Complete Task" : "Uncomplete Task")
             withAnimation(.easeInOut(duration: 0.3)) {
                 t.isCompleted = wasCompleted
                 t.completedAt = oldCompletedAt
             }
-            try? ctx.save()
+            do { try ctx.save() } catch { print("[Undo] save failed: \(error.localizedDescription)") }
         }
         undoManager?.setActionName(willComplete ? "Complete Task" : "Uncomplete Task")
         undoVersion += 1
@@ -532,11 +523,11 @@ struct TaskListView: View {
             // Register redo: flip back to newPriority
             um?.registerUndo(withTarget: t) { t2 in
                 t2.priority = newPriority
-                try? ctx.save()
+                do { try ctx.save() } catch { print("[Undo] save failed: \(error.localizedDescription)") }
             }
             um?.setActionName("Set Priority")
             t.priority = oldPriority
-            try? ctx.save()
+            do { try ctx.save() } catch { print("[Undo] save failed: \(error.localizedDescription)") }
         }
         undoManager?.setActionName("Set Priority")
         undoVersion += 1
@@ -566,7 +557,7 @@ struct TaskListView: View {
                     t2.deletedAt = Date()
                 }
                 LocalStateLedger.shared.markDeleted(t2.id)
-                try? ctx.save()
+                do { try ctx.save() } catch { print("[Undo] save failed: \(error.localizedDescription)") }
             }
             um?.setActionName("Delete Task")
             withAnimation(.smooth(duration: 0.3)) {
@@ -576,7 +567,7 @@ struct TaskListView: View {
             t.calendarEventId = savedCalendarId
             t.googleCalendarEventId = savedGoogleId
             LocalStateLedger.shared.unmarkDeleted(t.id)
-            try? ctx.save()
+            do { try ctx.save() } catch { print("[Undo] save failed: \(error.localizedDescription)") }
             // Issue #85: re-scan body to recreate body-line events after untrash.
             if let bodyData = t.body,
                case .success(let attrStr) = NoteBodyCodec.decode(bodyData, taskId: t.id) {
@@ -596,7 +587,6 @@ struct TaskListView: View {
             task.googleCalendarEventId = nil
         }
         // Issue #85: delete all body-line calendar events on trash.
-        let ctx = modelContext
         let trashedTask = task
         Task { await BodyEventSyncService.shared.deleteAllEvents(for: trashedTask, context: ctx) }
         withAnimation(.smooth(duration: 0.3)) {
