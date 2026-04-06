@@ -78,7 +78,7 @@ final class GoogleCalendarAPIService {
             } else if status == 401 && !isRetry {
                 // Token expired — clear stale token and retry once with a fresh one.
                 log.warning("deleteEvent: 401 — refreshing token and retrying")
-                await GoogleAuthService.shared.clearAccessToken()
+                GoogleAuthService.shared.clearAccessToken()
                 guard let freshToken = await GoogleAuthService.shared.validToken() else { return }
                 await deleteEvent(id: id, token: freshToken, isRetry: true)
             } else {
@@ -130,7 +130,7 @@ final class GoogleCalendarAPIService {
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 if status == 401 && !isRetry {
                     log.warning("existingEventIds: 401 — refreshing token and retrying")
-                    await GoogleAuthService.shared.clearAccessToken()
+                    GoogleAuthService.shared.clearAccessToken()
                     guard let freshToken = await GoogleAuthService.shared.validToken() else { return nil }
                     return await existingEventIds(from: ids, token: freshToken, isRetry: true)
                 }
@@ -176,7 +176,7 @@ final class GoogleCalendarAPIService {
             // too, making it impossible to recover. Only invalidate the stale access token.
             if status == 401 {
                 log.warning("\(method) \(url): 401 — clearing stale access token and refreshing")
-                await GoogleAuthService.shared.clearAccessToken()
+                GoogleAuthService.shared.clearAccessToken()
                 guard let freshToken = await GoogleAuthService.shared.validToken() else { return nil }
                 return await request(method: method, url: url, body: body, token: freshToken)
             }

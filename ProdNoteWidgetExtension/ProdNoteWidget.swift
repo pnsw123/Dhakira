@@ -98,7 +98,7 @@ private struct WidgetBackgroundView: View {
             Image(uiImage: img)
                 .resizable()
                 .scaledToFill()
-        } else {
+        } else if theme.backgroundStyle == .gradient {
             if #available(iOS 18, *) {
                 let defaultGrid: [SIMD2<Float>] = [
                     [0,0],[0.5,0],[1,0],
@@ -118,6 +118,8 @@ private struct WidgetBackgroundView: View {
                     endRadius: 300
                 )
             }
+        } else {
+            theme.screenBackground
         }
     }
 }

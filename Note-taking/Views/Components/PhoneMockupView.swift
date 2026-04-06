@@ -972,9 +972,9 @@ private struct iPadMockFolderPage: View {
 
 #Preview {
     HStack(spacing: 12) {
-        PhoneMockupView(theme: .sakura,    scope: .app,     currentPage: .constant(0))
-        PhoneMockupView(theme: .coral,  scope: .app,     currentPage: .constant(1))
-        PhoneMockupView(theme: .forest, scope: .widgets, currentPage: .constant(0))
+        PhoneMockupView(theme: .nebula, scope: .app,     currentPage: .constant(0))
+        PhoneMockupView(theme: .cosmos,       scope: .app,     currentPage: .constant(1))
+        PhoneMockupView(theme: .galaxy,       scope: .widgets, currentPage: .constant(0))
     }
     .frame(height: 490)
     .padding()
@@ -983,9 +983,9 @@ private struct iPadMockFolderPage: View {
 
 #Preview("iPad Mockup") {
     HStack(spacing: 20) {
-        iPadMockupView(theme: .sakura, scope: .app,     currentPage: .constant(0))
+        iPadMockupView(theme: .crystal,   scope: .app,     currentPage: .constant(0))
             .frame(width: 360, height: 480)
-        iPadMockupView(theme: .forest, scope: .widgets, currentPage: .constant(0))
+        iPadMockupView(theme: .twilight, scope: .widgets, currentPage: .constant(0))
             .frame(width: 360, height: 480)
     }
     .padding()

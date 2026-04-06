@@ -200,4 +200,4 @@ private func previewDeleted(theme: AppTheme? = nil) -> some View {
 }
 
 #Preview("Recently Deleted — Default") { previewDeleted() }
-#Preview("Recently Deleted — Coral") { previewDeleted(theme: .coral) }
+#Preview("Recently Deleted — Twilight") { previewDeleted(theme: .twilight) }

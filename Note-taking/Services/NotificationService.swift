@@ -12,12 +12,23 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "Notification
 /// Apple docs:
 /// - https://developer.apple.com/documentation/usernotifications/asking-permission-to-use-notifications
 /// - https://developer.apple.com/documentation/usernotifications/unmutablenotificationcontent
-final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
+final class NotificationService: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
 
     static let shared = NotificationService()
 
-    private var permissionRequested = false
-    private var permissionGranted = false
+    /// Guards concurrent access to permission flags from multiple Task{} callers.
+    private let lock = NSLock()
+    private var _permissionRequested = false
+    private var _permissionGranted = false
+
+    private var permissionRequested: Bool {
+        get { lock.withLock { _permissionRequested } }
+        set { lock.withLock { _permissionRequested = newValue } }
+    }
+    private var permissionGranted: Bool {
+        get { lock.withLock { _permissionGranted } }
+        set { lock.withLock { _permissionGranted = newValue } }
+    }
 
     private override init() {
         super.init()
