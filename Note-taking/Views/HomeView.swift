@@ -166,6 +166,7 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 16)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -193,6 +194,7 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
@@ -264,6 +266,7 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .disabled(googleSignInLoading)

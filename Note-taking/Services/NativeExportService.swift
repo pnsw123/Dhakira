@@ -218,24 +218,30 @@ final class NativeExportService {
             mutable.addAttribute(.attachment, value: attachment, range: range)
         }
 
-        // Pass 2: Force all text to black and remove dark backgrounds.
-        // Collect changes first — mutating during enumerateAttributes is undefined behavior.
+        // Pass 2: Normalize colors for print — dark-mode adaptive colors become
+        // invisible on white paper. Preserve explicitly chosen custom colors
+        // (red, blue, highlights, etc.) — only replace adaptive/theme colors.
         let updatedRange = NSRange(location: 0, length: mutable.length)
-        var colorUpdates: [NSRange] = []
-        var bgRemoves: [NSRange] = []
         mutable.enumerateAttributes(in: updatedRange, options: []) { attrs, range, _ in
-            colorUpdates.append(range)
+            // Foreground: preserve custom colors, convert adaptive ones to black
+            if let fg = attrs[.foregroundColor] as? UIColor {
+                if isAdaptiveColor(fg) {
+                    mutable.addAttribute(.foregroundColor, value: UIColor.black, range: range)
+                }
+                // Custom colors (red, blue, etc.) are kept as-is
+            } else {
+                // No foreground color set — default to black for print
+                mutable.addAttribute(.foregroundColor, value: UIColor.black, range: range)
+            }
+            // Background: remove only dark backgrounds (invisible on white paper).
+            // Keep light-colored highlights (yellow, pink, etc.) for print.
             if let bg = attrs[.backgroundColor] as? UIColor {
                 var white: CGFloat = 0
                 bg.getWhite(&white, alpha: nil)
-                if white < 0.5 { bgRemoves.append(range) }
+                if white < 0.3 {
+                    mutable.removeAttribute(.backgroundColor, range: range)
+                }
             }
-        }
-        for range in colorUpdates {
-            mutable.addAttribute(.foregroundColor, value: UIColor.black, range: range)
-        }
-        for range in bgRemoves {
-            mutable.removeAttribute(.backgroundColor, range: range)
         }
 
         // Pass 3: Make quote bar characters visible for PDF (AFTER color normalization).
@@ -284,6 +290,26 @@ final class NativeExportService {
             mutable.replaceCharacters(in: range, with: placeholder)
         }
         return mutable
+    }
+
+    /// Returns true if the color is an adaptive/theme color that changes between
+    /// light and dark mode (e.g. UIColor.label, .secondaryLabel, .primaryText).
+    /// These must be replaced with static black for PDF export on white paper.
+    /// Custom colors (red, blue, green, etc.) return false and are preserved.
+    private static func isAdaptiveColor(_ color: UIColor) -> Bool {
+        // Resolve the color in both light and dark traits.
+        // Adaptive colors produce different RGB values; static colors stay the same.
+        let lightTraits = UITraitCollection(userInterfaceStyle: .light)
+        let darkTraits  = UITraitCollection(userInterfaceStyle: .dark)
+        let lightResolved = color.resolvedColor(with: lightTraits)
+        let darkResolved  = color.resolvedColor(with: darkTraits)
+        var lr: CGFloat = 0, lg: CGFloat = 0, lb: CGFloat = 0, la: CGFloat = 0
+        var dr: CGFloat = 0, dg: CGFloat = 0, db: CGFloat = 0, da: CGFloat = 0
+        lightResolved.getRed(&lr, green: &lg, blue: &lb, alpha: &la)
+        darkResolved.getRed(&dr, green: &dg, blue: &db, alpha: &da)
+        // If the color differs between light and dark mode, it's adaptive
+        let diff = abs(lr - dr) + abs(lg - dg) + abs(lb - db)
+        return diff > 0.1
     }
 
     private static func sanitizeFilename(_ name: String) -> String {
