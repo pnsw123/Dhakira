@@ -204,9 +204,9 @@ final class NativeExportService {
             guard let cb = value as? CheckboxAttachment else { return }
             let symbolName = cb.isChecked ? "checkmark.square.fill" : "square"
             let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-                .applying(UIImage.SymbolConfiguration(hierarchicalColor: .black))
-            if let img = UIImage(systemName: symbolName, withConfiguration: config)?
-                .withTintColor(.black, renderingMode: .alwaysOriginal) {
+                .applying(UIImage.SymbolConfiguration(paletteColors: [.black]))
+            if let symbolImg = UIImage(systemName: symbolName, withConfiguration: config),
+               let img = renderSymbolToBitmap(symbolImg, color: .black) {
                 let printAttachment = NSTextAttachment()
                 printAttachment.image = img
                 printAttachment.bounds = CGRect(x: 0, y: -3, width: 16, height: 16)
@@ -290,6 +290,19 @@ final class NativeExportService {
             mutable.replaceCharacters(in: range, with: placeholder)
         }
         return mutable
+    }
+
+    /// Renders an SF Symbol into a flat bitmap image so it exports correctly
+    /// in PDF contexts. SF Symbols in template mode get filled solid by the
+    /// PDF renderer — rasterizing them first avoids that.
+    private static func renderSymbolToBitmap(_ symbol: UIImage, color: UIColor) -> UIImage? {
+        let size = symbol.size
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let rendered = renderer.image { ctx in
+            color.setFill()
+            symbol.withRenderingMode(.alwaysTemplate).draw(in: CGRect(origin: .zero, size: size))
+        }
+        return rendered.withRenderingMode(.alwaysOriginal)
     }
 
     /// Returns true if the color is an adaptive/theme color that changes between
