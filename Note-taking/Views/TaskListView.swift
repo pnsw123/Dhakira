@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import WidgetKit
 import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "TaskList")
@@ -591,6 +592,7 @@ struct TaskListView: View {
                 }
                 LocalStateLedger.shared.markDeleted(t2.id)
                 do { try ctx.save() } catch { print("[Undo] save failed: \(error.localizedDescription)") }
+                WidgetCenter.shared.reloadAllTimelines()
             }
             um?.setActionName("Delete Task")
             withAnimation(.smooth(duration: 0.3)) {
@@ -601,6 +603,7 @@ struct TaskListView: View {
             t.googleCalendarEventId = savedGoogleId
             LocalStateLedger.shared.unmarkDeleted(t.id)
             do { try ctx.save() } catch { print("[Undo] save failed: \(error.localizedDescription)") }
+            WidgetCenter.shared.reloadAllTimelines()
             // Issue #85: re-scan body to recreate body-line events after untrash.
             if let bodyData = t.body,
                case .success(let attrStr) = NoteBodyCodec.decode(bodyData, taskId: t.id) {
@@ -633,6 +636,7 @@ struct TaskListView: View {
         } catch {
             log.error("softDeleteTask: modelContext.save() failed — \(error.localizedDescription)")
         }
+        syncWidget()
     }
 
     private static func priorityWeight(_ priority: String) -> Int {
