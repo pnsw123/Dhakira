@@ -142,6 +142,7 @@ struct TaskDetailView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .modifier(MacContentWidthModifier(maxWidth: 800))
         #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -162,7 +163,7 @@ struct TaskDetailView: View {
                         .frame(width: 36, height: 36)
                         .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.macFriendly)
                 .padding(.leading, 8)
 
                 Spacer()
@@ -180,7 +181,7 @@ struct TaskDetailView: View {
                                 .frame(width: 36, height: 36)
                                 .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.macFriendly)
                         .opacity(pkCanvasView?.undoManager?.canUndo == true ? 1 : 0.35)
                         .accessibilityLabel("Undo Drawing")
 
@@ -193,7 +194,7 @@ struct TaskDetailView: View {
                                 .frame(width: 36, height: 36)
                                 .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.macFriendly)
                         .opacity(pkCanvasView?.undoManager?.canRedo == true ? 1 : 0.35)
                         .accessibilityLabel("Redo Drawing")
 
@@ -211,7 +212,7 @@ struct TaskDetailView: View {
                                 .frame(height: 36)
                                 .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .capsule)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.macFriendly)
                     }
                     .padding(.trailing, 8)
                 } else {
@@ -226,7 +227,7 @@ struct TaskDetailView: View {
                                 .frame(width: 36, height: 36)
                                 .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.macFriendly)
                         .opacity(richTextView?.undoManager?.canUndo == true ? 1 : 0.35)
                         .accessibilityLabel("Undo")
 
@@ -239,7 +240,7 @@ struct TaskDetailView: View {
                                 .frame(width: 36, height: 36)
                                 .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.macFriendly)
                         .opacity(richTextView?.undoManager?.canRedo == true ? 1 : 0.35)
                         .accessibilityLabel("Redo")
 
@@ -250,7 +251,7 @@ struct TaskDetailView: View {
                                 .frame(width: 36, height: 36)
                                 .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.macFriendly)
 
                         if isKeyboardVisible {
                             Button {
@@ -262,7 +263,7 @@ struct TaskDetailView: View {
                                     .frame(width: 36, height: 36)
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.macFriendly)
                             .transition(.scale.combined(with: .opacity))
                         }
 
@@ -278,7 +279,7 @@ struct TaskDetailView: View {
                                 .frame(width: 36, height: 36)
                                 .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.macFriendly)
                         .padding(.trailing, 4)
                     }
                     .padding(.trailing, 8)
@@ -2202,7 +2203,7 @@ private struct _TaskHeaderView: View {
 // MARK: - DataScannerWrapperView (VisionKit live text capture)
 // Camera/scanner hardware — iOS only, hidden on Mac Catalyst
 
-#if os(iOS)
+#if os(iOS) && !targetEnvironment(macCatalyst)
 @MainActor
 struct DataScannerWrapperView: UIViewControllerRepresentable {
     let onScan: (String) -> Void
@@ -2275,7 +2276,7 @@ struct DataScannerWrapperView: UIViewControllerRepresentable {
         }
     }
 }
-#endif // os(iOS) — DataScannerWrapperView
+#endif // os(iOS) && !macCatalyst — DataScannerWrapperView
 
 // MARK: - PhotoPickerView (Images only, multi-select)
 

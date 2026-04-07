@@ -14,8 +14,12 @@ private enum HomeNav: String, Identifiable {
 struct ContentView: View {
     /// true = Folders page visible, false = Tasks page visible (iPhone only)
     @State private var showHome = false
-    /// iPad split-view column visibility
+    /// iPad split-view column visibility — Mac defaults to sidebar always visible.
+    #if targetEnvironment(macCatalyst)
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    #else
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    #endif
 
     @Binding var pendingDeepLinkTaskId: UUID?
 

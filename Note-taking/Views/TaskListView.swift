@@ -106,7 +106,7 @@ struct TaskListView: View {
                                         .frame(width: 36, height: 36)
                                         .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.macFriendly)
                                 .accessibilityIdentifier("btn-go-to-folders")
                             } else {
                                 Button(action: {
@@ -119,7 +119,7 @@ struct TaskListView: View {
                                         .frame(width: 36, height: 36)
                                         .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.macFriendly)
                             }
 
                             Spacer()
@@ -136,7 +136,7 @@ struct TaskListView: View {
                                     .frame(width: 36, height: 36)
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.macFriendly)
                             .opacity(undoVersion >= 0 && undoManager?.canUndo == true ? 1 : 0.35)
                             .accessibilityLabel("Undo")
 
@@ -150,7 +150,7 @@ struct TaskListView: View {
                                     .frame(width: 36, height: 36)
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.macFriendly)
                             .padding(.leading, 8)
                             .opacity(undoVersion >= 0 && undoManager?.canRedo == true ? 1 : 0.35)
                             .accessibilityLabel("Redo")
@@ -224,6 +224,26 @@ struct TaskListView: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
+                    .contextMenu {
+                        Button { setPriority(task, to: "high") } label: {
+                            Label("High Priority", systemImage: "flag.fill")
+                        }
+                        Button { setPriority(task, to: "medium") } label: {
+                            Label("Medium Priority", systemImage: "flag.fill")
+                        }
+                        Button { setPriority(task, to: "default") } label: {
+                            Label("No Priority", systemImage: "flag.slash")
+                        }
+                        Divider()
+                        Button { toggleComplete(task) } label: {
+                            Label(task.isCompleted ? "Mark Incomplete" : "Mark Complete",
+                                  systemImage: task.isCompleted ? "circle" : "checkmark.circle")
+                        }
+                        Divider()
+                        Button(role: .destructive) { softDeleteTask(task) } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
                 .onMove { source, destination in
                     moveTask(from: source, to: destination)
@@ -257,6 +277,7 @@ struct TaskListView: View {
             .animation(.smooth(duration: 0.35), value: filteredTasks.count)
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .modifier(MacContentWidthModifier(maxWidth: 700))
             .overlay {
                 if filteredTasks.isEmpty && !isAddingTask {
                     ContentUnavailableView {
@@ -278,7 +299,7 @@ struct TaskListView: View {
                         .background(Color.fabColor, in: Circle())
                         .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.macFriendly)
                 .padding(.trailing, 6)
                 .padding(.bottom, 8)
             }
@@ -355,7 +376,7 @@ struct TaskListView: View {
                 .background(Color.themeAccent, in: Circle())
                 .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.macFriendly)
     }
 
     private var settingsButton: some View {

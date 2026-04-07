@@ -124,6 +124,9 @@ struct RecentlyCompletedView: View {
             task.completedAt = nil
         }
         LocalStateLedger.shared.unmarkCompleted(task.id)
+        do { try modelContext.save() } catch {
+            log.error("restoreTask: save failed — \(error.localizedDescription)")
+        }
         // Re-create calendar events for the restored task
         let t = task
         Task { await CalendarSyncService.shared.syncTaskIfNeeded(t) }
@@ -156,6 +159,9 @@ struct RecentlyCompletedView: View {
             task.deletedAt = Date()
         }
         LocalStateLedger.shared.markDeleted(task.id)
+        do { try modelContext.save() } catch {
+            log.error("trashTask: save failed — \(error.localizedDescription)")
+        }
     }
 
     private var emptyState: some View {

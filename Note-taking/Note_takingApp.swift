@@ -47,6 +47,9 @@ struct Note_takingApp: App {
                 .environment(themeManager)
                 .environment(storeKitManager)
                 .preferredColorScheme(themeManager.current.preferredScheme)
+                #if targetEnvironment(macCatalyst)
+                .onAppear { configureMacWindow() }
+                #endif
                 .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
                     // Apple fires EKEventStoreChanged 3-5× per event change.
                     // Debounce: cancel any pending run and wait 600 ms for the burst to settle,
@@ -60,6 +63,8 @@ struct Note_takingApp: App {
                     }
                 }
                 .task {
+                    // Sync user preferences (sort order, toolbar, etc.) across devices via iCloud.
+                    CloudSettings.shared.start()
                     // Issue #88: configure notification delegate for foreground display.
                     NotificationService.shared.configure()
                     // Request calendar permission once on first launch (Issue #60).
@@ -86,6 +91,9 @@ struct Note_takingApp: App {
         .modelContainer(container)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
+                // Pull latest theme + settings from iCloud
+                ThemeManager.shared.refreshFromiCloud()
+                CloudSettings.shared.refreshFromiCloud()
                 // Re-read iOS Settings toggles every time the app comes to foreground.
                 CalendarSelectionService.shared.refreshFromUserDefaults()
                 // Reconcile all calendar sources on foreground return (Apple + Google).
@@ -113,7 +121,53 @@ struct Note_takingApp: App {
             }
         }
     }
+
+    #if targetEnvironment(macCatalyst)
+    private func configureMacWindow() {
+        DispatchQueue.main.async {
+            guard let windowScene = UIApplication.shared.connectedScenes
+                    .compactMap({ $0 as? UIWindowScene }).first else { return }
+            windowScene.sizeRestrictions?.minimumSize = CGSize(width: 540, height: 600)
+
+            // Create an NSToolbar with a centered title — stays fixed regardless of navigation
+            let toolbar = NSToolbar(identifier: "MainToolbar")
+            toolbar.delegate = MacToolbarDelegate.shared
+            toolbar.displayMode = .iconOnly
+            toolbar.centeredItemIdentifier = NSToolbarItem.Identifier("AppTitle")
+
+            windowScene.titlebar?.toolbar = toolbar
+            windowScene.titlebar?.toolbarStyle = .unified
+            windowScene.titlebar?.titleVisibility = .hidden // hide default, we use our own
+        }
+    }
+    #endif
 }
+
+// MARK: - Mac Toolbar Delegate
+#if targetEnvironment(macCatalyst)
+/// Provides a centered "Dhakira" title in the Mac titlebar that stays fixed
+/// regardless of NavigationSplitView column changes.
+final class MacToolbarDelegate: NSObject, NSToolbarDelegate {
+    static let shared = MacToolbarDelegate()
+    private let titleID = NSToolbarItem.Identifier("AppTitle")
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.flexibleSpace, titleID, .flexibleSpace]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [titleID, .flexibleSpace]
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
+                 willBeInsertedIntoToolbar: Bool) -> NSToolbarItem? {
+        guard id == titleID else { return nil }
+        let item = NSToolbarItem(itemIdentifier: titleID)
+        item.title = "Dhakira"
+        return item
+    }
+}
+#endif
 
 // MARK: - StartupWorker
 

@@ -38,6 +38,10 @@ struct SettingsMenuView: View {
                 .frame(width: 36, height: 36)
                 .background(.regularMaterial, in: Circle())
                 .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                #if targetEnvironment(macCatalyst)
+                .padding(10)
+                .contentShape(Rectangle())
+                #endif
         }
         .tint(Color.themeAccent)
     }

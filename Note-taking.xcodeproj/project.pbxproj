@@ -13,6 +13,7 @@
 		38D407412F7A6DC700B85136 /* ProdNoteShared in Frameworks */ = {isa = PBXBuildFile; productRef = 38D407402F7A6DC700B85136 /* ProdNoteShared */; };
 		38D407432F7A6E1300B85136 /* ProdNoteShared in Frameworks */ = {isa = PBXBuildFile; productRef = 38D407422F7A6E1300B85136 /* ProdNoteShared */; };
 		38D8B2AB2F820FE5004C5D57 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38D8B2AA2F820FE5004C5D57 /* StoreKit.framework */; };
+		38EA1BDE2F84D1C60016CEA0 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 38EA1BDD2F84D1C60016CEA0 /* CloudKit.framework */; };
 		AA000001AAAA000100000001 /* RichTextKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA000002AAAA000200000002 /* RichTextKit */; };
 /* End PBXBuildFile section */
 
@@ -65,6 +66,7 @@
 		38D4071C2F7A624D00B85136 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		38D4073E2F7A685B00B85136 /* ProdNoteWidgetExtensionExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ProdNoteWidgetExtensionExtension.entitlements; sourceTree = "<group>"; };
 		38D8B2AA2F820FE5004C5D57 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/StoreKit.framework; sourceTree = DEVELOPER_DIR; };
+		38EA1BDD2F84D1C60016CEA0 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
 		38EED47A2F75B1CB0069B470 /* Note-taking.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Note-taking.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3DBD6ED202F394D995BBE1E /* PRELAUNCH-REQUIREMENTS.md */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = net.daringfireball.markdown; path = "PRELAUNCH-REQUIREMENTS.md"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -137,6 +139,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				38EA1BDE2F84D1C60016CEA0 /* CloudKit.framework in Frameworks */,
 				38D8B2AB2F820FE5004C5D57 /* StoreKit.framework in Frameworks */,
 				38D407412F7A6DC700B85136 /* ProdNoteShared in Frameworks */,
 				AA000001AAAA000100000001 /* RichTextKit in Frameworks */,
@@ -156,6 +159,7 @@
 		38D407192F7A624D00B85136 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				38EA1BDD2F84D1C60016CEA0 /* CloudKit.framework */,
 				38D8B2AA2F820FE5004C5D57 /* StoreKit.framework */,
 				38D4071A2F7A624D00B85136 /* WidgetKit.framework */,
 				38D4071C2F7A624D00B85136 /* SwiftUI.framework */,
@@ -482,11 +486,13 @@
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,6";
 			};
 			name = Debug;
 		};
@@ -515,11 +521,13 @@
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,6";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;

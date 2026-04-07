@@ -286,7 +286,7 @@ struct AttachmentServicePresenters: View {
             EmptyView()
             #endif
         case .dataScanner:
-            #if os(iOS)
+            #if os(iOS) && !targetEnvironment(macCatalyst)
             DataScannerWrapperView { text in
                 service.appendScannedText(text, to: &attributedText)
                 service.activeSheet = nil

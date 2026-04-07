@@ -320,6 +320,9 @@ struct FolderRowView: View {
         }
         // Subfolders cascade via SwiftData relationship
         modelContext.delete(folder)
+        do { try modelContext.save() } catch {
+            log.error("deleteFolder: save failed — \(error.localizedDescription)")
+        }
     }
 
     private func addTaskList() {
@@ -462,6 +465,9 @@ struct TaskListRowView: View {
             task.deletedAt = now
         }
         modelContext.delete(taskList)
+        do { try modelContext.save() } catch {
+            log.error("deleteTaskList: save failed — \(error.localizedDescription)")
+        }
     }
 }
 

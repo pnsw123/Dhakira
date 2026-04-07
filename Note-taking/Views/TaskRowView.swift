@@ -52,8 +52,8 @@ struct TaskRowView: View {
                     }
                     .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
-                .contentShape(Circle().size(CGSize(width: 36, height: 36)))
+                .buttonStyle(.macFriendly)
+                .contentShape(Rectangle())
                 .padding(.top, 1)
 
                 if isFocused {

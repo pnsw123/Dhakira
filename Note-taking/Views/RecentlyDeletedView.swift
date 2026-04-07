@@ -130,6 +130,9 @@ struct RecentlyDeletedView: View {
             task.isTrashed = false
             task.deletedAt = nil
         }
+        do { try modelContext.save() } catch {
+            log.error("restoreTask: save failed — \(error.localizedDescription)")
+        }
         // Issue #85: re-scan body to recreate body-line events after restore.
         if let bodyData = task.body,
            case .success(let attrStr) = NoteBodyCodec.decode(bodyData, taskId: task.id) {
@@ -152,6 +155,9 @@ struct RecentlyDeletedView: View {
         AttachmentStore.shared.deleteAll(taskId: task.id)
         withAnimation(.smooth(duration: 0.3)) {
             modelContext.delete(task)
+        }
+        do { try modelContext.save() } catch {
+            log.error("permanentlyDelete: save failed — \(error.localizedDescription)")
         }
     }
 }

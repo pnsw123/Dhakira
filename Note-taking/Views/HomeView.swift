@@ -50,7 +50,7 @@ struct HomeView: View {
                                     .frame(width: 36, height: 36)
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.macFriendly)
                             .accessibilityIdentifier("btn-go-to-tasks")
                         }
                         .padding(.horizontal, 16)

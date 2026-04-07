@@ -102,9 +102,13 @@ final class ThemeManager {
     /// If the synced theme differs from the current one, apply it.
     private func handleICloudSync(_ notification: Notification) {
         guard let cloudId = iCloud.string(forKey: "selectedThemeId"),
-              cloudId != "default",
-              cloudId != selectedThemeId,
-              let theme = AppTheme.all.first(where: { $0.id == cloudId }) else { return }
+              cloudId != selectedThemeId else { return }
+        if cloudId == "default" {
+            log.info("iCloud KVS sync delivered default theme — resetting")
+            resetToDefault()
+            return
+        }
+        guard let theme = AppTheme.all.first(where: { $0.id == cloudId }) else { return }
         log.info("iCloud KVS sync delivered theme '\(cloudId)' — applying")
         selectedThemeId = cloudId
         current = theme
@@ -118,6 +122,38 @@ final class ThemeManager {
     /// The theme currently applied to widgets (may differ from the app theme).
     var widgetTheme: AppTheme {
         AppTheme.all.first { $0.id == widgetThemeId } ?? current
+    }
+
+    /// Pull latest theme from iCloud when app returns to foreground.
+    /// `synchronize()` only requests a sync — data may arrive later.
+    /// We check immediately AND after a short delay to catch late arrivals.
+    func refreshFromiCloud() {
+        iCloud.synchronize()
+        applyCloudThemeIfChanged()
+        // Re-check after 2 seconds — iCloud data may not arrive instantly
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [self] in
+            applyCloudThemeIfChanged()
+        }
+    }
+
+    private func applyCloudThemeIfChanged() {
+        let cloudId = iCloud.string(forKey: "selectedThemeId")
+        let localId = selectedThemeId
+        log.info("applyCloudThemeIfChanged: cloud='\(cloudId ?? "nil")' local='\(localId)'")
+        guard let cloudId, cloudId != selectedThemeId else { return }
+        if cloudId == "default" {
+            log.info("applyCloudThemeIfChanged: applying default theme from cloud")
+            resetToDefault()
+            return
+        }
+        guard let theme = AppTheme.all.first(where: { $0.id == cloudId }) else {
+            log.error("applyCloudThemeIfChanged: theme '\(cloudId)' not found in AppTheme.all")
+            return
+        }
+        log.info("applyCloudThemeIfChanged: applying theme '\(cloudId)'")
+        selectedThemeId = cloudId
+        current = theme
+        syncToAppGroup()
     }
 
     // MARK: — Apply theme (legacy — applies to both)
@@ -375,6 +411,43 @@ struct WithAppBackground: ViewModifier {
                 }
                 .ignoresSafeArea()
             }
+    }
+}
+
+/// Button style that behaves identically to `.plain` on iPhone/iPad.
+/// On Mac Catalyst it adds invisible padding so the clickable area is large enough
+/// for a mouse cursor (77% scaling shrinks 36pt buttons to ~28pt).
+struct MacFriendlyButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        #if targetEnvironment(macCatalyst)
+        configuration.label
+            .padding(10)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.6 : 1)
+        #else
+        configuration.label
+        #endif
+    }
+}
+
+extension ButtonStyle where Self == MacFriendlyButtonStyle {
+    static var macFriendly: MacFriendlyButtonStyle { MacFriendlyButtonStyle() }
+}
+
+/// Constrains content width and centers it on Mac Catalyst.
+/// No-op on iPhone/iPad.
+struct MacContentWidthModifier: ViewModifier {
+    var maxWidth: CGFloat = 700
+
+    func body(content: Content) -> some View {
+        #if targetEnvironment(macCatalyst)
+        content
+            .frame(maxWidth: maxWidth)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, 24)
+        #else
+        content
+        #endif
     }
 }
 
