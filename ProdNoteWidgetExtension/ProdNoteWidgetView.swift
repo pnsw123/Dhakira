@@ -93,6 +93,7 @@ struct ProdNoteWidgetView: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(resolved(theme.secondaryText))
             }
+            .padding(.top, 2)
             .padding(.bottom, 8)
 
             if visible.isEmpty {
@@ -170,6 +171,7 @@ struct ProdNoteWidgetView: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(resolved(theme.secondaryText))
             }
+            .padding(.top, 2)
 
             // Thin separator
             Rectangle()

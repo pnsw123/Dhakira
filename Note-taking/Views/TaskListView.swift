@@ -356,14 +356,16 @@ struct TaskListView: View {
     }
 
     private func syncWidget() {
-        let activeTasks = allTasks.filter { !$0.isCompleted }
+        // Push exactly what's on screen to the widget — current folder/list only.
+        // filteredTasks already excludes completed and trashed tasks.
+        let activeTasks = filteredTasks
         let widgetTasks = activeTasks.prefix(8).map { t in
             let hasContent = (t.body != nil && !t.body!.isEmpty) ||
                              (t.drawingData != nil && !t.drawingData!.isEmpty) ||
                              (t.attachments != nil && !t.attachments!.isEmpty)
             return WidgetTask(id: t.id, title: t.title, priority: t.priority, hasContent: hasContent)
         }
-        log.debug("syncWidget: pushing \(widgetTasks.count) task(s) (total active=\(activeTasks.count)) to widget")
+        log.debug("syncWidget: pushing \(widgetTasks.count) task(s) from current list (total=\(activeTasks.count)) to widget")
         ThemeManager.shared.syncActiveTasks(Array(widgetTasks), totalCount: activeTasks.count)
     }
 

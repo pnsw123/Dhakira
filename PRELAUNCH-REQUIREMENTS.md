@@ -171,6 +171,9 @@ Until verified: users see "This app isn't verified" warning but can proceed via 
 | Widget URL scheme fixed (dhakira:// instead of prodnote://) | ✅ |
 | Widget Mac Catalyst support enabled | ✅ |
 | Bundle ID consistency (DERIVE_MACCATALYST = NO) | ✅ |
+| Widget shows current task list only (not all folders) | ✅ |
+| Cleaned stale LaunchServices registrations (simulator ghosts) | ✅ |
+| Widget "Today" header padding fixed | ✅ |
 
 ---
 

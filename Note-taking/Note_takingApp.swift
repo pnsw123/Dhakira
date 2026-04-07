@@ -204,14 +204,22 @@ private actor StartupWorker {
     // MARK: Sync widget data on launch
 
     private func syncWidgetData() {
-        log.debug("syncWidgetData: syncing ALL active tasks to widget")
+        // Sync only tasks from the user's currently active task list.
+        let activeListIdString = UserDefaults.standard.string(forKey: "activeTaskListId") ?? ""
+        let activeListId = UUID(uuidString: activeListIdString)
+        log.debug("syncWidgetData: syncing tasks for active list \(activeListIdString)")
+
         let descriptor = FetchDescriptor<TaskItem>(
             predicate: #Predicate<TaskItem> { $0.isTrashed == false && $0.isCompleted == false }
         )
-        guard let tasks = try? modelContext.fetch(descriptor) else {
+        guard let allTasks = try? modelContext.fetch(descriptor) else {
             log.debug("syncWidgetData: no tasks found")
             return
         }
+        // Filter to current task list only
+        let tasks = activeListId != nil
+            ? allTasks.filter { $0.taskList?.id == activeListId }
+            : allTasks
         let widgetTasks = tasks.prefix(8).map { t in
             let hasContent = (t.body != nil && !t.body!.isEmpty) ||
                              (t.drawingData != nil && !t.drawingData!.isEmpty) ||
