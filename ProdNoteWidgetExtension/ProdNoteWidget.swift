@@ -70,7 +70,7 @@ struct ProdNoteWidget: Widget {
                 .containerBackground(for: .widget) {
                     WidgetBackgroundView(entry: entry)
                 }
-                .widgetURL(URL(string: "prodnote://openNote"))
+                .widgetURL(URL(string: "dhakira://widget/home"))
         }
         .configurationDisplayName("Dhakira")
         .description("Your tasks at a glance.")
@@ -133,7 +133,7 @@ struct ProdNoteWidgetAccessory: Widget {
         StaticConfiguration(kind: kind, provider: ProdNoteProvider()) { entry in
             ProdNoteWidgetView(entry: entry)
                 .containerBackground(for: .widget) { Color.clear }
-                .widgetURL(URL(string: "prodnote://openNote"))
+                .widgetURL(URL(string: "dhakira://widget/home"))
         }
         .configurationDisplayName("Dhakira")
         .description("Tasks at a glance on your lock screen.")

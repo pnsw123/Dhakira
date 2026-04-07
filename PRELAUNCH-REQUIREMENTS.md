@@ -1,6 +1,6 @@
-# Pre-Launch Requirements — V1 (iPhone + iPad)
-> Last updated: April 4, 2026
-> Status: **Paywall done — branding, landing page & submission remaining**
+# Pre-Launch Requirements — V1 (iPhone + iPad + Mac)
+> Last updated: April 7, 2026
+> Status: **V1 submitted to Apple (under review). Mac Catalyst support added. Screenshots remaining.**
 
 ---
 
@@ -19,13 +19,16 @@
 | Reminders Import | ✅ Done | |
 | Google Cloud Project | ✅ Done | Moved to "Dhakira" project |
 | Paywall (StoreKit 2) | ✅ Done | $2.99/theme · $14.99 bundle · dev unlock |
-| App Icon | ⚠️ Partial | File exists, not yet placed in Xcode |
+| App Icon | ✅ Done | Set in Xcode |
 | iPhone Screenshots | ✅ Done | 5 screenshots at 1320×2868 |
-| iPad Screenshots | ✅ Done | 5 screenshots at 2064×2752 — ready to export at localhost:3005 |
-| Mac Screenshots | ✅ Done | 5 screenshots at 2880×1800 — ready to export at localhost:3005 |
+| iPad Screenshots | ✅ Done | 5 screenshots at 2064×2752 — need fresh screenshots with latest changes |
+| Mac Screenshots | 🔲 Remaining | Need to take new screenshots from Mac Catalyst |
+| Mac Catalyst Support | ✅ Done | Layout, sync, navigation, deletion, calendar, widgets |
+| iCloud Settings Sync | ✅ Done | Theme, sort order, toolbar sync across devices |
+| iCloud Task Sync | ✅ Done | SwiftData + CloudKit, works across iPhone/iPad/Mac |
 | Landing Page | 🔲 Remaining | dhakira.app — domain purchased, page not built |
-| Google OAuth Verification | 🔲 Remaining | Needs live dhakira.app with privacy policy |
-| App Store Submission | 🔲 Remaining | Description, keywords, archive, submit |
+| Google OAuth Verification | ⚠️ In Progress | Verified from developer side, users may still see warning |
+| App Store Submission (V1) | ⏳ Under Review | Submitted, waiting for Apple approval |
 | App Store Connect Banking | 🔲 Remaining | Bank details required to receive payments |
 
 ---
@@ -140,10 +143,46 @@ Until verified: users see "This app isn't verified" warning but can proceed via 
 - [ ] Deep link in calendar event opens correct note (re-test)
 
 ### Device Testing
-- [ ] iPhone 17 Pro — Light + Dark mode
-- [ ] iPhone SE — no layout breaks
-- [ ] iPad Pro 13" — split view, slide over
-- [ ] iPad Mini — layout check
+- [x] iPhone — working 10/10
+- [x] iPad — working 10/10
+- [x] Mac Catalyst — working (layout, sync, calendar, widgets, themes)
+- [ ] iPhone SE — no layout breaks (verify)
+- [ ] iPad Mini — layout check (verify)
+
+---
+
+## Mac Catalyst — What Was Done (April 7, 2026)
+
+| Feature | Status |
+|---------|--------|
+| DataScanner excluded on Mac (camera-only API) | ✅ |
+| Content width constrained (700-800pt), centered layout | ✅ |
+| Minimum window size (540×600) | ✅ |
+| Centered NSToolbar title ("Dhakira") | ✅ |
+| Expanded button/checkbox hit areas for mouse | ✅ |
+| Sidebar always visible (like Apple Notes) | ✅ |
+| Right-click context menu (delete, priority, complete) | ✅ |
+| iCloud KVS settings sync (theme, sort order, toolbar) | ✅ |
+| iCloud KVS entitlement fixed (bundle ID mismatch) | ✅ |
+| Theme sync across devices with foreground refresh | ✅ |
+| Missing modelContext.save() in 6 deletion/restore functions | ✅ |
+| CloudKit.framework explicitly linked | ✅ |
+| Calendar sandbox entitlement added | ✅ |
+| Widget URL scheme fixed (dhakira:// instead of prodnote://) | ✅ |
+| Widget Mac Catalyst support enabled | ✅ |
+| Bundle ID consistency (DERIVE_MACCATALYST = NO) | ✅ |
+
+---
+
+## What's Left
+
+| Task | Priority |
+|------|----------|
+| Take Mac screenshots (5 screens) | High |
+| Take fresh iPad screenshots | Medium |
+| Build landing page (dhakira.app) | Medium |
+| Set up App Store Connect banking | Required for payments |
+| Submit V2 after V1 approval | After V1 approved |
 
 ---
 
@@ -154,7 +193,8 @@ Until verified: users see "This app isn't verified" warning but can proceed via 
 | App name | Dhakira |
 | Bundle ID | `com.prodnote.notetaking` |
 | Version | 1.0 build 1 |
-| Deployment target | iOS 26.2 |
+| Deployment target | iOS 26.2 / macOS 15.6 |
+| Platforms | iPhone, iPad, Mac (Catalyst) |
 | Google Cloud project | `dhakira-492200` |
 | Domain | dhakira.app |
 | Development team | `2Q6SBYY55H` |
