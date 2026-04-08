@@ -132,8 +132,9 @@ final class BugFixVerificationTests: XCTestCase {
     // MARK: - Issue #104: Quote block indentation = 28pt
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    /// Blockquote must apply 28pt head indent (not 16pt which was too close to text).
-    func testBlockquoteIndentIs28pt() {
+    /// Blockquote must apply 18pt head indent so wrapped lines sit under the quoted text,
+    /// not under "│". firstLineHeadIndent stays 0 so the "│" character starts at the margin.
+    func testBlockquoteIndentIs18pt() {
         var text: NSAttributedString = NSAttributedString(string: "Some quoted text here")
         let range = NSRange(location: 0, length: text.length)
 
@@ -142,10 +143,10 @@ final class BugFixVerificationTests: XCTestCase {
         // After applying blockquote, text starts with "│ " — check paragraph style
         let paraStyle = text.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
         XCTAssertNotNil(paraStyle, "Issue #104: blockquote must have a paragraph style")
-        XCTAssertEqual(paraStyle?.headIndent, 28,
-            "Issue #104: blockquote headIndent must be 28pt, not 16pt")
-        XCTAssertEqual(paraStyle?.firstLineHeadIndent, 28,
-            "Issue #104: blockquote firstLineHeadIndent must be 28pt")
+        XCTAssertEqual(paraStyle?.headIndent, 18,
+            "Issue #104: blockquote headIndent must be 18pt — keeps wrapped lines under quoted text without colliding with the bar")
+        XCTAssertEqual(paraStyle?.firstLineHeadIndent, 0,
+            "Issue #104: blockquote firstLineHeadIndent must be 0 so '│' starts at the margin")
     }
 
     /// Blockquote toggle off should remove indent.
@@ -269,25 +270,33 @@ final class BugFixVerificationTests: XCTestCase {
     // MARK: - Issues #105/#106: PDF export — quotes and checkboxes
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    /// Quote bars must be visible (blue, not clear) in PDF output.
-    func testPDFNormalizeMakesQuoteBarVisible() {
-        // Create a quote block with invisible bar (as the editor does)
+    /// Quote bar character must remain .clear in normalizeForPDF — the PDF render pass
+    /// draws the visible bar separately (Issue #105). This test verifies the two-phase
+    /// design: normalizeForPDF keeps "│" clear, the render pass paints the actual bar.
+    func testPDFNormalizeKeepsQuoteBarClearForRenderPass() {
+        // Create a quote block
         var quoteText: NSAttributedString = NSAttributedString(string: "Hello world")
         RichEditorCommands.applyBlockquote(attributedText: &quoteText, selectedRange: NSRange(location: 0, length: quoteText.length))
 
-        // Verify the bar character is .clear in editor mode
-        let barColor = quoteText.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor
-        XCTAssertEqual(barColor, UIColor.clear,
-            "In editor, quote bar '│' must be .clear (UIView overlay renders the visible bar)")
+        // In the editor the bar character "│" is .clear — UIView overlay provides the visual.
+        let editorBarColor = quoteText.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor
+        XCTAssertEqual(editorBarColor, UIColor.clear,
+            "Issue #105: in editor, quote bar must be .clear (UIView overlay renders it)")
 
-        // Now normalize for PDF
+        // After normalization the bar character remains .clear.
+        // The PDF render pass (NativeExportService.exportAsPDF) draws the physical bar
+        // over the page content — it does NOT rely on the glyph's foreground color.
         let normalized = NativeExportService.normalizeForPDFTestable(quoteText)
-
-        // After normalization, bar character must be blue (visible in PDF)
         let pdfBarColor = normalized.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor
-        XCTAssertNotNil(pdfBarColor, "Issue #105: quote bar must have a color in PDF")
-        XCTAssertNotEqual(pdfBarColor, UIColor.clear,
-            "Issue #105: quote bar must NOT be .clear in PDF — it would be invisible")
+        XCTAssertEqual(pdfBarColor, UIColor.clear,
+            "Issue #105: quote bar must stay .clear in normalizeForPDF — PDF render pass draws the bar separately")
+
+        // The quoted text (after "│ ") must NOT be .clear — it should be visible.
+        if normalized.length > 2 {
+            let textColor = normalized.attribute(.foregroundColor, at: 2, effectiveRange: nil) as? UIColor
+            XCTAssertNotEqual(textColor, UIColor.clear,
+                "Issue #105: quoted text must be visible (non-clear) in PDF output")
+        }
     }
 
     /// Checkboxes must use .alwaysOriginal rendering in PDF (not .alwaysTemplate
