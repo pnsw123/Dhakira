@@ -275,7 +275,7 @@ struct TaskListView: View {
                 }
             }
             .contentMargins(.bottom, 72, for: .scrollContent)
-            .animation(.smooth(duration: 0.35), value: filteredTasks.count)
+            .animation(.smooth(duration: 0.35), value: filteredTasks.map(\.id))
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .modifier(MacContentWidthModifier(maxWidth: 700))

@@ -101,7 +101,19 @@ struct FolderSectionView: View {
     }
 
     private func saveExpandedState() {
-        let newValue = expandedFolderIds.map(\.uuidString).joined(separator: ",")
+        // Read the full persisted set. This instance only owns the IDs of its direct
+        // `folders` — it should not touch IDs owned by sibling/parent instances.
+        // Strategy:
+        //   1. Parse the full stored set.
+        //   2. Remove IDs this instance is responsible for (our folders' IDs).
+        //   3. Add back only the ones that are currently expanded in this instance.
+        // This way collapsed folders are removed, expanded ones are written, and IDs
+        // from other recursive instances are left untouched.
+        var full = Set(expandedFolderIdsStorage.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
+        let myFolderIds = Set(folders.map(\.id))
+        full.subtract(myFolderIds)          // remove stale entries for our scope
+        full.formUnion(expandedFolderIds)   // add currently expanded ones from our scope
+        let newValue = full.map(\.uuidString).joined(separator: ",")
         guard newValue != expandedFolderIdsStorage else { return }
         expandedFolderIdsStorage = newValue
     }
@@ -128,6 +140,9 @@ struct FolderRowView: View {
     @State private var showDeleteConfirm: Bool = false
     @State private var autoRenameListId: UUID? = nil
     @State private var autoRenameSubfolderId: UUID? = nil
+    @State private var isAddingNewList: Bool = false
+    @State private var newListName: String = ""
+    @FocusState private var isNewListFocused: Bool
     @State private var isDropTargeted: Bool = false
 
     private var taskListsForFolder: [TaskList] {
@@ -266,6 +281,29 @@ struct FolderRowView: View {
                     )
                 }
 
+                // Inline "new list" name input — only visible while addTaskList() is in progress
+                if isAddingNewList {
+                    Divider().padding(.leading, CGFloat(16 + (indentLevel + 1) * 20))
+                    HStack(spacing: 10) {
+                        Spacer().frame(width: CGFloat((indentLevel + 1) * 20))
+                        Image(systemName: "list.bullet")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Color.secondaryText)
+                            .frame(width: 22)
+                        TextField("List name", text: $newListName)
+                            .font(.system(size: 17))
+                            .foregroundStyle(Color.primaryText)
+                            .focused($isNewListFocused)
+                            .onSubmit { commitNewList() }
+                            .onChange(of: isNewListFocused) { _, focused in
+                                if !focused { commitNewList() }
+                            }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 15)
+                }
+
                 // "Add List" inline button — neutral color, no blue
                 Divider().padding(.leading, CGFloat(16 + (indentLevel + 1) * 20))
                 Button(action: addTaskList) {
@@ -326,10 +364,27 @@ struct FolderRowView: View {
     }
 
     private func addTaskList() {
-        log.info("addTaskList: adding to folder '\(folder.name)'")
-        let newList = TaskList(name: "", folder: folder)
+        log.info("addTaskList: showing inline name input for folder '\(folder.name)'")
+        newListName = ""
+        isAddingNewList = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            isNewListFocused = true
+        }
+    }
+
+    private func commitNewList() {
+        let trimmed = newListName.trimmingCharacters(in: .whitespacesAndNewlines)
+        isAddingNewList = false
+        isNewListFocused = false
+        newListName = ""
+        guard !trimmed.isEmpty else {
+            log.info("commitNewList: cancelled — empty name, nothing inserted")
+            return
+        }
+        log.info("addTaskList: inserting new list '\(trimmed)' in folder '\(folder.name)'")
+        let newList = TaskList(name: trimmed, folder: folder)
         modelContext.insert(newList)
-        autoRenameListId = newList.id
+        autoRenameListId = nil  // no further rename needed — already has a valid name
     }
 
     /// Returns true if `potentialAncestor` is an ancestor of `folder` (prevents circular nesting).

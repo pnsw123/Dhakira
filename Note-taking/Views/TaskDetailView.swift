@@ -62,7 +62,7 @@ struct TaskDetailView: View {
 
     // Color palette state — shown automatically when text is selected
     /// Persisted across palette appearances so the last-used mode (text color / highlight) is remembered.
-    @State private var paletteMode: ColorPaletteView.ColorMode = .fontColor
+    @State private var paletteMode: ColorPaletteView.ColorMode = .highlight
     @State private var showColorPalette = false
     /// The selected text's rect in global (window) coordinates — used to position
     /// the color palette right below the system "Copy / Paste" callout.
@@ -425,8 +425,11 @@ struct TaskDetailView: View {
                 context: richTextContext,
                 onEditorReady: { tv in
                     richTextView = tv
-                    // Dismiss keyboard when user scrolls up — keyboard reappears on typing.
-                    tv.keyboardDismissMode = .onDrag
+                    // Interactive dismiss: user can drag down to partially/fully hide the keyboard,
+                    // and it re-appears on touch. This mode is friendlier than .onDrag when
+                    // selecting large blocks of text — .onDrag caused the text selection callout
+                    // (Copy/Bold/Color bar) to be covered by the keyboard (Issue #123).
+                    tv.keyboardDismissMode = .interactive
                     // RichTextKit's updateUIView() is intentionally empty, so changes to
                     // attributedText after makeUIView don't reach the UITextView automatically.
                     // onAppear → loadBody() runs before onEditorReady fires (async dispatch),
@@ -462,7 +465,9 @@ struct TaskDetailView: View {
                         if prevChar == "\n" {
                             // Clear BOTH highlight colors so they don't bleed onto new lines.
                             tv.typingAttributes.removeValue(forKey: .backgroundColor)
-                            tv.typingAttributes[.foregroundColor] = UIColor.label
+                            // Re-apply the active font color instead of always resetting to
+                            // .label — this preserves the user's chosen text color after Enter.
+                            tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
                             // Also strip background from the newline character itself so it
                             // doesn't render a colored bar across the empty line.
                             let nlRange = NSRange(location: sel.location - 1, length: 1)
@@ -535,8 +540,9 @@ struct TaskDetailView: View {
                 let safeCursor = min(cursorPos, newText.length)
                 tv.selectedRange = NSRange(location: safeCursor, length: 0)
                 log.debug("attachmentAppended: cursor placed at \(safeCursor)")
-                // Restore typing attributes — programmatic attributedText reset clears them
-                tv.typingAttributes[.foregroundColor] = UIColor.label
+                // Restore typing attributes — programmatic attributedText reset clears them.
+                // Re-apply the active font color so typing after an image keeps the user's color.
+                tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
                 tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
                 DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
             }
@@ -691,13 +697,18 @@ struct TaskDetailView: View {
                 let menuH = Self.slashMenuMaxHeight
                 // Toolbar height = bar + padding (isRegular: 62+14+14=90, compact: 52+10+10=72)
                 let toolbarH: CGFloat = isRegular ? 90 : 72
-                let kbTop = screenH - keyboardHeight - toolbarH
+                // When keyboardHeight is still 0 but keyboard is visible, use a conservative
+                // estimate (300pt) so the menu doesn't render behind the keyboard on first trigger.
+                let effectiveKbHeight = (keyboardHeight > 0) ? keyboardHeight : (isKeyboardVisible ? 300 : 0)
+                let kbTop = screenH - effectiveKbHeight - toolbarH
                 let spaceBelow = kbTop - caretMaxY
 
                 // Show below the cursor by default.
                 // Only flip above when: no room below AND enough room above.
+                // Removed the `keyboardHeight > 0` guard — use effectiveKbHeight instead so
+                // the menu is positioned correctly even before keyboardHeight is populated.
                 let spaceAbove = caretMinY - gf.minY
-                let showAbove = spaceBelow < menuH && spaceAbove > menuH && keyboardHeight > 0
+                let showAbove = spaceBelow < menuH && spaceAbove > menuH
                 let localY: CGFloat = showAbove
                     ? max(0, caretMinY - gf.minY - menuH - 6)
                     : caretMaxY - gf.minY + 6
@@ -840,6 +851,15 @@ struct TaskDetailView: View {
                 tv.selectedRange = range
                 tv.setContentOffset(savedOffset, animated: false)
                 saveBody()
+            } else {
+                // Cursor-only: changing typingAttributes font size can cause UIKit to
+                // scroll to the cursor (cursor rect changes size). Save and restore offset
+                // both synchronously and on next run loop to cancel UIKit's async scroll.
+                let savedOffset = tv.contentOffset
+                tv.setContentOffset(savedOffset, animated: false)
+                DispatchQueue.main.async {
+                    tv.setContentOffset(savedOffset, animated: false)
+                }
             }
             return
         case "list.bullet":
@@ -868,8 +888,14 @@ struct TaskDetailView: View {
                 attributedText: &attributedText,
                 cursorLocation: cursorLoc
             )
+            let savedChecklistOffset = tv.contentOffset
             applyText(attributedText, to: tv, cursor: NSRange(location: newCursor, length: 0))
             prevTextLength = attributedText.length
+            // Cancel UIKit's async scrollRectToVisible which can cause a scroll jump
+            // when inserting at the bottom of the page (Issue #122).
+            DispatchQueue.main.async {
+                tv.setContentOffset(savedChecklistOffset, animated: false)
+            }
             return
         default:
             break
@@ -1476,12 +1502,26 @@ struct TaskDetailView: View {
                     mutable.addAttribute(.font, value: bodyFont,
                                          range: NSRange(location: scrubStart, length: scrubEnd - scrubStart))
                 }
+                // Save scroll position before and after the layout pass.
+                // UIKit's attributedText setter triggers an async scrollRectToVisible which
+                // can jump 5–8 lines if the \n briefly carries heading-sized font metrics.
+                // We restore offset synchronously first, then again on next run loop tick
+                // to cancel the async UIKit scroll that fires after layout completes.
+                let savedOffset = tv.contentOffset
+                let savedCursor = NSRange(location: cursorLoc, length: 0)
                 // Set attributedText FIRST, then override typingAttributes AFTER,
                 // because setting attributedText causes UIKit to re-derive typingAttributes.
                 tv.attributedText = mutable
+                tv.selectedRange = savedCursor
+                tv.setContentOffset(savedOffset, animated: false)
                 tv.typingAttributes[.font] = bodyFont
-                tv.typingAttributes[.foregroundColor] = UIColor.label
+                tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
                 attributedText = mutable
+                // Cancel UIKit's async scroll-to-cursor which fires after the layout pass.
+                DispatchQueue.main.async {
+                    tv.setContentOffset(savedOffset, animated: false)
+                    tv.selectedRange = savedCursor
+                }
             }
             prevTextLength = textLen
             return

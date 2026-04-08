@@ -30,8 +30,12 @@ final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecogni
             guard idx >= 0, idx < text.length else { return false }
             return text.attributes(at: idx, effectiveRange: nil)[.attachment] is CheckboxAttachment
         }
-        guard isCheckbox(at: charIndex) || isCheckbox(at: charIndex - 1) else { return }
-        let checkboxIndex = isCheckbox(at: charIndex) ? charIndex : charIndex - 1
+        // Only treat this as a checkbox tap if the tap landed directly ON the checkbox
+        // attachment character. Do NOT check charIndex - 1 — that broadens the hit area
+        // to include the space right after the checkbox and triggers unintended toggles
+        // when the user taps to place the cursor for text editing.
+        guard isCheckbox(at: charIndex) else { return }
+        let checkboxIndex = charIndex
 
         // Toggle directly on textStorage — does NOT reset scroll position.
         let ts = tv.textStorage
@@ -41,6 +45,15 @@ final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecogni
         ts.beginEditing()
         ts.enumerateAttribute(.attachment, in: lineRange, options: []) { value, range, stop in
             guard let cb = value as? CheckboxAttachment else { return }
+            // Bug 2 fix: do not allow toggling an empty checkbox row.
+            // An empty checkbox has no text after the attachment character on the line.
+            let textAfterCheckbox = range.upperBound
+            let lineEnd = lineRange.upperBound
+            let hasText = textAfterCheckbox < lineEnd &&
+                          (ts.string as NSString).substring(with: NSRange(location: textAfterCheckbox,
+                                                                          length: lineEnd - textAfterCheckbox))
+                          .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            guard hasText else { stop.pointee = true; return }
             cb.toggle()
             // Re-set the attachment to force redraw
             ts.removeAttribute(.attachment, range: range)
@@ -63,12 +76,16 @@ final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecogni
         }
         ts.endEditing()
 
-        // Hide cursor — checkbox tap is a toggle, not a text editing action.
-        // Resign FIRST (hides cursor), then restore scroll position.
-        // Do NOT set selectedRange before resigning — that causes a brief
-        // cursor flash visible to the user.
+        // Bug 1 fix: do NOT unconditionally resign first responder.
+        // Previously this always dismissed the keyboard, causing the user to lose
+        // edit mode after every checkbox toggle.
+        // If the text view already has keyboard focus, keep it — just restore scroll.
+        // If it did NOT have focus (keyboard was already hidden), keep it hidden.
         let savedOffset = tv.contentOffset
-        tv.resignFirstResponder()
+        if !tv.isFirstResponder {
+            // Keyboard was already hidden — stay that way.
+            // (No resignFirstResponder needed; already not first responder.)
+        }
         tv.setContentOffset(savedOffset, animated: false)
 
         // Publish snapshot so TaskDetailView can sync the binding

@@ -32,6 +32,9 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
     /// (which fires when TextKit reflows content after a bounds change) from
     /// calling dismissButtons() and wiping the selection mid-resize.
     private var isResizing = false
+    /// True briefly after handleTap selects an image — prevents the layout-reflow scroll
+    /// from triggering dismissButtons() before the pill has a chance to appear.
+    private var isTapping = false
 
     private let minWidth: CGFloat = 60
     private let maxWidth: CGFloat = 340
@@ -47,7 +50,7 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
         // Hide pill when user scrolls — but ignore offset changes triggered by
         // TextKit reflowing content during a resize (isResizing guards that).
         scrollObservation = tv.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
-            guard let self, !self.isResizing else { return }
+            guard let self, !self.isResizing, !self.isTapping else { return }
             self.dismissButtons()
         }
     }
@@ -102,7 +105,24 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
         buttonsView?.removeFromSuperview()
         buttonsView = nil
 
-        showButtons(rightOf: imgRect, in: tv)
+        // Suppress scroll-dismissal briefly while the layout pass triggered by
+        // image selection (or insertion reflow) runs — otherwise the contentOffset
+        // KVO fires immediately and removes the pill before it appears.
+        isTapping = true
+        DispatchQueue.main.async { [weak self] in self?.isTapping = false }
+
+        // Defer showButtons by one layout pass so attachmentRect reads stable layout.
+        // This fixes the "pill appears at random position" bug on first tap after insertion.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let tv = self.textView else { return }
+            // Re-read the rect after layout has settled.
+            guard let settledRect = self.attachmentRect(at: charIndex, in: tv),
+                  settledRect.width > 0 else {
+                log.warning("ImageSizeCoordinator: attachmentRect still stale after layout — skip pill")
+                return
+            }
+            self.showButtons(rightOf: settledRect, in: tv)
+        }
     }
 
     // MARK: - Pill (right side of image)
