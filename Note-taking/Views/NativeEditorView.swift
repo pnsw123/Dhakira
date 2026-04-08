@@ -5,6 +5,33 @@ import UniformTypeIdentifiers
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "NativeEditor")
 
+// MARK: - HighlightLayoutManagerDelegate
+// NSLayoutManagerDelegate that fixes background highlight gaps between lines
+// by expanding each line's fragment rect to cover inter-line spacing.
+// Uses the safe delegate pattern — never replaces or modifies the layout manager itself.
+
+final class HighlightLayoutManagerDelegate: NSObject, NSLayoutManagerDelegate {
+    static let shared = HighlightLayoutManagerDelegate()
+
+    /// Expand the line fragment rect slightly to close gaps between highlighted lines.
+    /// Without this, .backgroundColor only covers the glyph area, leaving visible
+    /// gaps where the dark editor background shows through.
+    func layoutManager(
+        _ layoutManager: NSLayoutManager,
+        shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<CGRect>,
+        lineFragmentUsedRect: UnsafeMutablePointer<CGRect>,
+        baselineOffset: UnsafeMutablePointer<CGFloat>,
+        in textContainer: NSTextContainer,
+        forGlyphRange glyphRange: NSRange
+    ) -> Bool {
+        // Extend the used rect height to cover inter-line spacing
+        var used = lineFragmentUsedRect.pointee
+        used.size.height = lineFragmentRect.pointee.size.height
+        lineFragmentUsedRect.pointee = used
+        return true
+    }
+}
+
 // MARK: - NativeEditorView
 // Thin SwiftUI wrapper around RichTextKit's RichTextEditor.
 // Exposes the underlying UITextView via onEditorReady so the parent
@@ -42,6 +69,12 @@ struct NativeEditorView: View {
                 // during a layout pass (e.g. text selection), it deadlocks the UI.
                 _ = tv.layoutManager
                 log.debug("NativeEditorView: UITextView ready (TextKit 1 forced)")
+
+                // Use the layout manager's delegate for custom drawing instead of
+                // swapping/upgrading the class — avoids breaking UITextView's internal
+                // selection and scroll calculations.
+                tv.layoutManager.delegate = HighlightLayoutManagerDelegate.shared
+                log.debug("NativeEditorView: set HighlightLayoutManagerDelegate")
                 // Use adaptive .label color so text is visible in both light and dark mode.
                 // Without this, UIKit defaults to black which disappears on dark backgrounds.
                 tv.isScrollEnabled = true

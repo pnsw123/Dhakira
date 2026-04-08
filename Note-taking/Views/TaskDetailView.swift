@@ -45,6 +45,8 @@ struct TaskDetailView: View {
     @State private var contentSizeObserver: NSKeyValueObservation?
     /// KVO observer — refresh quote bars after layout reflow.
     @State private var layoutObserver: NSKeyValueObservation?
+    /// Pan gesture handler — dismiss keyboard when user scrolls down with their finger.
+    @StateObject private var scrollDismissHandler = ScrollDismissHandler()
     // Slash command coordinator — replaces 3 @State vars + double evaluate() (Issue #48)
     @StateObject private var slashCoordinator = SlashCommandCoordinator()
     // Checkbox tap coordinator — wires a UITapGestureRecognizer to the UITextView
@@ -316,6 +318,9 @@ struct TaskDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notif in
             if let frame = notif.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
                 keyboardHeight = frame.height
+                // Do NOT set tv.contentInset.bottom here — SwiftUI already adjusts the
+                // view layout for the keyboard. Setting contentInset too creates a double
+                // adjustment that causes UITextView to scroll to the bottom on selection.
             }
             withAnimation(.easeOut(duration: 0.2)) { isKeyboardVisible = true }
         }
@@ -500,6 +505,16 @@ struct TaskDetailView: View {
                     layoutObserver = tv.observe(\.contentSize, options: [.new]) { _, _ in
                         DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
                     }
+
+                    // Dismiss keyboard when the user scrolls down with their finger.
+                    // Uses the text view's built-in pan gesture so it only fires on
+                    // real user scrolling — NOT on programmatic offset changes from
+                    // keyboard appearance, auto-scroll, etc.
+                    // Skips dismiss when text is selected to protect Issue #123.
+                    tv.panGestureRecognizer.addTarget(
+                        scrollDismissHandler,
+                        action: #selector(ScrollDismissHandler.handlePan(_:))
+                    )
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -684,7 +699,7 @@ struct TaskDetailView: View {
         if slashCoordinator.isMenuVisible && !slashCoordinator.filteredCommands.isEmpty && slashMenuReady {
             GeometryReader { geo in
                 let gf = geo.frame(in: .global)
-                let screenH = UIScreen.main.bounds.height
+                let screenH = geo.size.height + gf.minY
                 let caretRect = liveCaretGlobalRect
                 let caretMaxY: CGFloat = caretRect == .zero ? gf.minY + 40 : caretRect.maxY
                 let caretMinY: CGFloat = caretRect == .zero ? gf.minY + 20 : caretRect.minY
@@ -1014,13 +1029,14 @@ struct TaskDetailView: View {
                         ts.removeAttribute(key, range: safe)
                         applied = safe.length
                     } else {
+                        // Apply foreground color to ALL characters including spaces.
+                        // Spaces are invisible so coloring them has no visual effect,
+                        // but strikethrough/underline lines use the foreground color —
+                        // skipping spaces causes white lines in gaps between words.
                         for i in safe.location ..< (safe.location + safe.length) {
                             guard i < ts.length else { break }
                             if isCheckbox(at: i) { continue }  // skip checkboxes
                             let charRange = NSRange(location: i, length: 1)
-                            let scalar    = nsStr.character(at: i)
-                            if scalar == 0x20 || scalar == 0x09 || scalar == 0x0A ||
-                               scalar == 0x0D || scalar == 0xA0 { continue }
                             if let v = value {
                                 ts.addAttribute(key, value: v, range: charRange)
                             } else {
@@ -2024,7 +2040,9 @@ struct TaskDetailView: View {
             let safeRange = NSRange(location: min(range.location, nsText.length), length: max(0, safeLen))
             if safeRange.length > 0 {
                 nsText.enumerateAttribute(.attachment, in: safeRange, options: []) { val, _, stop in
-                    if val != nil {
+                    // Checkboxes are inline text — they must NOT block text selection.
+                    // Only real block attachments (images, etc.) should clear the selection.
+                    if val != nil, !(val is CheckboxAttachment) {
                         selectionIsAttachment = true
                         stop.pointee = true
                     }
@@ -2099,8 +2117,8 @@ struct TaskDetailView: View {
             if nearAttachment {
                 tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
                 tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
-            } else if let color = activeFontColor {
-                tv.typingAttributes[.foregroundColor] = color
+            } else {
+                tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
             }
         } else if let color = activeFontColor, let tv = richTextView {
             tv.typingAttributes[.foregroundColor] = color
@@ -2481,7 +2499,10 @@ struct DocumentFilePickerView: UIViewControllerRepresentable {
         init(onPick: @escaping (URL) -> Void) { self.onPick = onPick }
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
             guard let url = urls.first else { return }
-            DispatchQueue.main.async { self.onPick(url) }
+            // Call synchronously — DispatchQueue.main.async caused a race:
+            // the picker auto-dismisses → SwiftUI sets activeSheet = nil →
+            // the async callback finds activeSheet already nil and bails out.
+            onPick(url)
         }
     }
 }

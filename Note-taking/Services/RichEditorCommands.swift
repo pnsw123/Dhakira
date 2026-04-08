@@ -61,6 +61,39 @@ enum ToolbarCommand: String, CaseIterable {
 
 enum RichEditorCommandDispatcher {
 
+    /// Save attributes for every CheckboxAttachment character in the selected
+    /// range, run the formatting action, then restore those attributes so the
+    /// checkbox icon is never altered by bold/italic/underline/etc.
+    private static func preservingCheckboxes(in textView: UITextView, action: () -> Void) {
+        let ts = textView.textStorage
+        let range = textView.selectedRange
+        guard range.length > 0 else { action(); return }
+
+        let safeLoc = min(range.location, ts.length)
+        let safeLen = min(range.length, ts.length - safeLoc)
+        let safe = NSRange(location: safeLoc, length: safeLen)
+
+        // Snapshot checkbox attributes before the style toggle
+        var saved: [(Int, [NSAttributedString.Key: Any])] = []
+        for i in safe.location ..< (safe.location + safe.length) {
+            guard i < ts.length else { break }
+            if ts.attribute(.attachment, at: i, effectiveRange: nil) is CheckboxAttachment {
+                saved.append((i, ts.attributes(at: i, effectiveRange: nil)))
+            }
+        }
+
+        action()
+
+        // Restore checkbox attributes — no formatting should bleed onto them
+        guard !saved.isEmpty else { return }
+        ts.beginEditing()
+        for (idx, attrs) in saved {
+            guard idx < ts.length else { continue }
+            ts.setAttributes(attrs, range: NSRange(location: idx, length: 1))
+        }
+        ts.endEditing()
+    }
+
     /// Dispatch a toolbar command. Focus is restored before the command runs.
     /// Returns the updated NSAttributedString when the command mutates it directly.
     @discardableResult
@@ -80,13 +113,21 @@ enum RichEditorCommandDispatcher {
 
         switch command {
         case .bold:
-            RichEditorCommands.toggleBold(context: context.richTextContext)
+            preservingCheckboxes(in: context.textView) {
+                RichEditorCommands.toggleBold(context: context.richTextContext)
+            }
         case .italic:
-            RichEditorCommands.toggleItalic(context: context.richTextContext)
+            preservingCheckboxes(in: context.textView) {
+                RichEditorCommands.toggleItalic(context: context.richTextContext)
+            }
         case .underline:
-            RichEditorCommands.toggleUnderline(context: context.richTextContext)
+            preservingCheckboxes(in: context.textView) {
+                RichEditorCommands.toggleUnderline(context: context.richTextContext)
+            }
         case .strikethrough:
-            RichEditorCommands.toggleStrikethrough(context: context.richTextContext)
+            preservingCheckboxes(in: context.textView) {
+                RichEditorCommands.toggleStrikethrough(context: context.richTextContext)
+            }
         case .alignLeft:
             RichEditorCommands.setAlignment(.left, attributedText: &attributedText, selectedRange: range)
             return attributedText
@@ -155,6 +196,7 @@ final class RichEditorCommands {
         guard range.length > 0, range.location + range.length <= mutable.length else { return }
 
         // Collect (range, newFont) pairs first — mutating during enumerateAttribute is undefined behavior.
+        // Skip checkbox attachment characters — formatting must never alter them.
         var fontUpdates: [(NSRange, UIFont)] = []
         mutable.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
             let font = (value as? UIFont) ?? UIFont.preferredFont(forTextStyle: .body)
@@ -171,7 +213,12 @@ final class RichEditorCommands {
             fontUpdates.append((subRange, newFont))
         }
         for (subRange, newFont) in fontUpdates {
-            mutable.addAttribute(.font, value: newFont, range: subRange)
+            // Apply char-by-char, skipping checkbox attachments
+            for i in subRange.location ..< (subRange.location + subRange.length) {
+                guard i < mutable.length else { break }
+                if mutable.attribute(.attachment, at: i, effectiveRange: nil) is CheckboxAttachment { continue }
+                mutable.addAttribute(.font, value: newFont, range: NSRange(location: i, length: 1))
+            }
         }
         attributedText = mutable
         log.debug("stepFontSize: \(increase ? "+" : "-")\(step)pt")
@@ -510,8 +557,11 @@ final class RichEditorCommands {
                 guard clampedRange.length > 0 else { break }
                 let char = nsString.substring(with: clampedRange)
                 if char.unicodeScalars.allSatisfy({ $0.properties.isWhitespace }) {
+                    // No background on spaces (Word/Pages behaviour), but KEEP the
+                    // foreground color so strikethrough/underline lines stay colored
+                    // across spaces instead of turning white (Issue #126).
                     mutable.removeAttribute(.backgroundColor, range: clampedRange)
-                    mutable.removeAttribute(.foregroundColor, range: clampedRange)
+                    mutable.addAttribute(.foregroundColor, value: pair.textColor, range: clampedRange)
                 } else {
                     mutable.addAttribute(.backgroundColor, value: pair.backgroundColor, range: clampedRange)
                     mutable.addAttribute(.foregroundColor, value: pair.textColor, range: clampedRange)

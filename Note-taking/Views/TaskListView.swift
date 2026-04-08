@@ -566,7 +566,9 @@ struct TaskListView: View {
         undoManager?.setActionName("Set Priority")
         undoVersion += 1
 
-        task.priority = newPriority
+        withAnimation(.easeInOut(duration: 0.35)) {
+            task.priority = newPriority
+        }
         do {
             try modelContext.save()
         } catch {
