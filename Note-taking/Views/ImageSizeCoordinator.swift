@@ -84,7 +84,8 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
         // so setting attachment.bounds later actually changes the rendered glyph.
         let attrs = tv.textStorage.attributes(at: charIndex, effectiveRange: nil)
         guard let attachment = attrs[.attachment] as? NSTextAttachment,
-              attachment.image != nil else {
+              attachment.image != nil,
+              !(attachment is CheckboxAttachment) else {
             dismissButtons(); return
         }
 
@@ -121,6 +122,10 @@ final class ImageSizeCoordinator: NSObject, ObservableObject, UIGestureRecognize
                 log.warning("ImageSizeCoordinator: attachmentRect still stale after layout — skip pill")
                 return
             }
+            // Guard: if the user tapped somewhere else before this deferred block ran,
+            // selectedCharIndex will have been cleared — don't show a stale pill.
+            guard self.selectedCharIndex == charIndex,
+                  self.selectedAttachment != nil else { return }
             self.showButtons(rightOf: settledRect, in: tv)
         }
     }

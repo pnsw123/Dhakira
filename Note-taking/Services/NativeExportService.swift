@@ -25,7 +25,7 @@ final class NativeExportService {
         let full = NSMutableAttributedString()
         if !title.isEmpty {
             full.append(NSAttributedString(string: title + "\n\n", attributes: [
-                .font: UIFont.systemFont(ofSize: 20, weight: .bold),
+                .font: UIFont.systemFont(ofSize: 28, weight: .bold),
                 .foregroundColor: UIColor.black
             ]))
         }
@@ -233,13 +233,32 @@ final class NativeExportService {
                 // No foreground color set — default to black for print
                 mutable.addAttribute(.foregroundColor, value: UIColor.black, range: range)
             }
-            // Background: remove only dark backgrounds (invisible on white paper).
-            // Keep light-colored highlights (yellow, pink, etc.) for print.
+            // Background: remove adaptive/theme backgrounds (invisible on white paper).
+            // Keep ALL user-chosen highlights (yellow, red, blue, etc.) for print.
             if let bg = attrs[.backgroundColor] as? UIColor {
-                var white: CGFloat = 0
-                bg.getWhite(&white, alpha: nil)
-                if white < 0.3 {
+                if isAdaptiveColor(bg) {
                     mutable.removeAttribute(.backgroundColor, range: range)
+                }
+            }
+
+            // Strikethrough color: RichTextKit may set an explicit .strikethroughColor
+            // that is adaptive (white in dark mode). Convert to black so the line is
+            // visible on white PDF paper. If no explicit color, remove the attribute
+            // so it inherits from the (now-black) foreground color.
+            if attrs[.strikethroughStyle] != nil {
+                if let sc = attrs[.strikethroughColor] as? UIColor {
+                    if isAdaptiveColor(sc) {
+                        mutable.removeAttribute(.strikethroughColor, range: range)
+                    }
+                }
+            }
+
+            // Underline color: same treatment as strikethrough.
+            if attrs[.underlineStyle] != nil {
+                if let uc = attrs[.underlineColor] as? UIColor {
+                    if isAdaptiveColor(uc) {
+                        mutable.removeAttribute(.underlineColor, range: range)
+                    }
                 }
             }
         }

@@ -102,7 +102,10 @@ final class AttachmentService: NSObject {
         log.debug("AttachmentService.appendImage: display-scaled \(resized.size.width)pt → \(displayWidth)pt")
         // Persist resized image to disk and tag with UUID via custom attribute
         let attachmentId = AttachmentStore.shared.save(imageData: storageData, taskId: taskId)
-        let attachStr = NSMutableAttributedString(string: "\n")
+        let attachStr = NSMutableAttributedString(string: "\n", attributes: [
+            .foregroundColor: UIColor.label,
+            .font: UIFont.preferredFont(forTextStyle: .body)
+        ])
         let imgStr = NSMutableAttributedString(attachment: attachment)
         imgStr.addAttribute(.imageAttachmentId, value: attachmentId.uuidString, range: NSRange(location: 0, length: imgStr.length))
         attachStr.append(imgStr)
@@ -138,7 +141,10 @@ final class AttachmentService: NSObject {
         iconAttachment.image = iconImage
         iconAttachment.bounds = CGRect(x: 0, y: -3, width: 18, height: 20)
 
-        let result = NSMutableAttributedString(string: "\n")
+        let result = NSMutableAttributedString(string: "\n", attributes: [
+            .foregroundColor: UIColor.label,
+            .font: UIFont.preferredFont(forTextStyle: .body)
+        ])
         result.append(NSAttributedString(attachment: iconAttachment))
         result.append(NSAttributedString(string: "\u{00A0}" + url.lastPathComponent, attributes: [
             .link: url,

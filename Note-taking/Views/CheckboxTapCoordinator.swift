@@ -9,6 +9,9 @@ import Combine
 final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecognizerDelegate {
     @Published private(set) var toggleVersion: Int = 0
     private(set) var lastToggledText: NSAttributedString? = nil
+    /// Captured in gestureRecognizerShouldBegin — tells us whether the keyboard
+    /// was already visible before the tap so we can suppress unwanted keyboard show.
+    private var wasFirstResponder = false
 
     @objc func handleTap(_ gesture: UITapGestureRecognizer) {
         guard let tv = gesture.view as? UITextView,
@@ -45,15 +48,6 @@ final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecogni
         ts.beginEditing()
         ts.enumerateAttribute(.attachment, in: lineRange, options: []) { value, range, stop in
             guard let cb = value as? CheckboxAttachment else { return }
-            // Bug 2 fix: do not allow toggling an empty checkbox row.
-            // An empty checkbox has no text after the attachment character on the line.
-            let textAfterCheckbox = range.upperBound
-            let lineEnd = lineRange.upperBound
-            let hasText = textAfterCheckbox < lineEnd &&
-                          (ts.string as NSString).substring(with: NSRange(location: textAfterCheckbox,
-                                                                          length: lineEnd - textAfterCheckbox))
-                          .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            guard hasText else { stop.pointee = true; return }
             cb.toggle()
             // Re-set the attachment to force redraw
             ts.removeAttribute(.attachment, range: range)
@@ -82,15 +76,26 @@ final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecogni
         // If the text view already has keyboard focus, keep it — just restore scroll.
         // If it did NOT have focus (keyboard was already hidden), keep it hidden.
         let savedOffset = tv.contentOffset
-        if !tv.isFirstResponder {
-            // Keyboard was already hidden — stay that way.
-            // (No resignFirstResponder needed; already not first responder.)
+        // If the keyboard was NOT visible before this tap, dismiss it.
+        // UITextView's own tap gesture fires simultaneously and makes it
+        // first responder — undo that so checkbox taps don't pop the keyboard.
+        if !wasFirstResponder {
+            tv.resignFirstResponder()
         }
         tv.setContentOffset(savedOffset, animated: false)
 
         // Publish snapshot so TaskDetailView can sync the binding
         lastToggledText = NSAttributedString(attributedString: ts)
         toggleVersion += 1
+    }
+
+    // Capture keyboard state BEFORE the tap is recognized — at this point
+    // UITextView hasn't become first responder yet from this touch.
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if let tv = gestureRecognizer.view as? UITextView {
+            wasFirstResponder = tv.isFirstResponder
+        }
+        return true
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
@@ -103,6 +108,25 @@ final class CheckboxTapCoordinator: NSObject, ObservableObject, UIGestureRecogni
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                            shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
         return false
+    }
+}
+
+// MARK: - ScrollDismissHandler
+// Attached to the UITextView's built-in panGestureRecognizer.
+// Dismisses the keyboard when the user scrolls DOWN (content moves up).
+// Only fires on real finger-driven scrolls — not on programmatic offset
+// changes (keyboard appearing, auto-scroll to cursor, etc.).
+
+final class ScrollDismissHandler: NSObject, ObservableObject {
+    @objc func handlePan(_ pan: UIPanGestureRecognizer) {
+        guard let tv = pan.view as? UITextView,
+              tv.isFirstResponder,
+              tv.selectedRange.length == 0 else { return }
+        let velocity = pan.velocity(in: tv)
+        // velocity.y < 0 means finger moving UP → content scrolling DOWN
+        if velocity.y < -200 {
+            tv.resignFirstResponder()
+        }
     }
 }
 
