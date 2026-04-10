@@ -558,7 +558,7 @@ struct TaskDetailView: View {
                 // Restore typing attributes — programmatic attributedText reset clears them.
                 // Re-apply the active font color so typing after an image keeps the user's color.
                 tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
-                tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
+                tv.typingAttributes[.font] = UIFont.systemFont(ofSize: 15)
                 DispatchQueue.main.async { refreshQuoteBorderViews(in: tv) }
             }
             .onChange(of: richTextContext.selectedRange) { _, range in
@@ -845,7 +845,7 @@ struct TaskDetailView: View {
             // Update typing attributes so the next keystroke on an empty page
             // (or after a cursor move) uses the new size immediately.
             let currentFont = tv.typingAttributes[.font] as? UIFont
-                ?? UIFont.preferredFont(forTextStyle: .body)
+                ?? UIFont.systemFont(ofSize: 15)
             let newSize = increase ? currentFont.pointSize + step : max(minSize, currentFont.pointSize - step)
             // Preserve bold/italic traits exactly when changing size (Issue #103).
             let traits = currentFont.fontDescriptor.symbolicTraits
@@ -981,7 +981,6 @@ struct TaskDetailView: View {
             let len  = min(range.length,   ts.length - loc)
             if len > 0 {
                 let safe  = NSRange(location: loc, length: len)
-                let nsStr = ts.string as NSString
                 var applied = 0
 
                 // Helper: check if character at index is a checkbox attachment
@@ -992,38 +991,16 @@ struct TaskDetailView: View {
 
                 ts.beginEditing()
                 if key == .backgroundColor && value != nil {
-                    // Word-like highlight: keep spaces BETWEEN words but skip
-                    // trailing whitespace on each line and blank lines entirely.
-                    // Also skip checkbox attachments — they must not be colored.
-                    var pendingWSStart = -1
-                    var i = safe.location
-                    let end = safe.location + safe.length
-                    while i < end {
-                        guard i < ts.length else { break }
-                        let scalar = nsStr.character(at: i)
-                        let isNewline = scalar == 0x0A || scalar == 0x0D ||
-                                        scalar == 0x2028 || scalar == 0x2029
-                        let isSpace   = scalar == 0x20 || scalar == 0x09 || scalar == 0xA0
-                        if isCheckbox(at: i) {
-                            pendingWSStart = -1  // skip checkbox + discard pending whitespace
-                        } else if isNewline {
-                            pendingWSStart = -1
-                        } else if isSpace {
-                            if pendingWSStart < 0 { pendingWSStart = i }
-                        } else {
-                            if pendingWSStart >= 0 {
-                                let wsLen = i - pendingWSStart
-                                let wsRange = NSRange(location: pendingWSStart, length: wsLen)
-                                ts.addAttribute(key, value: value!, range: wsRange)
-                                applied += wsLen
-                                pendingWSStart = -1
-                            }
-                            ts.addAttribute(key, value: value!,
-                                            range: NSRange(location: i, length: 1))
-                            applied += 1
-                        }
-                        i += 1
-                    }
+                    // Two-phase highlight (see HighlightApplier docs):
+                    //   1. Paint background on letters AND inter-word spaces
+                    //      so the highlight looks connected within a line.
+                    //   2. After layout, strip the trailing whitespace of
+                    //      every visual line to break the contiguous run at
+                    //      the wrap point — that's what stops the bleed.
+                    HighlightApplier.applyBackground(value as! UIColor,
+                                                     to: ts,
+                                                     range: safe)
+                    applied = safe.length
                 } else {
                     if key == .backgroundColor {
                         ts.removeAttribute(key, range: safe)
@@ -1047,6 +1024,20 @@ struct TaskDetailView: View {
                     }
                 }
                 ts.endEditing()
+
+                // Two-phase highlight: phase 2 — strip the trailing whitespace
+                // of every visual line so the contiguous .backgroundColor run
+                // is broken at each wrap point. Without this, TextKit extends
+                // the background to the container's right edge on wrapped
+                // lines (the bleed bug). Must run AFTER endEditing so layout
+                // is up to date for the new attributes.
+                if key == .backgroundColor && value != nil {
+                    tv.layoutManager.ensureLayout(for: tv.textContainer)
+                    HighlightApplier.trimWrapWhitespace(in: ts,
+                                                        using: tv.layoutManager,
+                                                        container: tv.textContainer)
+                }
+
                 // Sync the binding without resetting the UITextView
                 attributedText = NSAttributedString(attributedString: ts)
                 log.debug("applyColorAttribute: \(key.rawValue) — \(applied) chars coloured")
@@ -1380,14 +1371,14 @@ struct TaskDetailView: View {
             tv.typingAttributes[.font] = RichEditorCommands.HeadingLevel.h3.font
             tv.typingAttributes[.foregroundColor] = UIColor.label
         case "todoList":
-            tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
+            tv.typingAttributes[.font]            = UIFont.systemFont(ofSize: 15)
             tv.typingAttributes[.foregroundColor] = UIColor.label
         case "bulletList":
             let hangStyle = NSMutableParagraphStyle()
             hangStyle.headIndent = 14
             tv.typingAttributes[.paragraphStyle]  = hangStyle
             tv.typingAttributes[.foregroundColor] = UIColor.label
-            tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
+            tv.typingAttributes[.font]            = UIFont.systemFont(ofSize: 15)
         case "quote":
             let quoteStyle = NSMutableParagraphStyle()
             quoteStyle.headIndent          = 18
@@ -1506,7 +1497,7 @@ struct TaskDetailView: View {
             }
 
             if needsReset {
-                let bodyFont = UIFont.preferredFont(forTextStyle: .body)
+                let bodyFont = UIFont.systemFont(ofSize: 15)
                 // Scrub heading font off the newline AND the entire new (empty) paragraph
                 // so UIKit doesn't re-derive heading typingAttributes from adjacent chars.
                 let mutable = NSMutableAttributedString(attributedString: tvText)
@@ -1617,7 +1608,7 @@ struct TaskDetailView: View {
 
         applyText(mutable, to: tv, cursor: NSRange(location: min(adjusted, mutable.length), length: 0))
         tv.typingAttributes = [
-            .font:            UIFont.preferredFont(forTextStyle: .body),
+            .font:            UIFont.systemFont(ofSize: 15),
             .foregroundColor: UIColor.label,
         ]
         prevTextLength = mutable.length
@@ -1632,7 +1623,7 @@ struct TaskDetailView: View {
         let safeInsert = max(0, min(cursorLoc, mutable.length))
 
         let bullet = NSAttributedString(string: "• ", attributes: [
-            .font:            UIFont.preferredFont(forTextStyle: .body),
+            .font:            UIFont.systemFont(ofSize: 15),
             .foregroundColor: UIColor.label,
         ])
         mutable.insert(bullet, at: safeInsert)
@@ -1653,7 +1644,7 @@ struct TaskDetailView: View {
         let newCursor = min(safeInsert + 2, mutable.length)
         applyText(mutable, to: tv, cursor: NSRange(location: newCursor, length: 0))
         tv.typingAttributes[.foregroundColor] = UIColor.label
-        tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
+        tv.typingAttributes[.font]            = UIFont.systemFont(ofSize: 15)
         prevTextLength = mutable.length
         attributedText = mutable
         log.debug("handleReturnKey: continued bullet, cursor=\(newCursor)")
@@ -1670,14 +1661,14 @@ struct TaskDetailView: View {
         item.addAttribute(.foregroundColor, value: UIColor.label,
                            range: NSRange(location: 0, length: item.length))
         item.append(NSAttributedString(string: " ", attributes: [
-            .font:            UIFont.preferredFont(forTextStyle: .body),
+            .font:            UIFont.systemFont(ofSize: 15),
             .foregroundColor: UIColor.label,
         ]))
         mutable.insert(item, at: safeInsert)
 
         let newCursor = min(safeInsert + 2, mutable.length)
         applyText(mutable, to: tv, cursor: NSRange(location: newCursor, length: 0))
-        tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
+        tv.typingAttributes[.font]            = UIFont.systemFont(ofSize: 15)
         tv.typingAttributes[.foregroundColor] = UIColor.label
         prevTextLength = mutable.length
         attributedText = mutable
@@ -1805,7 +1796,7 @@ struct TaskDetailView: View {
         quoteStyle.tailIndent          = -16
 
         let bar = NSAttributedString(string: "│ ", attributes: [
-            .font:            UIFont.preferredFont(forTextStyle: .body),
+            .font:            UIFont.systemFont(ofSize: 15),
             .foregroundColor: UIColor.clear,
             .paragraphStyle:  quoteStyle,
         ])
@@ -1828,7 +1819,7 @@ struct TaskDetailView: View {
         tv.selectedRange  = NSRange(location: newCursor, length: 0)
         // Set typing attributes so the NEXT keystroke inherits quote style
         tv.typingAttributes[.foregroundColor] = UIColor.label
-        tv.typingAttributes[.font]            = UIFont.preferredFont(forTextStyle: .body)
+        tv.typingAttributes[.font]            = UIFont.systemFont(ofSize: 15)
         tv.typingAttributes[.paragraphStyle]  = quoteStyle
         prevTextLength = ts.length
         attributedText = tv.attributedText ?? NSAttributedString()
@@ -2061,7 +2052,7 @@ struct TaskDetailView: View {
                 // Reset typing attributes to normal body text — without this,
                 // the cursor inherits the attachment's attributes (shrunken font
                 // size from a resized image, wrong color, etc.).
-                tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
+                tv.typingAttributes[.font] = UIFont.systemFont(ofSize: 15)
                 tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
                 log.debug("onSelectionChanged: cleared selection, cursor at \(afterAttachment)")
             }
@@ -2115,7 +2106,7 @@ struct TaskDetailView: View {
                 return false
             }()
             if nearAttachment {
-                tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
+                tv.typingAttributes[.font] = UIFont.systemFont(ofSize: 15)
                 tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
             } else {
                 tv.typingAttributes[.foregroundColor] = activeFontColor ?? UIColor.label
