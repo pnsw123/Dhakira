@@ -70,9 +70,11 @@ final class CalendarSyncService {
             }
         }
 
-        // Create a brand-new event in the specified calendar (or system default).
-        guard let calendar = targetCalendar ?? eventStore.defaultCalendarForNewEvents else {
-            log.error("syncDateToCalendar: no default calendar available")
+        // Create a brand-new event in the specified calendar.
+        // If no targetCalendar is passed, prefer iCloud/Apple native — never Gmail/CalDAV.
+        // This prevents duplicate events when users have Gmail synced to Apple Calendar.
+        guard let calendar = targetCalendar ?? preferredAppleCalendar() else {
+            log.error("syncDateToCalendar: no writable calendar available")
             return nil
         }
         let event = EKEvent(eventStore: eventStore)
@@ -154,6 +156,10 @@ final class CalendarSyncService {
             date > now || cal.isDateInToday(date)
         }
 
+        // Sync rule: if NSDataDetector found a date/time in the user's text, we sync it.
+        // - Explicit time written → use that time.
+        // - Bare date (e.g. "Monday", "April 10") → DateDetectionService snaps to 12pm noon.
+        // - No date AND no time → no match → no event.
         let relevantTitle = titleDetected.filter { isRelevant($0.date) }
 
         // Title event uses ONLY title dates — body dates are handled by BodyEventSyncService.
@@ -611,33 +617,28 @@ final class CalendarSyncService {
     // MARK: - Calendar selection
 
     /// Returns the preferred Apple/iCloud calendar for event sync.
-    /// Avoids returning a Gmail/Google calendar (CalDAV) — that would cause events
-    /// to leak into Google Calendar through the "Apple Calendar" sync path.
+    /// Delegates to `CalendarSelector.selectBestAppleCalendar` — a pure function
+    /// that picks iCloud first, never returns Gmail/Google/Subscribed calendars.
+    /// Returns `nil` if no safe calendar exists (rather than falling back to
+    /// `defaultCalendarForNewEvents`, which may itself be a Gmail calendar).
     private func preferredAppleCalendar() -> EKCalendar? {
         let allCalendars = eventStore.calendars(for: .event)
-            .filter { $0.allowsContentModifications }
-
-        // Prefer iCloud calendar
-        if let iCloud = allCalendars.first(where: {
-            $0.source?.title.localizedCaseInsensitiveContains("iCloud") == true
-        }) {
-            return iCloud
+        let entries = allCalendars.map { cal in
+            CalendarEntry(
+                title: cal.title,
+                sourceTitle: cal.source?.title ?? "",
+                sourceType: cal.source?.sourceType ?? .local,
+                isWritable: cal.allowsContentModifications
+            )
         }
-
-        // Fallback: any non-Google, non-Subscribed writable calendar
-        if let nonGoogle = allCalendars.first(where: { cal in
-            let title = cal.source?.title ?? ""
-            let isGoogle = title.localizedCaseInsensitiveContains("google")
-                        || title.localizedCaseInsensitiveContains("gmail")
-            let isSubscribed = cal.source?.sourceType == .subscribed
-            return !isGoogle && !isSubscribed
-        }) {
-            return nonGoogle
+        guard let chosen = CalendarSelector.selectBestAppleCalendar(from: entries) else {
+            log.warning("preferredAppleCalendar: no safe iCloud/non-Google calendar found")
+            return nil
         }
-
-        // Last resort: whatever the system default is
-        log.warning("preferredAppleCalendar: no iCloud or non-Google calendar found — using system default")
-        return eventStore.defaultCalendarForNewEvents
+        // Map the chosen entry back to the underlying EKCalendar by matching title + source.
+        return allCalendars.first { cal in
+            cal.title == chosen.title && (cal.source?.title ?? "") == chosen.sourceTitle
+        }
     }
 
     // MARK: - Private helpers

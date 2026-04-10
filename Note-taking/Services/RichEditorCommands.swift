@@ -199,7 +199,7 @@ final class RichEditorCommands {
         // Skip checkbox attachment characters — formatting must never alter them.
         var fontUpdates: [(NSRange, UIFont)] = []
         mutable.enumerateAttribute(.font, in: range, options: []) { value, subRange, _ in
-            let font = (value as? UIFont) ?? UIFont.preferredFont(forTextStyle: .body)
+            let font = (value as? UIFont) ?? UIFont.systemFont(ofSize: 15)
             let currentSize = font.pointSize
             let newSize = increase ? currentSize + step : max(minSize, currentSize - step)
             // Preserve bold/italic traits exactly — UIFont(descriptor:size:) can
@@ -236,11 +236,11 @@ final class RichEditorCommands {
 
         var font: UIFont {
             switch self {
-            case .h1: return UIFont.systemFont(ofSize: 28, weight: .bold)
-            case .h2: return UIFont.systemFont(ofSize: 18, weight: .semibold)
-            case .h3: return UIFont.systemFont(ofSize: 15, weight: .semibold)
-            case .h4: return UIFont.systemFont(ofSize: 13, weight: .semibold)
-            case .body: return UIFont.preferredFont(forTextStyle: .body)
+            case .h1: return UIFont.systemFont(ofSize: 26, weight: .bold)
+            case .h2: return UIFont.systemFont(ofSize: 22, weight: .semibold)
+            case .h3: return UIFont.systemFont(ofSize: 18, weight: .semibold)
+            case .h4: return UIFont.systemFont(ofSize: 16, weight: .semibold)
+            case .body: return UIFont.systemFont(ofSize: 15)
             }
         }
     }
@@ -300,7 +300,7 @@ final class RichEditorCommands {
         } else {
             // Insert "• " at the paragraph start with adaptive colour.
             let bullet = NSAttributedString(string: "• ", attributes: [
-                .font:            UIFont.preferredFont(forTextStyle: .body),
+                .font:            UIFont.systemFont(ofSize: 15),
                 .foregroundColor: UIColor.label,
             ])
             mutable.insert(bullet, at: parRange.location)
@@ -354,7 +354,7 @@ final class RichEditorCommands {
         } else {
             // Insert "│ " at paragraph start — invisible glyph, UIView bar provides the visual.
             let bar = NSAttributedString(string: "│ ", attributes: [
-                .font:            UIFont.preferredFont(forTextStyle: .body),
+                .font:            UIFont.systemFont(ofSize: 15),
                 .foregroundColor: UIColor.clear,
             ])
             mutable.insert(bar, at: parRange.location)
@@ -395,7 +395,7 @@ final class RichEditorCommands {
                                 range: NSRange(location: 0, length: attachStr.length))
 
         let space = NSAttributedString(string: " ", attributes: [
-            .font:            UIFont.preferredFont(forTextStyle: .body),
+            .font:            UIFont.systemFont(ofSize: 15),
             .foregroundColor: UIColor.label,
         ])
         attachStr.append(space)
@@ -600,7 +600,7 @@ final class RichEditorCommands {
             return
         }
         log.debug("applyBodyText: resetting paragraph at range=\(paragraphRange.location)-\(paragraphRange.length)")
-        mutable.addAttribute(.font, value: UIFont.preferredFont(forTextStyle: .body), range: paragraphRange)
+        mutable.addAttribute(.font, value: UIFont.systemFont(ofSize: 15), range: paragraphRange)
         mutable.removeAttribute(.paragraphStyle, range: paragraphRange)
         attributedText = mutable
     }

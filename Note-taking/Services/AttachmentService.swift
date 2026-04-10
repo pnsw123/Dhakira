@@ -104,7 +104,7 @@ final class AttachmentService: NSObject {
         let attachmentId = AttachmentStore.shared.save(imageData: storageData, taskId: taskId)
         let attachStr = NSMutableAttributedString(string: "\n", attributes: [
             .foregroundColor: UIColor.label,
-            .font: UIFont.preferredFont(forTextStyle: .body)
+            .font: UIFont.systemFont(ofSize: 15)
         ])
         let imgStr = NSMutableAttributedString(attachment: attachment)
         imgStr.addAttribute(.imageAttachmentId, value: attachmentId.uuidString, range: NSRange(location: 0, length: imgStr.length))
@@ -143,12 +143,12 @@ final class AttachmentService: NSObject {
 
         let result = NSMutableAttributedString(string: "\n", attributes: [
             .foregroundColor: UIColor.label,
-            .font: UIFont.preferredFont(forTextStyle: .body)
+            .font: UIFont.systemFont(ofSize: 15)
         ])
         result.append(NSAttributedString(attachment: iconAttachment))
         result.append(NSAttributedString(string: "\u{00A0}" + url.lastPathComponent, attributes: [
             .link: url,
-            .font: UIFont.preferredFont(forTextStyle: .body)
+            .font: UIFont.systemFont(ofSize: 15)
         ]))
 
         let mutable  = NSMutableAttributedString(attributedString: attributedText)

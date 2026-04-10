@@ -17,6 +17,11 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "BodyEventSyn
 /// - Changed line (fuzzy match ≥ 80%) → update existing events
 /// - Deleted/dateless line → delete events + record
 /// - Max 15 body events per task
+///
+/// Thread safety: class is `@MainActor`-bound so the `activeSyncs` guard
+/// and SwiftData context access are serialized by the actor. The guard
+/// prevents duplicate event creation from overlapping syncs on the same task.
+@MainActor
 final class BodyEventSyncService {
 
     static let shared = BodyEventSyncService()
@@ -44,7 +49,6 @@ final class BodyEventSyncService {
     ///   - bodyText: Plain text of the body (rich text stripped).
     ///   - task: The owning TaskItem.
     ///   - context: SwiftData ModelContext for reading/writing BodyCalendarEvent records.
-    @MainActor
     /// - Parameters:
     ///   - checkedLines: Line texts with a checked checkbox — their calendar events
     ///     will be deleted (task is done, no reminder needed).
@@ -88,6 +92,8 @@ final class BodyEventSyncService {
             }
             let detected = detector.detectDates(in: line)
             // Take the first relevant (today or future) date per line.
+            // Bare dates without an explicit time are already snapped to 12pm noon
+            // by DateDetectionService, so they sync normally.
             if let best = detected.first(where: { $0.date > now || cal.isDateInToday($0.date) }) {
                 datedLines.append((text: line, date: best))
             }
@@ -182,16 +188,21 @@ final class BodyEventSyncService {
                 guard let record = action.record,
                       let lineText = action.lineText,
                       let detected = action.date else { continue }
-                // Skip calendar API calls if nothing actually changed.
-                let dateUnchanged = Calendar.current.isDate(detected.date, equalTo: record.createdAt, toGranularity: .minute)
-                if record.lineText == lineText && dateUnchanged && !record.isStruck {
+                // Bug #2 fix: the old `dateUnchanged` shortcut compared the detected date
+                // against `record.createdAt` (the record creation timestamp), which is NOT
+                // the previous event date — so it never actually detected date changes.
+                // Correct behavior: if the line text is identical AND not struck, skip.
+                // If anything changed, fall through and re-sync.
+                if record.lineText == lineText && !record.isStruck {
                     log.debug("sync: SKIPPED update for unchanged line '\(lineText)'")
                     continue
                 }
-                // If the record was struck (user deleted event from Calendar), don't revive it.
+                // Bug #3 fix: struck records are revived when the user edits the line.
+                // Rationale: editing is a clear signal the user wants this back in sync.
+                // (If the user left the line untouched, we still honor the strike above.)
                 if record.isStruck {
-                    log.info("sync: skipping struck record for '\(lineText)' — user deleted event from Calendar")
-                    continue
+                    log.info("sync: reviving struck record for '\(lineText)' — user edited the line")
+                    record.isStruck = false
                 }
                 // Use the line text itself as the event title (strip the date portion).
                 let eventTitle = CalendarSyncService.shared.strippingDateText(detected, from: lineText)

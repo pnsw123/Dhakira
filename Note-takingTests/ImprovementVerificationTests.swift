@@ -28,29 +28,32 @@ final class ImprovementVerificationTests: XCTestCase {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     /// HeadingLevel fonts must match the sizes used in the heading detection set.
-    /// If someone changes the heading font sizes, this test catches the mismatch.
+    /// Updated after body font tightening (body now 15pt, headings rebalanced):
+    /// H1=26, H2=22, H3=18, H4=16.
     func testHeadingFontSizesMatchDetectionSet() {
-        let expectedSizes: Set<CGFloat> = [28, 18, 15, 13]
+        let expectedSizes: Set<CGFloat> = [26, 22, 18, 16]
         let headingLevels: [RichEditorCommands.HeadingLevel] = [.h1, .h2, .h3, .h4]
 
         for level in headingLevels {
             XCTAssertTrue(expectedSizes.contains(level.font.pointSize),
-                "Issue #112: HeadingLevel.\(level) font size \(level.font.pointSize) must be in detection set \(expectedSizes)")
+                "HeadingLevel.\(level) font size \(level.font.pointSize) must be in detection set \(expectedSizes)")
         }
     }
 
     /// Body font must NOT match any heading size (so detection doesn't false-positive).
     func testBodyFontIsNotInHeadingSet() {
-        let headingSizes: Set<CGFloat> = [28, 18, 15, 13]
+        let headingSizes: Set<CGFloat> = [26, 22, 18, 16]
         let bodyFont = RichEditorCommands.HeadingLevel.body.font
         XCTAssertFalse(headingSizes.contains(bodyFont.pointSize),
-            "Issue #112: body font (\(bodyFont.pointSize)pt) must NOT be in heading detection set")
+            "Body font (\(bodyFont.pointSize)pt) must NOT be in heading detection set")
+        XCTAssertEqual(bodyFont.pointSize, 15,
+            "Body font must be 15pt after size tightening")
     }
 
-    /// H1 heading must be 28pt bold.
+    /// H1 heading must be 26pt bold (was 28pt before tightening).
     func testH1FontIs28ptBold() {
         let font = RichEditorCommands.HeadingLevel.h1.font
-        XCTAssertEqual(font.pointSize, 28, "H1 must be 28pt")
+        XCTAssertEqual(font.pointSize, 26, "H1 must be 26pt")
         XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.traitBold), "H1 must be bold")
     }
 
@@ -58,20 +61,21 @@ final class ImprovementVerificationTests: XCTestCase {
     func testApplyHeadingThenBodyRestoresFont() {
         var text: NSAttributedString = NSAttributedString(
             string: "Test line",
-            attributes: [.font: UIFont.preferredFont(forTextStyle: .body)]
+            attributes: [.font: UIFont.systemFont(ofSize: 15)]
         )
         let range = NSRange(location: 0, length: text.length)
 
         // Apply H1
         RichEditorCommands.applyHeading(.h1, attributedText: &text, selectedRange: range)
         let h1Font = text.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
-        XCTAssertEqual(h1Font.pointSize, 28, "After applying H1, font must be 28pt")
+        XCTAssertEqual(h1Font.pointSize, 26, "After applying H1, font must be 26pt")
 
         // Apply Body
         RichEditorCommands.applyHeading(.body, attributedText: &text, selectedRange: NSRange(location: 0, length: text.length))
         let bodyFont = text.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
-        XCTAssertFalse([28, 18, 15, 13].contains(Int(bodyFont.pointSize)),
-            "Issue #112: after applying body, font must not be a heading size")
+        XCTAssertFalse([26, 22, 18, 16].contains(Int(bodyFont.pointSize)),
+            "After applying body, font must not be a heading size")
+        XCTAssertEqual(bodyFont.pointSize, 15, "Body font must be 15pt")
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -58,7 +58,7 @@ struct NativeEditorView: View {
                 // Override RichTextKit's default theme font (16pt) to match
                 // the body font (17pt) used everywhere in this app.
                 richTV.theme = RichTextView.Theme(
-                    font: UIFont.preferredFont(forTextStyle: .body),
+                    font: UIFont.systemFont(ofSize: 15),
                     fontColor: .label,
                     backgroundColor: .clear
                 )
@@ -79,8 +79,8 @@ struct NativeEditorView: View {
                 // Without this, UIKit defaults to black which disappears on dark backgrounds.
                 tv.isScrollEnabled = true
                 tv.textColor = .label
-                tv.font = UIFont.preferredFont(forTextStyle: .body)
-                tv.typingAttributes[.font] = UIFont.preferredFont(forTextStyle: .body)
+                tv.font = UIFont.systemFont(ofSize: 15)
+                tv.typingAttributes[.font] = UIFont.systemFont(ofSize: 15)
                 tv.typingAttributes[.foregroundColor] = UIColor.label
                 // Match the editor area background to the active theme so bright / dark
                 // themes don't leave a system-white or system-black rectangle behind.
