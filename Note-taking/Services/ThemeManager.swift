@@ -55,12 +55,20 @@ final class ThemeManager {
         // local UserDefaults is empty but iCloud still has the purchased theme.
         iCloud.synchronize()
 
-        // If UserDefaults was wiped (reinstall), restore from iCloud
+        // If UserDefaults was wiped (reinstall), restore from iCloud — gate checks ownership.
         if selectedThemeId == "default",
            let cloudId = iCloud.string(forKey: "selectedThemeId"),
            cloudId != "default" {
-            log.info("Restored theme '\(cloudId)' from iCloud after reinstall")
-            selectedThemeId = cloudId
+            let ownership = ThemeRestoreGate.OwnershipState(
+                purchasedIds: StoreKitManager.shared.purchasedIds,
+                isDeveloperUnlocked: StoreKitManager.shared.isDeveloperUnlocked)
+            switch ThemeRestoreGate.decide(themeId: cloudId, ownership: ownership) {
+            case .apply(let theme):
+                log.info("Restored theme '\(theme.id)' from iCloud after reinstall")
+                selectedThemeId = theme.id
+            case .resetToDefault(let reason):
+                log.warning("iCloud theme '\(cloudId)' rejected at init (\(reason.rawValue)) — keeping default")
+            }
         }
 
         // Restore last selected theme.
@@ -108,11 +116,19 @@ final class ThemeManager {
             resetToDefault()
             return
         }
-        guard let theme = AppTheme.all.first(where: { $0.id == cloudId }) else { return }
-        log.info("iCloud KVS sync delivered theme '\(cloudId)' — applying")
-        selectedThemeId = cloudId
-        current = theme
-        syncToAppGroup()
+        let ownership = ThemeRestoreGate.OwnershipState(
+            purchasedIds: StoreKitManager.shared.purchasedIds,
+            isDeveloperUnlocked: StoreKitManager.shared.isDeveloperUnlocked)
+        switch ThemeRestoreGate.decide(themeId: cloudId, ownership: ownership) {
+        case .apply(let theme):
+            log.info("iCloud KVS sync delivered theme '\(theme.id)' — applying")
+            selectedThemeId = theme.id
+            current = theme
+            syncToAppGroup()
+        case .resetToDefault(let reason):
+            log.warning("iCloud KVS theme '\(cloudId)' rejected (\(reason.rawValue)) — resetting to default")
+            resetToDefault()
+        }
     }
 
     // MARK: — Stored widget theme (can differ from app theme)
@@ -146,14 +162,19 @@ final class ThemeManager {
             resetToDefault()
             return
         }
-        guard let theme = AppTheme.all.first(where: { $0.id == cloudId }) else {
-            log.error("applyCloudThemeIfChanged: theme '\(cloudId)' not found in AppTheme.all")
-            return
+        let ownership = ThemeRestoreGate.OwnershipState(
+            purchasedIds: StoreKitManager.shared.purchasedIds,
+            isDeveloperUnlocked: StoreKitManager.shared.isDeveloperUnlocked)
+        switch ThemeRestoreGate.decide(themeId: cloudId, ownership: ownership) {
+        case .apply(let theme):
+            log.info("applyCloudThemeIfChanged: applying theme '\(theme.id)'")
+            selectedThemeId = theme.id
+            current = theme
+            syncToAppGroup()
+        case .resetToDefault(let reason):
+            log.warning("applyCloudThemeIfChanged: theme '\(cloudId)' rejected (\(reason.rawValue)) — resetting to default")
+            resetToDefault()
         }
-        log.info("applyCloudThemeIfChanged: applying theme '\(cloudId)'")
-        selectedThemeId = cloudId
-        current = theme
-        syncToAppGroup()
     }
 
     // MARK: — Apply theme (legacy — applies to both)

@@ -9,11 +9,17 @@ struct DetectedDate {
     /// Nil means use the default duration (1 hour).
     let endDate: Date?
     let range: Range<String.Index>
+    /// True when the matched text contained an explicit time indicator
+    /// (digits + am/pm, "noon", "midnight", "o'clock", "HH:MM", etc.).
+    /// False for bare dates like "Monday" or "April 10" — those should be
+    /// treated as all-day events, NOT assigned NSDataDetector's phantom default time.
+    let hasExplicitTime: Bool
 
-    init(date: Date, range: Range<String.Index>, endDate: Date? = nil) {
+    init(date: Date, range: Range<String.Index>, endDate: Date? = nil, hasExplicitTime: Bool = true) {
         self.date = date
         self.endDate = endDate
         self.range = range
+        self.hasExplicitTime = hasExplicitTime
     }
 }
 
@@ -26,6 +32,19 @@ final class DateDetectionService {
     /// `static let` means it is compiled exactly once for the app's lifetime.
     private static let tokenRegex: NSRegularExpression =
         try! NSRegularExpression(pattern: #"[A-Za-z0-9]+"#)
+
+    /// Regex that matches explicit time indicators inside a detected date's substring.
+    /// Used to decide whether a match like "tomorrow" (no explicit time) should become
+    /// an all-day event, versus "tomorrow at 5pm" which keeps its precise time.
+    private static let explicitTimeRegex: NSRegularExpression = try! NSRegularExpression(
+        pattern: #"(?i)(\d{1,2}:\d{2}|\d{1,2}\s*(?:am|pm|a\.?m\.?|p\.?m\.?)|\bnoon\b|\bmidnight\b|o'?clock|half\s+past|quarter\s+(?:past|to))"#
+    )
+
+    /// Returns true if `text` contains any explicit time indicator (am/pm, HH:MM, noon, etc.).
+    static func hasExplicitTime(in text: String) -> Bool {
+        let range = NSRange(text.startIndex..., in: text)
+        return explicitTimeRegex.firstMatch(in: text, range: range) != nil
+    }
 
     /// Flat map from lowercase slang / abbreviation → standard English.
     /// All keys are lowercased; lookup is done on `token.lowercased()` so
@@ -92,6 +111,7 @@ final class DateDetectionService {
         let textTrimmed = text.trimmingCharacters(in: .whitespaces)
         let isBareRange = bareDigitDash?.firstMatch(in: textTrimmed, range: NSRange(textTrimmed.startIndex..., in: textTrimmed)) != nil
 
+        let cal = Calendar.current
         let results = matches.compactMap { match -> DetectedDate? in
             guard let date = match.date else { return nil }
             // Skip false positives from bare number ranges like "8-9"
@@ -100,8 +120,20 @@ final class DateDetectionService {
                 let token = String(normalized[normRange])
                 return text.range(of: token, options: .caseInsensitive)
             } ?? text.startIndex..<text.startIndex
-            let endDate = extractedDuration.map { date.addingTimeInterval($0) }
-            return DetectedDate(date: date, range: range, endDate: endDate)
+            // Does the matched substring contain an explicit time?
+            let matchedText = (normalized as NSString).substring(with: match.range)
+            let hasTime = Self.hasExplicitTime(in: matchedText) || extractedDuration != nil
+            // If the user wrote a date with NO time, snap to 12:00 PM (noon) —
+            // otherwise NSDataDetector fills in the current wall-clock hour,
+            // which is how we used to get phantom 8–9pm events.
+            let finalDate: Date
+            if hasTime {
+                finalDate = date
+            } else {
+                finalDate = cal.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
+            }
+            let endDate = extractedDuration.map { finalDate.addingTimeInterval($0) }
+            return DetectedDate(date: finalDate, range: range, endDate: endDate, hasExplicitTime: hasTime)
         }
         log.info("detectDates: found \(results.count) date(s)")
         return results
