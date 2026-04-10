@@ -26,12 +26,13 @@ struct ThemeView: View {
         ScrollView {
             VStack(spacing: 12) {
 
-                // Bundle upsell banner — hidden once user has the bundle or dev unlock
-                if !store.purchasedIds.contains("com.prodnote.theme.pro") && !store.isDeveloperUnlocked {
-                    bundleBanner
-                        .padding(.horizontal, 16)
-                        .padding(.top, 4)
-                }
+                // v1.2: Bundle banner hidden until Paid Apps Agreement is signed.
+                // Re-enable in v1.3 when IAPs go live.
+                // if !store.purchasedIds.contains("com.prodnote.theme.pro") && !store.isDeveloperUnlocked {
+                //     bundleBanner
+                //         .padding(.horizontal, 16)
+                //         .padding(.top, 4)
+                // }
 
                 // Theme grid
                 LazyVGrid(
