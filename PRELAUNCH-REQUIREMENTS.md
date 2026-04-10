@@ -1,6 +1,6 @@
 # Pre-Launch Requirements — V1 (iPhone + iPad + Mac)
-> Last updated: April 7, 2026
-> Status: **V1 submitted to Apple (under review). Mac Catalyst support added. Screenshots remaining.**
+> Last updated: April 10, 2026
+> Status: **V1 approved by Apple ✅. Waiting for Paid Apps Agreement (banking) before enabling themes + IAPs.**
 
 ---
 
@@ -13,7 +13,7 @@
 | Calendar Integration (Google) | ✅ Done | OAuth, multi-account, cleanup all working |
 | Date Parsing | ✅ Done | "next Friday", "in 3 days", "EOD", bare weekdays |
 | Widget System | ✅ Done | Fully compatible, theme syncs |
-| Theme System | ✅ Done | 8 paid themes + 2 free themes |
+| Theme System | ✅ Done | 8 paid themes + 2 free themes. Menu + banner hidden until banking approved. |
 | Export | ✅ Done | PDF + plain text share |
 | Attachments | ✅ Done | Photos, files, scan |
 | Reminders Import | ✅ Done | |
@@ -28,8 +28,11 @@
 | iCloud Task Sync | ✅ Done | SwiftData + CloudKit, works across iPhone/iPad/Mac |
 | Landing Page | 🔲 Remaining | dhakira.app — domain purchased, page not built |
 | Google OAuth Verification | ⚠️ In Progress | Verified from developer side, users may still see warning |
-| App Store Submission (V1) | ⏳ Under Review | Submitted, waiting for Apple approval |
-| App Store Connect Banking | 🔲 Remaining | Bank details required to receive payments |
+| iCloud Theme Ownership Gate | ✅ Done | ThemeRestoreGate blocks paid themes without ownership — PR #129 |
+| Bug Fixes (PR #127) | ✅ Done | Font sizes, calendar dedup, sync race condition |
+| CloudKit Production Schema | ✅ Done | Deployed to Production — existing users' data restored |
+| App Store Submission (V1) | ✅ Approved | Apple approved V1. Waiting for banking to enable IAPs. |
+| App Store Connect Banking | ⚠️ In Progress | Address submitted to Apple — awaiting Paid Apps Agreement approval |
 
 ---
 
@@ -112,14 +115,15 @@ Until verified: users see "This app isn't verified" warning but can proceed via 
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Fill in banking details (Agreements, Tax, and Banking) | 🔲 |
-| 2 | Create 9 In-App Purchase products (Non-Consumable) | 🔲 |
-| 3 | 8 × `com.prodnote.theme.*` at $2.99 each | 🔲 |
-| 4 | 1 × `com.prodnote.theme.pro` (Trending Bundle) at $14.99 | 🔲 |
-| 5 | Write App Store description + keywords | 🔲 |
-| 6 | Upload screenshots and app icon | 🔲 |
-| 7 | Archive + upload via Xcode (Product → Archive) | 🔲 |
-| 8 | Submit for Apple Review | 🔲 |
+| 1 | Fill in banking details (Agreements, Tax, and Banking) | ⚠️ In Progress — address submitted, awaiting Apple approval |
+| 2 | Create 9 In-App Purchase products (Non-Consumable) | 🔲 After banking approved |
+| 3 | 8 × `com.prodnote.theme.*` at $2.99 each | 🔲 After banking approved |
+| 4 | 1 × `com.prodnote.theme.pro` (Trending Bundle) at $14.99 | 🔲 After banking approved |
+| 5 | Re-enable Theme menu + Bundle banner in code (v1.3) | 🔲 After banking approved — un-comment in SettingsMenuView + ThemeView |
+| 6 | Update screenshots (reflect latest UI changes) | 🔲 Before next submit |
+| 7 | Write App Store description + keywords | 🔲 |
+| 8 | Archive + upload via Xcode (Product → Archive) | 🔲 After all above done |
+| 9 | Submit v1.1 / v1.3 for Apple Review | 🔲 |
 
 ---
 
@@ -177,15 +181,19 @@ Until verified: users see "This app isn't verified" warning but can proceed via 
 
 ---
 
-## What's Left
+## What's Left — Ordered by Priority
 
-| Task | Priority |
-|------|----------|
-| Take Mac screenshots (5 screens) | High |
-| Take fresh iPad screenshots | Medium |
-| Build landing page (dhakira.app) | Medium |
-| Set up App Store Connect banking | Required for payments |
-| Submit V2 after V1 approval | After V1 approved |
+| Task | Priority | Blocked By |
+|------|----------|------------|
+| Apple approves Paid Apps Agreement (banking) | 🔴 Critical | Waiting on Apple |
+| Re-enable theme menu + bundle banner in code | 🔴 Critical | Banking approval |
+| Create 9 IAP products in App Store Connect | 🔴 Critical | Banking approval |
+| Update screenshots (fresh UI) | 🟡 High | — |
+| Take Mac screenshots (5 screens) | 🟡 High | — |
+| Build landing page (dhakira.app) | 🟡 High | — |
+| Google OAuth verification (dhakira.app) | 🟡 High | Landing page live |
+| Archive + upload v1.1 build | 🟡 High | Banking + screenshots |
+| Submit for Apple Review (v1.1) | 🟡 High | Archive done |
 
 ---
 
