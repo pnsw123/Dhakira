@@ -325,7 +325,7 @@ struct FolderRowView: View {
     @State private var isRenaming: Bool = false
     @State private var renameText: String = ""
     @FocusState private var isRenameFocused: Bool
-    @State private var showDeleteConfirm: Bool = false
+    // showDeleteConfirm removed — delete is now instant (tasks go to Recently Deleted)
     @State private var autoRenameListId: UUID? = nil
     @State private var autoRenameSubfolderId: UUID? = nil
     @State private var isAddingNewList: Bool = false
@@ -428,17 +428,11 @@ struct FolderRowView: View {
                     Label("New Subfolder", systemImage: "folder.badge.plus")
                 }
                 Divider()
-                Button(role: .destructive, action: { showDeleteConfirm = true }) {
+                Button(role: .destructive, action: deleteFolder) {
                     Label("Delete", systemImage: "trash")
                 }
             }
-            .confirmationDialog("Delete \"\(folder.name)\"?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("Delete Folder", role: .destructive, action: deleteFolder)
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("All task lists and tasks inside this folder will be permanently removed.")
-            }
-            .swipeToRevealDelete { deleteFolderWithUndo() }
+            .swipeToRevealDelete(onDelete: deleteFolder)
 
             // Expanded content: subfolders + task lists
             if isExpanded {
@@ -529,63 +523,6 @@ struct FolderRowView: View {
         isRenaming = false
     }
 
-    /// Delete with undo support — swipe calls this directly (no confirmation popup).
-    /// Tasks are soft-deleted to "Recently Deleted". Undo restores everything.
-    private func deleteFolderWithUndo() {
-        log.info("deleteFolderWithUndo: '\(folder.name)'")
-        let now = Date()
-        let folderName = folder.name
-        let folderParent = folder.parentFolder
-        let folderSortOrder = folder.sortOrder
-
-        // Capture tasks + lists before deletion for undo
-        var trashedTasks: [(task: TaskItem, list: TaskList)] = []
-        for list in taskListsForFolder {
-            for task in (list.tasks ?? []) where !task.isTrashed {
-                task.isTrashed = true
-                task.deletedAt = now
-                trashedTasks.append((task, list))
-            }
-        }
-
-        // Capture lists and subfolders before deletion
-        let lists = taskListsForFolder
-        let subs = subfolders
-
-        for list in lists { modelContext.delete(list) }
-        modelContext.delete(folder)
-
-        // Register undo — re-insert the folder, lists, and un-trash tasks
-        let ctx = modelContext
-        undoManager?.registerUndo(withTarget: ctx) { ctx in
-            let restored = Folder(name: folderName, parentFolder: folderParent)
-            restored.sortOrder = folderSortOrder
-            ctx.insert(restored)
-            for list in lists {
-                let newList = TaskList(name: list.name, folder: restored)
-                ctx.insert(newList)
-            }
-            for entry in trashedTasks {
-                entry.task.isTrashed = false
-                entry.task.deletedAt = nil
-            }
-            // Re-insert subfolders as children of restored folder
-            for sub in subs {
-                sub.parentFolder = restored
-                ctx.insert(sub)
-            }
-            do { try ctx.save() } catch {
-                log.error("Undo deleteFolder: save failed — \(error.localizedDescription)")
-            }
-        }
-        undoManager?.setActionName("Delete Folder")
-
-        do { try modelContext.save() } catch {
-            log.error("deleteFolderWithUndo: save failed — \(error.localizedDescription)")
-        }
-    }
-
-    /// Original delete (used by context menu confirmation dialog)
     private func deleteFolder() {
         log.info("deleteFolder: '\(folder.name)'")
         let now = Date()
@@ -663,7 +600,6 @@ struct FolderRowView: View {
 
 struct TaskListRowView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.undoManager) private var undoManager
 
     @Bindable var taskList: TaskList
     var indentLevel: Int = 0
@@ -725,7 +661,7 @@ struct TaskListRowView: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-        .swipeToRevealDelete(onDelete: deleteTaskListWithUndo)
+        .swipeToRevealDelete(onDelete: deleteTaskList)
     }
 
     private func startRename() {
@@ -749,41 +685,6 @@ struct TaskListRowView: View {
         isRenaming = false
     }
 
-    /// Swipe delete — immediate with undo support. Tasks go to Recently Deleted.
-    private func deleteTaskListWithUndo() {
-        let listName = taskList.name
-        let listFolder = taskList.folder
-        log.info("deleteTaskListWithUndo: '\(listName)'")
-        let now = Date()
-        var trashedTasks: [TaskItem] = []
-        for task in (taskList.tasks ?? []) where !task.isTrashed {
-            task.isTrashed = true
-            task.deletedAt = now
-            trashedTasks.append(task)
-        }
-        modelContext.delete(taskList)
-
-        let ctx = modelContext
-        undoManager?.registerUndo(withTarget: ctx) { ctx in
-            let restored = TaskList(name: listName, folder: listFolder)
-            ctx.insert(restored)
-            for task in trashedTasks {
-                task.isTrashed = false
-                task.deletedAt = nil
-                task.taskList = restored
-            }
-            do { try ctx.save() } catch {
-                log.error("Undo deleteTaskList: save failed — \(error.localizedDescription)")
-            }
-        }
-        undoManager?.setActionName("Delete List")
-
-        do { try modelContext.save() } catch {
-            log.error("deleteTaskListWithUndo: save failed — \(error.localizedDescription)")
-        }
-    }
-
-    /// Original delete (context menu)
     private func deleteTaskList() {
         log.info("TaskListRowView.deleteTaskList: '\(taskList.name)'")
         let now = Date()

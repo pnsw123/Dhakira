@@ -49,7 +49,7 @@ struct HomeView: View {
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
                             .buttonStyle(.macFriendly)
-                            .opacity(undoVersion >= 0 && undoManager?.canUndo == true ? 1 : 0.35)
+                            .opacity(undoManager?.canUndo == true ? 1 : 0.35)
                             .accessibilityLabel("Undo")
 
                             Button {
@@ -63,7 +63,7 @@ struct HomeView: View {
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
                             .buttonStyle(.macFriendly)
-                            .opacity(undoVersion >= 0 && undoManager?.canRedo == true ? 1 : 0.35)
+                            .opacity(undoManager?.canRedo == true ? 1 : 0.35)
                             .accessibilityLabel("Redo")
 
                             Spacer()
