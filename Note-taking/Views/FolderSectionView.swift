@@ -312,11 +312,6 @@ struct FolderRowView: View {
                     Label("Delete", systemImage: "trash")
                 }
             }
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button(role: .destructive, action: deleteFolder) {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
 
             // Expanded content: subfolders + task lists
             if isExpanded {
@@ -541,11 +536,6 @@ struct TaskListRowView: View {
                 Label("Rename", systemImage: "pencil")
             }
             Divider()
-            Button(role: .destructive, action: deleteTaskList) {
-                Label("Delete", systemImage: "trash")
-            }
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive, action: deleteTaskList) {
                 Label("Delete", systemImage: "trash")
             }

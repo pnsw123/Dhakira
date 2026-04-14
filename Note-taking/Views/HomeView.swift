@@ -32,9 +32,9 @@ struct HomeView: View {
 
     var body: some View {
             ScrollViewReader { proxy in
-            List {
+            ScrollView {
+                VStack(spacing: 16) {
                     // Header — scrolls with content
-                    Section {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(spacing: 0) {
                             Color.clear
@@ -96,9 +96,6 @@ struct HomeView: View {
                             .padding(.top, 4)
                             .padding(.bottom, 8)
                     }
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                    .listRowBackground(Color.clear)
                     }
 
                     // Folders section
@@ -109,7 +106,6 @@ struct HomeView: View {
                     calendarSection
 
                     // Recently Completed + Recently Deleted — one grouped card
-                    Section {
                     VStack(spacing: 0) {
                         Button(action: { onShowRecentlyCompleted?() }) {
                             HStack(spacing: 10) {
@@ -156,13 +152,10 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16))
-                    .listRowBackground(Color.clear)
-                    }
+                    .padding(.horizontal, 16)
+                }
+                .padding(.bottom, 32)
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
             .background(Color.clear)
             .onAppear {
                 log.info("HomeView: appeared — topLevelFolders=\(topLevelFolders.count), allTaskLists=\(allTaskLists.count)")
@@ -315,9 +308,7 @@ struct HomeView: View {
             }
         }
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16))
-        .listRowBackground(Color.clear)
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Folders Section
@@ -358,9 +349,7 @@ struct HomeView: View {
                 .buttonStyle(.plain)
             }
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16))
-            .listRowBackground(Color.clear)
+            .padding(.horizontal, 16)
         }
     }
 
