@@ -13,12 +13,10 @@ struct ThemeDetailView: View {
     var namespace: Namespace.ID
 
     @Environment(ThemeManager.self) private var themeManager
-    @Environment(StoreKitManager.self) private var store
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedScope: ThemeScope = .app
     @State private var mockPage = 0
-    @State private var showPaywall = false
 
     private let pageCount = 3
 
@@ -69,17 +67,12 @@ struct ThemeDetailView: View {
                                 dismiss()
                             }
                             .modifier(GlassButtonStyle(prominent: false))
-                        } else if store.isOwned(theme) {
+                        } else {
                             Button("Apply") {
                                 withAnimation(.easeInOut(duration: 0.35)) {
                                     themeManager.apply(theme)
                                 }
                                 dismiss()
-                            }
-                            .modifier(GlassButtonStyle(prominent: true))
-                        } else {
-                            Button("Unlock – $2.99") {
-                                showPaywall = true
                             }
                             .modifier(GlassButtonStyle(prominent: true))
                         }
@@ -134,19 +127,6 @@ struct ThemeDetailView: View {
             }
         }
         .navigationBarHidden(true)
-        .sheet(isPresented: $showPaywall) {
-            ThemePaywallView(theme: theme)
-                .environment(store)
-                .onDisappear {
-                    // Auto-apply if user just purchased this theme
-                    if store.isOwned(theme) {
-                        withAnimation(.easeInOut(duration: 0.35)) {
-                            themeManager.apply(theme)
-                        }
-                        dismiss()
-                    }
-                }
-        }
     }
 
     @ViewBuilder
@@ -210,7 +190,6 @@ struct ThemeDetailView: View {
         ThemeDetailView(theme: .nebula, namespace: Namespace().wrappedValue)
     }
     .environment(ThemeManager.shared)
-    .environment(StoreKitManager.shared)
 }
 
 // MARK: — iOS 26 glass button styles

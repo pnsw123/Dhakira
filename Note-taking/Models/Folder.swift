@@ -6,6 +6,7 @@ final class Folder {
     var id: UUID = UUID()
     var name: String = ""
     var createdAt: Date = Date()
+    var sortOrder: Int = 0
 
     var parentFolder: Folder?
 

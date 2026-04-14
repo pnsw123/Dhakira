@@ -110,17 +110,34 @@ struct RecentlyDeletedView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: { dismiss() }) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Color.themeAccent)
+                    .frame(width: 36, height: 36)
+                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .padding(.leading, 16)
+
             Spacer()
-            Image(systemName: "trash")
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(Color.secondaryText.opacity(0.4))
-            Text("No recently deleted tasks")
-                .font(.system(size: 17))
-                .foregroundStyle(Color.secondaryText)
+            HStack {
+                Spacer()
+                VStack(spacing: 16) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 56, weight: .light))
+                        .foregroundStyle(Color.secondaryText.opacity(0.4))
+                    Text("No recently deleted tasks")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Color.secondaryText)
+                }
+                Spacer()
+            }
             Spacer()
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func restoreTask(_ task: TaskItem) {
