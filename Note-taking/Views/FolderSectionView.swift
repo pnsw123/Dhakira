@@ -23,6 +23,11 @@ struct FolderSectionView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Drop zone before the first folder
+            FolderReorderDropZone(indentLevel: indentLevel, showDividerWhenIdle: false) { rawID in
+                reorder(rawID, toIndex: 0)
+            }
+
             ForEach(Array(folders.enumerated()), id: \.element.id) { index, folder in
                 FolderRowView(
                     folder: folder,
@@ -34,9 +39,12 @@ struct FolderSectionView: View {
                     startEditingOnAppear: folder.id == autoRenameId
                 )
 
-                if index < folders.count - 1 {
-                    Divider()
-                        .padding(.leading, CGFloat(16 + indentLevel * 20))
+                // Drop zone after each row — also acts as the divider between rows
+                FolderReorderDropZone(
+                    indentLevel: indentLevel,
+                    showDividerWhenIdle: index < folders.count - 1
+                ) { rawID in
+                    reorder(rawID, toIndex: index + 1)
                 }
             }
         }
@@ -100,6 +108,22 @@ struct FolderSectionView: View {
         saveExpandedState()
     }
 
+    private func reorder(_ rawID: PersistentIdentifier, toIndex: Int) {
+        guard let dragged = modelContext.model(for: rawID) as? Folder else { return }
+        var sorted = folders
+        guard let fromIndex = sorted.firstIndex(where: { $0.id == dragged.id }) else { return }
+        // Already in the target position — nothing to do
+        if fromIndex == toIndex || fromIndex == toIndex - 1 { return }
+        sorted.remove(at: fromIndex)
+        let insertAt = toIndex > fromIndex ? toIndex - 1 : toIndex
+        sorted.insert(dragged, at: min(insertAt, sorted.count))
+        for (i, folder) in sorted.enumerated() {
+            folder.sortOrder = i * 10
+        }
+        try? modelContext.save()
+        log.info("Reorder: '\(dragged.name)' moved to index \(insertAt)")
+    }
+
     private func saveExpandedState() {
         // Read the full persisted set. This instance only owns the IDs of its direct
         // `folders` — it should not touch IDs owned by sibling/parent instances.
@@ -116,6 +140,39 @@ struct FolderSectionView: View {
         let newValue = full.map(\.uuidString).joined(separator: ",")
         guard newValue != expandedFolderIdsStorage else { return }
         expandedFolderIdsStorage = newValue
+    }
+}
+
+// MARK: - FolderReorderDropZone
+
+/// Thin drop target that sits between folder rows to enable vertical reordering.
+/// Shows a hairline divider when idle; highlights with an accent line when a drag hovers over it.
+private struct FolderReorderDropZone: View {
+    let indentLevel: Int
+    let showDividerWhenIdle: Bool
+    let onDrop: (PersistentIdentifier) -> Void
+    @State private var isTargeted = false
+
+    var body: some View {
+        ZStack {
+            Color.clear.frame(height: 12)
+            if isTargeted {
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(height: 3)
+                    .padding(.leading, CGFloat(16 + indentLevel * 20))
+                    .padding(.trailing, 16)
+            } else if showDividerWhenIdle {
+                Divider()
+                    .padding(.leading, CGFloat(16 + indentLevel * 20))
+            }
+        }
+        .animation(.easeInOut(duration: 0.12), value: isTargeted)
+        .dropDestination(for: FolderTransferID.self) { items, _ in
+            guard let first = items.first else { return false }
+            onDrop(first.rawID)
+            return true
+        } isTargeted: { isTargeted = $0 }
     }
 }
 
@@ -150,7 +207,7 @@ struct FolderRowView: View {
     }
 
     private var subfolders: [Folder] {
-        (folder.subfolders ?? []).sorted(by: { $0.createdAt < $1.createdAt })
+        (folder.subfolders ?? []).sorted(by: { $0.sortOrder < $1.sortOrder })
     }
 
     private var hasContents: Bool {
@@ -410,7 +467,9 @@ struct FolderRowView: View {
 
     private func addSubfolder() {
         log.info("addSubfolder: inside '\(folder.name)'")
+        let maxOrder = subfolders.map(\.sortOrder).max() ?? -10
         let sub = Folder(name: "", parentFolder: folder)
+        sub.sortOrder = maxOrder + 10
         modelContext.insert(sub)
         autoRenameSubfolderId = sub.id
         // Ensure parent is expanded so the new subfolder is visible for rename

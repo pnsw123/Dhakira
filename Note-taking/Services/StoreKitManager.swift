@@ -155,12 +155,9 @@ final class StoreKitManager {
     }
 
     // MARK: — Ownership check
+    // All themes are free — no paywall.
     func isOwned(_ theme: AppTheme) -> Bool {
-        let owned = !theme.isPaid
-            || isDeveloperUnlocked
-            || purchasedIds.contains(theme.productId ?? "")
-            || purchasedIds.contains("com.prodnote.theme.pro")
-        return owned
+        return true
     }
 
     // MARK: — Developer unlock (secret phrase)

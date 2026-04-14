@@ -14,7 +14,7 @@ struct HomeView: View {
     var onShowRecentlyCompleted: (() -> Void)? = nil
     var onShowRecentlyDeleted: (() -> Void)? = nil
 
-    @Query(filter: #Predicate<Folder> { $0.parentFolder == nil }, sort: \Folder.createdAt)
+    @Query(filter: #Predicate<Folder> { $0.parentFolder == nil }, sort: \Folder.sortOrder)
     private var topLevelFolders: [Folder]
 
     @Query(sort: \TaskList.createdAt)
@@ -125,6 +125,7 @@ struct HomeView: View {
             .background(Color.clear)
             .onAppear {
                 log.info("HomeView: appeared — topLevelFolders=\(topLevelFolders.count), allTaskLists=\(allTaskLists.count)")
+                migrateSortOrderIfNeeded()
             }
             .onDisappear {
                 log.info("HomeView: disappeared")
@@ -322,9 +323,24 @@ struct HomeView: View {
 
     private func createNewFolder() {
         log.info("createNewFolder: creating new top-level folder")
+        let maxOrder = topLevelFolders.map(\.sortOrder).max() ?? -10
         let folder = Folder(name: "")
+        folder.sortOrder = maxOrder + 10
         modelContext.insert(folder)
         autoRenameFolderId = folder.id
+    }
+
+    /// One-time migration: assign sortOrder values to folders that were created before
+    /// the sortOrder field existed (they all default to 0).
+    private func migrateSortOrderIfNeeded() {
+        guard topLevelFolders.count > 1,
+              topLevelFolders.allSatisfy({ $0.sortOrder == 0 }) else { return }
+        let sorted = topLevelFolders.sorted(by: { $0.createdAt < $1.createdAt })
+        for (i, folder) in sorted.enumerated() {
+            folder.sortOrder = i * 10
+        }
+        try? modelContext.save()
+        log.info("migrateSortOrderIfNeeded: assigned sortOrders to \(sorted.count) folders")
     }
 }
 

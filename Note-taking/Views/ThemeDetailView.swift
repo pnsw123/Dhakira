@@ -18,7 +18,6 @@ struct ThemeDetailView: View {
 
     @State private var selectedScope: ThemeScope = .app
     @State private var mockPage = 0
-    @State private var showPaywall = false
 
     private let pageCount = 3
 
@@ -69,17 +68,12 @@ struct ThemeDetailView: View {
                                 dismiss()
                             }
                             .modifier(GlassButtonStyle(prominent: false))
-                        } else if store.isOwned(theme) {
+                        } else {
                             Button("Apply") {
                                 withAnimation(.easeInOut(duration: 0.35)) {
                                     themeManager.apply(theme)
                                 }
                                 dismiss()
-                            }
-                            .modifier(GlassButtonStyle(prominent: true))
-                        } else {
-                            Button("Unlock – $2.99") {
-                                showPaywall = true
                             }
                             .modifier(GlassButtonStyle(prominent: true))
                         }
@@ -134,19 +128,6 @@ struct ThemeDetailView: View {
             }
         }
         .navigationBarHidden(true)
-        .sheet(isPresented: $showPaywall) {
-            ThemePaywallView(theme: theme)
-                .environment(store)
-                .onDisappear {
-                    // Auto-apply if user just purchased this theme
-                    if store.isOwned(theme) {
-                        withAnimation(.easeInOut(duration: 0.35)) {
-                            themeManager.apply(theme)
-                        }
-                        dismiss()
-                    }
-                }
-        }
     }
 
     @ViewBuilder
