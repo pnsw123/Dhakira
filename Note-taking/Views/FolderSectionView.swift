@@ -5,6 +5,101 @@ import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "FolderSection")
 
+// MARK: - SwipeToRevealDelete
+
+/// Custom swipe-to-delete modifier for use in VStack layouts where .swipeActions doesn't work.
+/// Swipe left to reveal a red delete button. Full swipe triggers the action immediately.
+private struct SwipeToRevealDelete: ViewModifier {
+    let onDelete: () -> Void
+    @State private var offset: CGFloat = 0
+    @GestureState private var dragOffset: CGFloat = 0
+
+    private let buttonWidth: CGFloat = 80
+
+    func body(content: Content) -> some View {
+        ZStack(alignment: .trailing) {
+            // Delete button sits behind the content
+            HStack(spacing: 0) {
+                Spacer()
+                Button {
+                    withAnimation(.spring(response: 0.25)) { offset = 0 }
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(width: buttonWidth)
+                        .frame(maxHeight: .infinity)
+                        .background(Color.red)
+                }
+                .buttonStyle(.plain)
+            }
+            .opacity(offset < -10 ? 1 : 0)
+
+            // Main content slides to reveal the button
+            content
+                .offset(x: offset + dragOffset)
+                .gesture(
+                    DragGesture(minimumDistance: 16)
+                        .updating($dragOffset) { value, state, _ in
+                            let h = value.translation.width
+                            let v = value.translation.height
+                            // Only activate for mostly-horizontal left swipes
+                            guard abs(h) > abs(v) * 1.5, h < 0 else { return }
+                            // Rubber-band past the button width
+                            if offset == 0 {
+                                state = max(h, -buttonWidth * 1.5)
+                            } else {
+                                // Already revealed — allow dragging back
+                                state = min(max(h, -buttonWidth * 0.5), buttonWidth)
+                            }
+                        }
+                        .onEnded { value in
+                            let h = value.translation.width
+                            let v = value.translation.height
+                            guard abs(h) > abs(v) * 1.5 else {
+                                withAnimation(.spring(response: 0.25)) { offset = 0 }
+                                return
+                            }
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                if h < -buttonWidth * 1.2 {
+                                    // Full swipe — trigger delete
+                                    offset = 0
+                                    onDelete()
+                                } else if h < -buttonWidth * 0.4 && offset == 0 {
+                                    // Partial swipe — reveal button
+                                    offset = -buttonWidth
+                                } else if h > buttonWidth * 0.3 && offset < 0 {
+                                    // Swiped right to dismiss
+                                    offset = 0
+                                } else if offset < 0 {
+                                    // Keep revealed
+                                    offset = -buttonWidth
+                                } else {
+                                    offset = 0
+                                }
+                            }
+                        }
+                )
+                .onTapGesture {
+                    // Tapping the content while delete is revealed → dismiss it
+                    if offset < 0 {
+                        withAnimation(.spring(response: 0.25)) { offset = 0 }
+                    } else {
+                        // Let other tap gestures handle this
+                    }
+                }
+        }
+        .clipped()
+    }
+}
+
+extension View {
+    func swipeToRevealDelete(onDelete: @escaping () -> Void) -> some View {
+        modifier(SwipeToRevealDelete(onDelete: onDelete))
+    }
+}
+
 /// Recursive folder tree, Finder list-view style, with inline expand/collapse.
 struct FolderSectionView: View {
     let folders: [Folder]
@@ -152,8 +247,8 @@ struct FolderSectionView: View {
 
 // MARK: - FolderReorderDropZone
 
-/// Thin drop target that sits between folder rows to enable vertical reordering.
-/// Shows a hairline divider when idle; highlights with an accent line when a drag hovers over it.
+/// Drop target between folder rows for vertical reordering.
+/// Expands when a drag hovers over it with a prominent accent line.
 private struct FolderReorderDropZone: View {
     let indentLevel: Int
     let showDividerWhenIdle: Bool
@@ -162,19 +257,22 @@ private struct FolderReorderDropZone: View {
 
     var body: some View {
         ZStack {
-            Color.clear.frame(height: 12)
+            // Taller hit area for easier drop targeting
+            Color.clear.frame(height: isTargeted ? 32 : 20)
             if isTargeted {
-                Capsule()
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Color.accentColor)
-                    .frame(height: 3)
+                    .frame(height: 4)
                     .padding(.leading, CGFloat(16 + indentLevel * 20))
                     .padding(.trailing, 16)
+                    .shadow(color: Color.accentColor.opacity(0.4), radius: 4, y: 0)
+                    .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .center)))
             } else if showDividerWhenIdle {
                 Divider()
                     .padding(.leading, CGFloat(16 + indentLevel * 20))
             }
         }
-        .animation(.easeInOut(duration: 0.12), value: isTargeted)
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isTargeted)
         .dropDestination(for: FolderTransferID.self) { items, _ in
             guard let first = items.first else { return false }
             onDrop(first.rawID)
@@ -314,11 +412,7 @@ struct FolderRowView: View {
             } message: {
                 Text("All task lists and tasks inside this folder will be permanently removed.")
             }
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button(role: .destructive) { showDeleteConfirm = true } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
+            .swipeToRevealDelete { showDeleteConfirm = true }
 
             // Expanded content: subfolders + task lists
             if isExpanded {
@@ -368,22 +462,22 @@ struct FolderRowView: View {
                     .padding(.vertical, 15)
                 }
 
-                // "Add List" inline button — neutral color, no blue
+                // "Add List" — visually lighter than content rows so it reads as an action
                 Divider().padding(.leading, CGFloat(16 + (indentLevel + 1) * 20))
                 Button(action: addTaskList) {
                     HStack(spacing: 10) {
                         Spacer().frame(width: CGFloat((indentLevel + 1) * 20))
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color.primaryText)
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Color.themeAccent.opacity(0.6))
                             .frame(width: 22)
                         Text("Add List")
-                            .font(.system(size: 17))
-                            .foregroundStyle(Color.primaryText)
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.secondaryText)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 15)
+                    .padding(.vertical, 13)
                 }
                 .buttonStyle(.plain)
             }
@@ -549,11 +643,7 @@ struct TaskListRowView: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive, action: deleteTaskList) {
-                Label("Delete", systemImage: "trash")
-            }
-        }
+        .swipeToRevealDelete(onDelete: deleteTaskList)
     }
 
     private func startRename() {

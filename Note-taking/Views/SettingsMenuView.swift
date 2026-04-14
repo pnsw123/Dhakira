@@ -12,11 +12,9 @@ struct SettingsMenuView: View {
 
     var body: some View {
         Menu {
-            // v1.2: Theme menu hidden until Paid Apps Agreement is signed.
-            // Re-enable in v1.3 when IAPs go live.
-            // Button(action: onThemeTapped) {
-            //     Label("Theme", systemImage: "paintbrush")
-            // }
+            Button(action: onThemeTapped) {
+                Label("Theme", systemImage: "paintbrush")
+            }
 
             Menu {
                 ForEach(SortOption.allCases, id: \.self) { option in
