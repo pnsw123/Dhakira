@@ -32,12 +32,17 @@ struct HomeView: View {
 
     var body: some View {
             ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 16) {
+            List {
                     // Header — scrolls with content
+                    Section {
                     VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 8) {
-                            // Undo / Redo — same pattern as TaskListView
+                        HStack(spacing: 0) {
+                            Color.clear
+                                .frame(width: 36, height: 36)
+
+                            Spacer()
+
+                            // Undo / Redo — right-aligned, same layout as TaskListView
                             Button {
                                 undoManager?.undo()
                                 undoVersion += 1
@@ -63,10 +68,9 @@ struct HomeView: View {
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
                             .buttonStyle(.macFriendly)
+                            .padding(.leading, 8)
                             .opacity(undoManager?.canRedo == true ? 1 : 0.35)
                             .accessibilityLabel("Redo")
-
-                            Spacer()
 
                             Button(action: {
                                 log.info("HomeView: > button tapped → calling onClose()")
@@ -79,6 +83,7 @@ struct HomeView: View {
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
                             .buttonStyle(.macFriendly)
+                            .padding(.leading, 8)
                             .accessibilityIdentifier("btn-go-to-tasks")
                         }
                         .padding(.horizontal, 16)
@@ -91,6 +96,10 @@ struct HomeView: View {
                             .padding(.top, 4)
                             .padding(.bottom, 8)
                     }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    }
 
                     // Folders section
                     foldersSection
@@ -100,6 +109,7 @@ struct HomeView: View {
                     calendarSection
 
                     // Recently Completed + Recently Deleted — one grouped card
+                    Section {
                     VStack(spacing: 0) {
                         Button(action: { onShowRecentlyCompleted?() }) {
                             HStack(spacing: 10) {
@@ -146,10 +156,13 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                    .padding(.horizontal, 16)
-                }
-                .padding(.bottom, 32)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .background(Color.clear)
             .onAppear {
                 log.info("HomeView: appeared — topLevelFolders=\(topLevelFolders.count), allTaskLists=\(allTaskLists.count)")
@@ -302,7 +315,9 @@ struct HomeView: View {
             }
         }
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .padding(.horizontal, 16)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16))
+        .listRowBackground(Color.clear)
     }
 
     // MARK: - Folders Section
@@ -343,7 +358,9 @@ struct HomeView: View {
                 .buttonStyle(.plain)
             }
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .padding(.horizontal, 16)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16))
+            .listRowBackground(Color.clear)
         }
     }
 

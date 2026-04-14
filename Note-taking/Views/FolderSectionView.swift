@@ -1,130 +1,10 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
-import Combine
 import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "FolderSection")
 
-// MARK: - SwipeToRevealDelete
-
-/// Coordinates which row is currently swiped open. Only one row at a time.
-@MainActor
-private final class SwipeCoordinator: ObservableObject {
-    static let shared = SwipeCoordinator()
-    @Published var activeRowId: UUID?
-
-    func claim(_ id: UUID) {
-        if activeRowId != id { activeRowId = id }
-    }
-
-    func release(_ id: UUID) {
-        if activeRowId == id { activeRowId = nil }
-    }
-}
-
-/// Custom swipe-to-delete for VStack layouts where .swipeActions doesn't work.
-/// Swipe left to reveal a red delete button. Full swipe triggers the action immediately.
-/// Only one row can be revealed at a time via SwipeCoordinator.
-private struct SwipeToRevealDelete: ViewModifier {
-    let onDelete: () -> Void
-    @State private var offset: CGFloat = 0
-    @GestureState private var dragOffset: CGFloat = 0
-    @State private var rowId = UUID()
-    @ObservedObject private var coordinator = SwipeCoordinator.shared
-
-    private let buttonWidth: CGFloat = 80
-    private var isRevealed: Bool { offset < -10 }
-
-    func body(content: Content) -> some View {
-        content
-            .offset(x: offset + dragOffset)
-            .background(alignment: .trailing) {
-                // Delete button behind the content — naturally matches row height
-                if isRevealed {
-                    Button {
-                        dismiss()
-                        onDelete()
-                    } label: {
-                        Image(systemName: "trash.fill")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(.white)
-                            .frame(width: buttonWidth)
-                            .frame(maxHeight: .infinity)
-                            .background(Color.red)
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.opacity)
-                    .offset(x: buttonWidth) // sits just off the right edge
-                }
-            }
-            .simultaneousGesture(swipeGesture)
-            .overlay {
-                // Dismiss overlay: only when revealed, never eats normal taps
-                if isRevealed {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture { dismiss() }
-                }
-            }
-            .clipped()
-            .onChange(of: coordinator.activeRowId) { _, activeId in
-                if activeId != rowId && offset < 0 {
-                    withAnimation(.spring(response: 0.25)) { offset = 0 }
-                }
-            }
-    }
-
-    private func dismiss() {
-        withAnimation(.spring(response: 0.25)) { offset = 0 }
-        coordinator.release(rowId)
-    }
-
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 16)
-            .updating($dragOffset) { value, state, _ in
-                let h = value.translation.width
-                let v = value.translation.height
-                guard abs(h) > abs(v) * 1.5, h < 0 else { return }
-                if offset == 0 {
-                    state = max(h, -buttonWidth * 1.5)
-                } else {
-                    state = min(max(h, -buttonWidth * 0.5), buttonWidth)
-                }
-            }
-            .onEnded { value in
-                let h = value.translation.width
-                let v = value.translation.height
-                guard abs(h) > abs(v) * 1.5 else {
-                    dismiss()
-                    return
-                }
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                    if h < -buttonWidth * 1.2 {
-                        offset = 0
-                        coordinator.release(rowId)
-                        onDelete()
-                    } else if h < -buttonWidth * 0.4 && offset == 0 {
-                        offset = -buttonWidth
-                        coordinator.claim(rowId)
-                    } else if h > buttonWidth * 0.3 && offset < 0 {
-                        offset = 0
-                        coordinator.release(rowId)
-                    } else if offset < 0 {
-                        offset = -buttonWidth
-                    } else {
-                        offset = 0
-                    }
-                }
-            }
-    }
-}
-
-fileprivate extension View {
-    func swipeToRevealDelete(onDelete: @escaping () -> Void) -> some View {
-        modifier(SwipeToRevealDelete(onDelete: onDelete))
-    }
-}
 
 /// Recursive folder tree, Finder list-view style, with inline expand/collapse.
 struct FolderSectionView: View {
@@ -432,7 +312,11 @@ struct FolderRowView: View {
                     Label("Delete", systemImage: "trash")
                 }
             }
-            .swipeToRevealDelete(onDelete: deleteFolder)
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button(role: .destructive, action: deleteFolder) {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
 
             // Expanded content: subfolders + task lists
             if isExpanded {
@@ -661,7 +545,11 @@ struct TaskListRowView: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-        .swipeToRevealDelete(onDelete: deleteTaskList)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive, action: deleteTaskList) {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     private func startRename() {
