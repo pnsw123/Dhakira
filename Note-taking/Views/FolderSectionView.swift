@@ -20,7 +20,6 @@ struct FolderSectionView: View {
     /// Expanded folder IDs persisted in UserDefaults so state survives data refreshes.
     @AppStorage("expandedFolderIds_v2") private var expandedFolderIdsStorage: String = ""
     @State private var expandedFolderIds: Set<UUID> = []
-    @State private var isRootDropTargeted: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,32 +48,10 @@ struct FolderSectionView: View {
                 }
             }
         }
-        // Root-level drop zone — drag any subfolder here to unnest it back to a root folder.
-        // Does NOT conflict with FolderReorderDropZone: this handler only accepts folders
-        // that have a parentFolder (i.e. nested subfolders), while reorder zones handle
-        // same-level sibling reordering. The parentFolder != nil guard ensures mutual exclusion.
-        .dropDestination(for: FolderTransferID.self) { items, _ in
-            guard indentLevel == 0,
-                  let transfer = items.first,
-                  let draggedFolder = modelContext.model(for: transfer.rawID) as? Folder,
-                  draggedFolder.parentFolder != nil else { return false }
-            let previousParent = draggedFolder.parentFolder
-            draggedFolder.parentFolder = nil
-            undoManager?.registerUndo(withTarget: draggedFolder) { f in
-                f.parentFolder = previousParent
-            }
-            undoManager?.setActionName("Move Folder to Root")
-            log.info("Drag-drop: '\(draggedFolder.name)' moved to root")
-            return true
-        } isTargeted: { targeted in
-            if indentLevel == 0 {
-                withAnimation(.easeInOut(duration: 0.2)) { isRootDropTargeted = targeted }
-            }
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isRootDropTargeted ? Color.accentColor : .clear, lineWidth: 2)
-        )
+        // Root-level drop zone removed — it was intercepting ALL drops and preventing
+        // the inner reorder zones and folder nest zones from receiving them.
+        // Unnest-to-root is now handled by the reorder() function when a subfolder
+        // is dropped into a root-level reorder zone.
         .onAppear {
             // Restore persisted expanded state
             let persisted = Set(expandedFolderIdsStorage.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
@@ -114,6 +91,28 @@ struct FolderSectionView: View {
     @MainActor
     private func reorder(_ rawID: PersistentIdentifier, toIndex: Int) {
         guard let dragged = modelContext.model(for: rawID) as? Folder else { return }
+
+        // If the dragged folder is from a different level (e.g. subfolder dragged to root),
+        // unnest it first so it joins this sibling group.
+        if !folders.contains(where: { $0.id == dragged.id }) {
+            let previousParent = dragged.parentFolder
+            dragged.parentFolder = folders.first?.parentFolder  // match this level's parent (nil for root)
+            undoManager?.registerUndo(withTarget: dragged) { f in
+                f.parentFolder = previousParent
+            }
+            undoManager?.setActionName("Move Folder")
+            // Insert at the requested position
+            let maxOrder = folders.map(\.sortOrder).max() ?? 0
+            dragged.sortOrder = maxOrder + 10
+            do {
+                try modelContext.save()
+                log.info("Reorder: '\(dragged.name)' unnested to this level at index \(toIndex)")
+            } catch {
+                log.error("Reorder: save failed — \(error.localizedDescription)")
+            }
+            return
+        }
+
         var sorted = folders
         guard let fromIndex = sorted.firstIndex(where: { $0.id == dragged.id }) else { return }
         // Already in the target position — nothing to do
@@ -163,8 +162,8 @@ private struct FolderReorderDropZone: View {
 
     var body: some View {
         ZStack {
-            // Hit area expands when a drag hovers — stays compact otherwise
-            Color.clear.frame(height: isTargeted ? 28 : 12)
+            // Hit area: 16pt idle is enough to catch drags without adding visible gaps
+            Color.clear.frame(height: isTargeted ? 32 : 16)
             if isTargeted {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color.accentColor)
