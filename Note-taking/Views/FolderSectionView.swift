@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import Combine
 import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "FolderSection")
