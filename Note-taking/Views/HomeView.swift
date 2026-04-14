@@ -20,6 +20,8 @@ struct HomeView: View {
     @Query(sort: \TaskList.createdAt)
     private var allTaskLists: [TaskList]
 
+    @Environment(\.undoManager) private var undoManager
+    @State private var undoVersion: Int = 0
     @State private var autoRenameFolderId: UUID? = nil
     @State private var showSettings = false
     @State private var calendarExpanded = false
@@ -34,9 +36,35 @@ struct HomeView: View {
                 VStack(spacing: 16) {
                     // Header — scrolls with content
                     VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 0) {
-                            Color.clear
-                                .frame(width: 36, height: 36)
+                        HStack(spacing: 8) {
+                            // Undo / Redo — same pattern as TaskListView
+                            Button {
+                                undoManager?.undo()
+                                undoVersion += 1
+                            } label: {
+                                Image(systemName: "arrow.uturn.backward")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Color.themeAccent)
+                                    .frame(width: 36, height: 36)
+                                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                            }
+                            .buttonStyle(.macFriendly)
+                            .opacity(undoManager?.canUndo == true ? 1 : 0.35)
+                            .accessibilityLabel("Undo")
+
+                            Button {
+                                undoManager?.redo()
+                                undoVersion += 1
+                            } label: {
+                                Image(systemName: "arrow.uturn.forward")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Color.themeAccent)
+                                    .frame(width: 36, height: 36)
+                                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
+                            }
+                            .buttonStyle(.macFriendly)
+                            .opacity(undoManager?.canRedo == true ? 1 : 0.35)
+                            .accessibilityLabel("Redo")
 
                             Spacer()
 

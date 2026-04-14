@@ -325,7 +325,7 @@ struct FolderRowView: View {
     @State private var isRenaming: Bool = false
     @State private var renameText: String = ""
     @FocusState private var isRenameFocused: Bool
-    @State private var showDeleteConfirm: Bool = false
+    // showDeleteConfirm removed — delete is now instant (tasks go to Recently Deleted)
     @State private var autoRenameListId: UUID? = nil
     @State private var autoRenameSubfolderId: UUID? = nil
     @State private var isAddingNewList: Bool = false
@@ -428,17 +428,11 @@ struct FolderRowView: View {
                     Label("New Subfolder", systemImage: "folder.badge.plus")
                 }
                 Divider()
-                Button(role: .destructive, action: { showDeleteConfirm = true }) {
+                Button(role: .destructive, action: deleteFolder) {
                     Label("Delete", systemImage: "trash")
                 }
             }
-            .confirmationDialog("Delete \"\(folder.name)\"?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("Delete Folder", role: .destructive, action: deleteFolder)
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("All task lists and tasks inside this folder will be permanently removed.")
-            }
-            .swipeToRevealDelete { showDeleteConfirm = true }
+            .swipeToRevealDelete(onDelete: deleteFolder)
 
             // Expanded content: subfolders + task lists
             if isExpanded {
@@ -532,7 +526,6 @@ struct FolderRowView: View {
     private func deleteFolder() {
         log.info("deleteFolder: '\(folder.name)'")
         let now = Date()
-        // Soft-delete all tasks so they appear in Recently Deleted
         for list in taskListsForFolder {
             for task in (list.tasks ?? []) where !task.isTrashed {
                 task.isTrashed = true
@@ -540,7 +533,6 @@ struct FolderRowView: View {
             }
             modelContext.delete(list)
         }
-        // Subfolders cascade via SwiftData relationship
         modelContext.delete(folder)
         do { try modelContext.save() } catch {
             log.error("deleteFolder: save failed — \(error.localizedDescription)")
@@ -694,8 +686,7 @@ struct TaskListRowView: View {
     }
 
     private func deleteTaskList() {
-        let taskCount = taskList.tasks?.count ?? 0
-        log.info("TaskListRowView.deleteTaskList: '\(taskList.name)' with \(taskCount) task(s)")
+        log.info("TaskListRowView.deleteTaskList: '\(taskList.name)'")
         let now = Date()
         for task in (taskList.tasks ?? []) where !task.isTrashed {
             task.isTrashed = true
