@@ -295,21 +295,21 @@ struct HomeView: View {
                     Divider().padding(.leading, 16)
                 }
 
-                // "Add Folder" lives inside the section card — neutral color, no blue
+                // "Add Folder" — visually lighter than content rows so it reads as an action
                 Button(action: createNewFolder) {
                     HStack(spacing: 10) {
                         Spacer().frame(width: 0)
-                        Image(systemName: "folder.badge.plus")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Color.primaryText)
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(Color.themeAccent.opacity(0.6))
                             .frame(width: 22)
                         Text("Add Folder")
-                            .font(.system(size: 17))
-                            .foregroundStyle(Color.primaryText)
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.secondaryText)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 14)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

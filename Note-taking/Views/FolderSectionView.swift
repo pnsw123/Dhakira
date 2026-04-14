@@ -5,6 +5,133 @@ import OSLog
 
 private let log = Logger(subsystem: "notes.Note-taking", category: "FolderSection")
 
+// MARK: - SwipeToRevealDelete
+
+/// Coordinates which row is currently swiped open. Only one row at a time.
+@MainActor
+private final class SwipeCoordinator: ObservableObject {
+    static let shared = SwipeCoordinator()
+    @Published var activeRowId: UUID?
+
+    func claim(_ id: UUID) {
+        if activeRowId != id { activeRowId = id }
+    }
+
+    func release(_ id: UUID) {
+        if activeRowId == id { activeRowId = nil }
+    }
+}
+
+/// Custom swipe-to-delete for VStack layouts where .swipeActions doesn't work.
+/// Swipe left to reveal a red delete button. Full swipe triggers the action immediately.
+/// Only one row can be revealed at a time via SwipeCoordinator.
+private struct SwipeToRevealDelete: ViewModifier {
+    let onDelete: () -> Void
+    @State private var offset: CGFloat = 0
+    @GestureState private var dragOffset: CGFloat = 0
+    @State private var rowId = UUID()
+    @ObservedObject private var coordinator = SwipeCoordinator.shared
+
+    private let buttonWidth: CGFloat = 80
+    private var isRevealed: Bool { offset < -10 }
+
+    func body(content: Content) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .trailing) {
+                // Delete button — height matched to content via GeometryReader
+                if isRevealed {
+                    Button {
+                        dismiss()
+                        onDelete()
+                    } label: {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(.white)
+                            .frame(width: buttonWidth, height: geo.size.height)
+                            .background(Color.red)
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity)
+                }
+
+                // Main content slides left to reveal the button
+                content
+                    .frame(width: geo.size.width)
+                    .offset(x: offset + dragOffset)
+                    .background(Color(uiColor: .systemBackground).opacity(0.001)) // ensures hit-testing
+                    .simultaneousGesture(swipeGesture)
+                    // Dismiss overlay: only active when revealed, so it never eats normal taps
+                    .overlay {
+                        if isRevealed {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { dismiss() }
+                        }
+                    }
+            }
+        }
+        .frame(minHeight: 1) // ensure GeometryReader proposes from content
+        .fixedSize(horizontal: false, vertical: true)
+        .clipped()
+        .onChange(of: coordinator.activeRowId) { _, activeId in
+            // Another row was swiped — close this one
+            if activeId != rowId && offset < 0 {
+                withAnimation(.spring(response: 0.25)) { offset = 0 }
+            }
+        }
+    }
+
+    private func dismiss() {
+        withAnimation(.spring(response: 0.25)) { offset = 0 }
+        coordinator.release(rowId)
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 16)
+            .updating($dragOffset) { value, state, _ in
+                let h = value.translation.width
+                let v = value.translation.height
+                guard abs(h) > abs(v) * 1.5, h < 0 else { return }
+                if offset == 0 {
+                    state = max(h, -buttonWidth * 1.5)
+                } else {
+                    state = min(max(h, -buttonWidth * 0.5), buttonWidth)
+                }
+            }
+            .onEnded { value in
+                let h = value.translation.width
+                let v = value.translation.height
+                guard abs(h) > abs(v) * 1.5 else {
+                    dismiss()
+                    return
+                }
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                    if h < -buttonWidth * 1.2 {
+                        offset = 0
+                        coordinator.release(rowId)
+                        onDelete()
+                    } else if h < -buttonWidth * 0.4 && offset == 0 {
+                        offset = -buttonWidth
+                        coordinator.claim(rowId)
+                    } else if h > buttonWidth * 0.3 && offset < 0 {
+                        offset = 0
+                        coordinator.release(rowId)
+                    } else if offset < 0 {
+                        offset = -buttonWidth
+                    } else {
+                        offset = 0
+                    }
+                }
+            }
+    }
+}
+
+fileprivate extension View {
+    func swipeToRevealDelete(onDelete: @escaping () -> Void) -> some View {
+        modifier(SwipeToRevealDelete(onDelete: onDelete))
+    }
+}
+
 /// Recursive folder tree, Finder list-view style, with inline expand/collapse.
 struct FolderSectionView: View {
     let folders: [Folder]
@@ -152,8 +279,8 @@ struct FolderSectionView: View {
 
 // MARK: - FolderReorderDropZone
 
-/// Thin drop target that sits between folder rows to enable vertical reordering.
-/// Shows a hairline divider when idle; highlights with an accent line when a drag hovers over it.
+/// Drop target between folder rows for vertical reordering.
+/// Expands when a drag hovers over it with a prominent accent line.
 private struct FolderReorderDropZone: View {
     let indentLevel: Int
     let showDividerWhenIdle: Bool
@@ -162,19 +289,22 @@ private struct FolderReorderDropZone: View {
 
     var body: some View {
         ZStack {
-            Color.clear.frame(height: 12)
+            // Hit area expands when a drag hovers — stays compact otherwise
+            Color.clear.frame(height: isTargeted ? 28 : 12)
             if isTargeted {
-                Capsule()
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Color.accentColor)
-                    .frame(height: 3)
+                    .frame(height: 4)
                     .padding(.leading, CGFloat(16 + indentLevel * 20))
                     .padding(.trailing, 16)
+                    .shadow(color: Color.accentColor.opacity(0.4), radius: 4, y: 0)
+                    .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .center)))
             } else if showDividerWhenIdle {
                 Divider()
                     .padding(.leading, CGFloat(16 + indentLevel * 20))
             }
         }
-        .animation(.easeInOut(duration: 0.12), value: isTargeted)
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isTargeted)
         .dropDestination(for: FolderTransferID.self) { items, _ in
             guard let first = items.first else { return false }
             onDrop(first.rawID)
@@ -314,11 +444,7 @@ struct FolderRowView: View {
             } message: {
                 Text("All task lists and tasks inside this folder will be permanently removed.")
             }
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button(role: .destructive) { showDeleteConfirm = true } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
+            .swipeToRevealDelete { showDeleteConfirm = true }
 
             // Expanded content: subfolders + task lists
             if isExpanded {
@@ -368,22 +494,22 @@ struct FolderRowView: View {
                     .padding(.vertical, 15)
                 }
 
-                // "Add List" inline button — neutral color, no blue
+                // "Add List" — visually lighter than content rows so it reads as an action
                 Divider().padding(.leading, CGFloat(16 + (indentLevel + 1) * 20))
                 Button(action: addTaskList) {
                     HStack(spacing: 10) {
                         Spacer().frame(width: CGFloat((indentLevel + 1) * 20))
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color.primaryText)
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Color.themeAccent.opacity(0.6))
                             .frame(width: 22)
                         Text("Add List")
-                            .font(.system(size: 17))
-                            .foregroundStyle(Color.primaryText)
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.secondaryText)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 15)
+                    .padding(.vertical, 13)
                 }
                 .buttonStyle(.plain)
             }
@@ -549,11 +675,7 @@ struct TaskListRowView: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive, action: deleteTaskList) {
-                Label("Delete", systemImage: "trash")
-            }
-        }
+        .swipeToRevealDelete(onDelete: deleteTaskList)
     }
 
     private func startRename() {
