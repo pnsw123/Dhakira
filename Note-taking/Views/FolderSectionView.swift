@@ -7,94 +7,126 @@ private let log = Logger(subsystem: "notes.Note-taking", category: "FolderSectio
 
 // MARK: - SwipeToRevealDelete
 
-/// Custom swipe-to-delete modifier for use in VStack layouts where .swipeActions doesn't work.
+/// Coordinates which row is currently swiped open. Only one row at a time.
+@MainActor
+private final class SwipeCoordinator: ObservableObject {
+    static let shared = SwipeCoordinator()
+    @Published var activeRowId: UUID?
+
+    func claim(_ id: UUID) {
+        if activeRowId != id { activeRowId = id }
+    }
+
+    func release(_ id: UUID) {
+        if activeRowId == id { activeRowId = nil }
+    }
+}
+
+/// Custom swipe-to-delete for VStack layouts where .swipeActions doesn't work.
 /// Swipe left to reveal a red delete button. Full swipe triggers the action immediately.
+/// Only one row can be revealed at a time via SwipeCoordinator.
 private struct SwipeToRevealDelete: ViewModifier {
     let onDelete: () -> Void
     @State private var offset: CGFloat = 0
     @GestureState private var dragOffset: CGFloat = 0
+    @State private var rowId = UUID()
+    @ObservedObject private var coordinator = SwipeCoordinator.shared
 
     private let buttonWidth: CGFloat = 80
+    private var isRevealed: Bool { offset < -10 }
 
     func body(content: Content) -> some View {
-        ZStack(alignment: .trailing) {
-            // Delete button sits behind the content
-            HStack(spacing: 0) {
-                Spacer()
-                Button {
-                    withAnimation(.spring(response: 0.25)) { offset = 0 }
-                    onDelete()
-                } label: {
-                    Image(systemName: "trash.fill")
-                        .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(.white)
-                        .frame(width: buttonWidth)
-                        .frame(maxHeight: .infinity)
-                        .background(Color.red)
+        GeometryReader { geo in
+            ZStack(alignment: .trailing) {
+                // Delete button — height matched to content via GeometryReader
+                if isRevealed {
+                    Button {
+                        dismiss()
+                        onDelete()
+                    } label: {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(.white)
+                            .frame(width: buttonWidth, height: geo.size.height)
+                            .background(Color.red)
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity)
                 }
-                .buttonStyle(.plain)
-            }
-            .opacity(offset < -10 ? 1 : 0)
 
-            // Main content slides to reveal the button
-            content
-                .offset(x: offset + dragOffset)
-                .gesture(
-                    DragGesture(minimumDistance: 16)
-                        .updating($dragOffset) { value, state, _ in
-                            let h = value.translation.width
-                            let v = value.translation.height
-                            // Only activate for mostly-horizontal left swipes
-                            guard abs(h) > abs(v) * 1.5, h < 0 else { return }
-                            // Rubber-band past the button width
-                            if offset == 0 {
-                                state = max(h, -buttonWidth * 1.5)
-                            } else {
-                                // Already revealed — allow dragging back
-                                state = min(max(h, -buttonWidth * 0.5), buttonWidth)
-                            }
+                // Main content slides left to reveal the button
+                content
+                    .frame(width: geo.size.width)
+                    .offset(x: offset + dragOffset)
+                    .background(Color(uiColor: .systemBackground).opacity(0.001)) // ensures hit-testing
+                    .simultaneousGesture(swipeGesture)
+                    // Dismiss overlay: only active when revealed, so it never eats normal taps
+                    .overlay {
+                        if isRevealed {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { dismiss() }
                         }
-                        .onEnded { value in
-                            let h = value.translation.width
-                            let v = value.translation.height
-                            guard abs(h) > abs(v) * 1.5 else {
-                                withAnimation(.spring(response: 0.25)) { offset = 0 }
-                                return
-                            }
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                                if h < -buttonWidth * 1.2 {
-                                    // Full swipe — trigger delete
-                                    offset = 0
-                                    onDelete()
-                                } else if h < -buttonWidth * 0.4 && offset == 0 {
-                                    // Partial swipe — reveal button
-                                    offset = -buttonWidth
-                                } else if h > buttonWidth * 0.3 && offset < 0 {
-                                    // Swiped right to dismiss
-                                    offset = 0
-                                } else if offset < 0 {
-                                    // Keep revealed
-                                    offset = -buttonWidth
-                                } else {
-                                    offset = 0
-                                }
-                            }
-                        }
-                )
-                .onTapGesture {
-                    // Tapping the content while delete is revealed → dismiss it
-                    if offset < 0 {
-                        withAnimation(.spring(response: 0.25)) { offset = 0 }
+                    }
+            }
+        }
+        .frame(minHeight: 1) // ensure GeometryReader proposes from content
+        .fixedSize(horizontal: false, vertical: true)
+        .clipped()
+        .onChange(of: coordinator.activeRowId) { _, activeId in
+            // Another row was swiped — close this one
+            if activeId != rowId && offset < 0 {
+                withAnimation(.spring(response: 0.25)) { offset = 0 }
+            }
+        }
+    }
+
+    private func dismiss() {
+        withAnimation(.spring(response: 0.25)) { offset = 0 }
+        coordinator.release(rowId)
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 16)
+            .updating($dragOffset) { value, state, _ in
+                let h = value.translation.width
+                let v = value.translation.height
+                guard abs(h) > abs(v) * 1.5, h < 0 else { return }
+                if offset == 0 {
+                    state = max(h, -buttonWidth * 1.5)
+                } else {
+                    state = min(max(h, -buttonWidth * 0.5), buttonWidth)
+                }
+            }
+            .onEnded { value in
+                let h = value.translation.width
+                let v = value.translation.height
+                guard abs(h) > abs(v) * 1.5 else {
+                    dismiss()
+                    return
+                }
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                    if h < -buttonWidth * 1.2 {
+                        offset = 0
+                        coordinator.release(rowId)
+                        onDelete()
+                    } else if h < -buttonWidth * 0.4 && offset == 0 {
+                        offset = -buttonWidth
+                        coordinator.claim(rowId)
+                    } else if h > buttonWidth * 0.3 && offset < 0 {
+                        offset = 0
+                        coordinator.release(rowId)
+                    } else if offset < 0 {
+                        offset = -buttonWidth
                     } else {
-                        // Let other tap gestures handle this
+                        offset = 0
                     }
                 }
-        }
-        .clipped()
+            }
     }
 }
 
-extension View {
+fileprivate extension View {
     func swipeToRevealDelete(onDelete: @escaping () -> Void) -> some View {
         modifier(SwipeToRevealDelete(onDelete: onDelete))
     }
@@ -257,8 +289,8 @@ private struct FolderReorderDropZone: View {
 
     var body: some View {
         ZStack {
-            // Taller hit area for easier drop targeting
-            Color.clear.frame(height: isTargeted ? 32 : 20)
+            // Hit area expands when a drag hovers — stays compact otherwise
+            Color.clear.frame(height: isTargeted ? 28 : 12)
             if isTargeted {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color.accentColor)
