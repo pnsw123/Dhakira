@@ -20,14 +20,10 @@ struct FolderSectionView: View {
     /// Expanded folder IDs persisted in UserDefaults so state survives data refreshes.
     @AppStorage("expandedFolderIds_v2") private var expandedFolderIdsStorage: String = ""
     @State private var expandedFolderIds: Set<UUID> = []
+    @State private var draggedFolder: Folder? = nil
 
     var body: some View {
         VStack(spacing: 0) {
-            // Drop zone before the first folder
-            FolderReorderDropZone(indentLevel: indentLevel, showDividerWhenIdle: false) { rawID in
-                reorder(rawID, toIndex: 0)
-            }
-
             ForEach(Array(folders.enumerated()), id: \.element.id) { index, folder in
                 FolderRowView(
                     folder: folder,
@@ -38,20 +34,23 @@ struct FolderSectionView: View {
                     indentLevel: indentLevel,
                     startEditingOnAppear: folder.id == autoRenameId
                 )
+                .onDrag {
+                    draggedFolder = folder
+                    return NSItemProvider(object: folder.id.uuidString as NSString)
+                }
+                .onDrop(of: [.text], delegate: FolderReorderDelegate(
+                    folder: folder,
+                    folders: folders,
+                    draggedFolder: $draggedFolder,
+                    modelContext: modelContext
+                ))
 
-                // Drop zone after each row — also acts as the divider between rows
-                FolderReorderDropZone(
-                    indentLevel: indentLevel,
-                    showDividerWhenIdle: index < folders.count - 1
-                ) { rawID in
-                    reorder(rawID, toIndex: index + 1)
+                if index < folders.count - 1 {
+                    Divider()
+                        .padding(.leading, CGFloat(16 + indentLevel * 20))
                 }
             }
         }
-        // Root-level drop zone removed — it was intercepting ALL drops and preventing
-        // the inner reorder zones and folder nest zones from receiving them.
-        // Unnest-to-root is now handled by the reorder() function when a subfolder
-        // is dropped into a root-level reorder zone.
         .onAppear {
             // Restore persisted expanded state
             let persisted = Set(expandedFolderIdsStorage.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
@@ -88,49 +87,6 @@ struct FolderSectionView: View {
         saveExpandedState()
     }
 
-    @MainActor
-    private func reorder(_ rawID: PersistentIdentifier, toIndex: Int) {
-        guard let dragged = modelContext.model(for: rawID) as? Folder else { return }
-
-        // If the dragged folder is from a different level (e.g. subfolder dragged to root),
-        // unnest it first so it joins this sibling group.
-        if !folders.contains(where: { $0.id == dragged.id }) {
-            let previousParent = dragged.parentFolder
-            dragged.parentFolder = folders.first?.parentFolder  // match this level's parent (nil for root)
-            undoManager?.registerUndo(withTarget: dragged) { f in
-                f.parentFolder = previousParent
-            }
-            undoManager?.setActionName("Move Folder")
-            // Insert at the requested position
-            let maxOrder = folders.map(\.sortOrder).max() ?? 0
-            dragged.sortOrder = maxOrder + 10
-            do {
-                try modelContext.save()
-                log.info("Reorder: '\(dragged.name)' unnested to this level at index \(toIndex)")
-            } catch {
-                log.error("Reorder: save failed — \(error.localizedDescription)")
-            }
-            return
-        }
-
-        var sorted = folders
-        guard let fromIndex = sorted.firstIndex(where: { $0.id == dragged.id }) else { return }
-        // Already in the target position — nothing to do
-        if fromIndex == toIndex || fromIndex == toIndex - 1 { return }
-        sorted.remove(at: fromIndex)
-        let insertAt = toIndex > fromIndex ? toIndex - 1 : toIndex
-        sorted.insert(dragged, at: min(insertAt, sorted.count))
-        for (i, folder) in sorted.enumerated() {
-            folder.sortOrder = i * 10
-        }
-        do {
-            try modelContext.save()
-            log.info("Reorder: '\(dragged.name)' moved to index \(insertAt)")
-        } catch {
-            log.error("Reorder: save failed — \(error.localizedDescription)")
-        }
-    }
-
     private func saveExpandedState() {
         // Read the full persisted set. This instance only owns the IDs of its direct
         // `folders` — it should not touch IDs owned by sibling/parent instances.
@@ -150,39 +106,47 @@ struct FolderSectionView: View {
     }
 }
 
-// MARK: - FolderReorderDropZone
+// MARK: - FolderReorderDelegate
 
-/// Drop target between folder rows for vertical reordering.
-/// Expands when a drag hovers over it with a prominent accent line.
-private struct FolderReorderDropZone: View {
-    let indentLevel: Int
-    let showDividerWhenIdle: Bool
-    let onDrop: (PersistentIdentifier) -> Void
-    @State private var isTargeted = false
+/// Native DropDelegate for smooth drag-to-reorder. Items slide out of the way
+/// as you drag over them — the standard Apple pattern for reordering.
+private struct FolderReorderDelegate: DropDelegate {
+    let folder: Folder
+    let folders: [Folder]
+    @Binding var draggedFolder: Folder?
+    let modelContext: ModelContext
 
-    var body: some View {
-        ZStack {
-            // Hit area: 16pt idle is enough to catch drags without adding visible gaps
-            Color.clear.frame(height: isTargeted ? 32 : 16)
-            if isTargeted {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.accentColor)
-                    .frame(height: 4)
-                    .padding(.leading, CGFloat(16 + indentLevel * 20))
-                    .padding(.trailing, 16)
-                    .shadow(color: Color.accentColor.opacity(0.4), radius: 4, y: 0)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .center)))
-            } else if showDividerWhenIdle {
-                Divider()
-                    .padding(.leading, CGFloat(16 + indentLevel * 20))
-            }
+    func dropEntered(info: DropInfo) {
+        guard let dragged = draggedFolder,
+              dragged.id != folder.id,
+              let fromIndex = folders.firstIndex(where: { $0.id == dragged.id }),
+              let toIndex = folders.firstIndex(where: { $0.id == folder.id })
+        else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            // Swap sortOrders so the dragged item moves to the new position
+            let fromOrder = dragged.sortOrder
+            dragged.sortOrder = folder.sortOrder
+            folder.sortOrder = fromOrder
         }
-        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isTargeted)
-        .dropDestination(for: FolderTransferID.self) { items, _ in
-            guard let first = items.first else { return false }
-            onDrop(first.rawID)
-            return true
-        } isTargeted: { isTargeted = $0 }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        // Renumber all sortOrders cleanly
+        let sorted = folders.sorted(by: { $0.sortOrder < $1.sortOrder })
+        for (i, f) in sorted.enumerated() {
+            f.sortOrder = i * 10
+        }
+        try? modelContext.save()
+        draggedFolder = nil
+        return true
+    }
+
+    func dropExited(info: DropInfo) {
+        // No-op — cleanup happens in performDrop
     }
 }
 
@@ -210,7 +174,6 @@ struct FolderRowView: View {
     @State private var isAddingNewList: Bool = false
     @State private var newListName: String = ""
     @FocusState private var isNewListFocused: Bool
-    @State private var isDropTargeted: Bool = false
 
     private var taskListsForFolder: [TaskList] {
         allTaskLists.filter { $0.folder?.id == folder.id }
@@ -258,30 +221,6 @@ struct FolderRowView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 16)
             .contentShape(Rectangle())
-            .draggable(FolderTransferID(rawID: folder.persistentModelID))
-            .dropDestination(for: FolderTransferID.self) { items, _ in
-                guard let transfer = items.first,
-                      let draggedFolder = modelContext.model(for: transfer.rawID) as? Folder,
-                      draggedFolder.id != folder.id,
-                      !Self.isAncestor(draggedFolder, of: folder) else { return false }
-                let targetDepth = Self.depth(of: folder) + 1
-                guard targetDepth <= 10 else { return false }
-                let previousParent = draggedFolder.parentFolder
-                draggedFolder.parentFolder = folder
-                // Register undo so the user can reverse drag-nest
-                undoManager?.registerUndo(withTarget: draggedFolder) { f in
-                    f.parentFolder = previousParent
-                }
-                undoManager?.setActionName("Move Folder")
-                log.info("Drag-drop: '\(draggedFolder.name)' moved into '\(folder.name)'")
-                return true
-            } isTargeted: { targeted in
-                isDropTargeted = targeted
-            }
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(isDropTargeted ? Color.accentColor : .clear, lineWidth: 2)
-            )
             .onTapGesture { onToggle() }
             .onAppear {
                 if startEditingOnAppear {
