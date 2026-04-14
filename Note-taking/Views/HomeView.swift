@@ -96,7 +96,6 @@ struct HomeView: View {
                             .padding(.top, 4)
                             .padding(.bottom, 8)
                     }
-                    }
 
                     // Folders section
                     foldersSection
