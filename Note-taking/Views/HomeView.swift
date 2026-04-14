@@ -330,17 +330,49 @@ struct HomeView: View {
         autoRenameFolderId = folder.id
     }
 
-    /// One-time migration: assign sortOrder values to folders that were created before
-    /// the sortOrder field existed (they all default to 0).
+    /// Migration: assign sortOrder values to any folders still at the default 0.
+    /// Handles single folders, partial migrations, and subfolders recursively.
+    /// Uses a UserDefaults flag so it only runs the full scan once per device.
     private func migrateSortOrderIfNeeded() {
-        guard topLevelFolders.count > 1,
-              topLevelFolders.allSatisfy({ $0.sortOrder == 0 }) else { return }
-        let sorted = topLevelFolders.sorted(by: { $0.createdAt < $1.createdAt })
-        for (i, folder) in sorted.enumerated() {
-            folder.sortOrder = i * 10
+        let migrationKey = "sortOrderMigrationDone_v1"
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+
+        migrateFolderGroup(topLevelFolders)
+
+        // Recursively migrate subfolders at every level
+        migrateSubfoldersRecursively(topLevelFolders)
+
+        do {
+            try modelContext.save()
+            UserDefaults.standard.set(true, forKey: migrationKey)
+            log.info("migrateSortOrderIfNeeded: migration complete")
+        } catch {
+            log.error("migrateSortOrderIfNeeded: save failed — \(error.localizedDescription)")
         }
-        try? modelContext.save()
-        log.info("migrateSortOrderIfNeeded: assigned sortOrders to \(sorted.count) folders")
+    }
+
+    /// Assign sortOrder to a group of sibling folders that are still at default 0.
+    private func migrateFolderGroup(_ folders: [Folder]) {
+        let needsMigration = folders.filter { $0.sortOrder == 0 }
+        guard needsMigration.count > 0 else { return }
+        // Sort by creation date to preserve the original order
+        let sorted = needsMigration.sorted(by: { $0.createdAt < $1.createdAt })
+        // Start after the highest existing sortOrder in this group
+        let maxExisting = folders.map(\.sortOrder).max() ?? 0
+        for (i, folder) in sorted.enumerated() {
+            folder.sortOrder = maxExisting + (i + 1) * 10
+        }
+    }
+
+    /// Walk the entire folder tree and migrate every level of subfolders.
+    private func migrateSubfoldersRecursively(_ folders: [Folder]) {
+        for folder in folders {
+            let children = (folder.subfolders ?? [])
+            if !children.isEmpty {
+                migrateFolderGroup(children)
+                migrateSubfoldersRecursively(children)
+            }
+        }
     }
 }
 

@@ -24,8 +24,12 @@ final class StoreKitManager {
         "com.prodnote.theme.pro",
     ]
 
-    // Secret developer phrase — typed in the theme search bar to unlock all themes
+    // Secret developer phrase — only available in debug builds
+    #if DEBUG
     static let developerPhrase = "yazeedjameel"
+    #else
+    static let developerPhrase = ""
+    #endif
     private let devUnlockKey = "dev.dhakira.unlocked"
 
     var products: [Product] = []

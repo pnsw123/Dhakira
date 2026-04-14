@@ -11,7 +11,6 @@ struct ThemeCardView: View {
     var namespace: Namespace.ID
 
     @Environment(ThemeManager.self) private var themeManager
-    @Environment(StoreKitManager.self) private var store
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -42,22 +41,6 @@ struct ThemeCardView: View {
             if isSelected {
                 RoundedRectangle(cornerRadius: 20)
                     .strokeBorder(theme.accentColor, lineWidth: 2.5)
-            }
-
-            // Layer 6 — lock icon overlay for unowned paid themes
-            if theme.isPaid && !store.isOwned(theme) {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(8)
-                            .background(.black.opacity(0.45), in: Circle())
-                            .padding(10)
-                    }
-                    Spacer()
-                }
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 20))

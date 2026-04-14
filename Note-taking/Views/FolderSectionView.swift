@@ -49,7 +49,9 @@ struct FolderSectionView: View {
             }
         }
         // Root-level drop zone — drag any subfolder here to unnest it back to a root folder.
-        // Applied to the entire VStack so dropping between folders works.
+        // Does NOT conflict with FolderReorderDropZone: this handler only accepts folders
+        // that have a parentFolder (i.e. nested subfolders), while reorder zones handle
+        // same-level sibling reordering. The parentFolder != nil guard ensures mutual exclusion.
         .dropDestination(for: FolderTransferID.self) { items, _ in
             guard indentLevel == 0,
                   let transfer = items.first,
@@ -108,6 +110,7 @@ struct FolderSectionView: View {
         saveExpandedState()
     }
 
+    @MainActor
     private func reorder(_ rawID: PersistentIdentifier, toIndex: Int) {
         guard let dragged = modelContext.model(for: rawID) as? Folder else { return }
         var sorted = folders
@@ -120,8 +123,12 @@ struct FolderSectionView: View {
         for (i, folder) in sorted.enumerated() {
             folder.sortOrder = i * 10
         }
-        try? modelContext.save()
-        log.info("Reorder: '\(dragged.name)' moved to index \(insertAt)")
+        do {
+            try modelContext.save()
+            log.info("Reorder: '\(dragged.name)' moved to index \(insertAt)")
+        } catch {
+            log.error("Reorder: save failed — \(error.localizedDescription)")
+        }
     }
 
     private func saveExpandedState() {

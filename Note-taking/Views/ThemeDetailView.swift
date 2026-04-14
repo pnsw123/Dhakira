@@ -13,7 +13,6 @@ struct ThemeDetailView: View {
     var namespace: Namespace.ID
 
     @Environment(ThemeManager.self) private var themeManager
-    @Environment(StoreKitManager.self) private var store
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedScope: ThemeScope = .app
@@ -191,7 +190,6 @@ struct ThemeDetailView: View {
         ThemeDetailView(theme: .nebula, namespace: Namespace().wrappedValue)
     }
     .environment(ThemeManager.shared)
-    .environment(StoreKitManager.shared)
 }
 
 // MARK: — iOS 26 glass button styles
