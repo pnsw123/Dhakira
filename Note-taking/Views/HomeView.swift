@@ -20,8 +20,6 @@ struct HomeView: View {
     @Query(sort: \TaskList.createdAt)
     private var allTaskLists: [TaskList]
 
-    @Environment(\.undoManager) private var undoManager
-    @State private var undoVersion: Int = 0
     @State private var autoRenameFolderId: UUID? = nil
     @State private var showSettings = false
     @State private var calendarExpanded = false
@@ -42,36 +40,6 @@ struct HomeView: View {
 
                             Spacer()
 
-                            // Undo / Redo — right-aligned, same layout as TaskListView
-                            Button {
-                                undoManager?.undo()
-                                undoVersion += 1
-                            } label: {
-                                Image(systemName: "arrow.uturn.backward")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(Color.themeAccent)
-                                    .frame(width: 36, height: 36)
-                                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
-                            }
-                            .buttonStyle(.macFriendly)
-                            .opacity(undoManager?.canUndo == true ? 1 : 0.35)
-                            .accessibilityLabel("Undo")
-
-                            Button {
-                                undoManager?.redo()
-                                undoVersion += 1
-                            } label: {
-                                Image(systemName: "arrow.uturn.forward")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(Color.themeAccent)
-                                    .frame(width: 36, height: 36)
-                                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
-                            }
-                            .buttonStyle(.macFriendly)
-                            .padding(.leading, 8)
-                            .opacity(undoManager?.canRedo == true ? 1 : 0.35)
-                            .accessibilityLabel("Redo")
-
                             Button(action: {
                                 log.info("HomeView: > button tapped → calling onClose()")
                                 onClose?()
@@ -83,7 +51,6 @@ struct HomeView: View {
                                     .glassEffect(.regular.tint(Color.themeAccent.opacity(0.2)).interactive(), in: .circle)
                             }
                             .buttonStyle(.macFriendly)
-                            .padding(.leading, 8)
                             .accessibilityIdentifier("btn-go-to-tasks")
                         }
                         .padding(.horizontal, 16)
