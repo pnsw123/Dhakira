@@ -37,9 +37,10 @@ private struct SwipeToRevealDelete: ViewModifier {
     private var isRevealed: Bool { offset < -10 }
 
     func body(content: Content) -> some View {
-        GeometryReader { geo in
-            ZStack(alignment: .trailing) {
-                // Delete button — height matched to content via GeometryReader
+        content
+            .offset(x: offset + dragOffset)
+            .background(alignment: .trailing) {
+                // Delete button behind the content — naturally matches row height
                 if isRevealed {
                     Button {
                         dismiss()
@@ -48,38 +49,30 @@ private struct SwipeToRevealDelete: ViewModifier {
                         Image(systemName: "trash.fill")
                             .font(.system(size: 17, weight: .medium))
                             .foregroundStyle(.white)
-                            .frame(width: buttonWidth, height: geo.size.height)
+                            .frame(width: buttonWidth)
+                            .frame(maxHeight: .infinity)
                             .background(Color.red)
                     }
                     .buttonStyle(.plain)
                     .transition(.opacity)
+                    .offset(x: buttonWidth) // sits just off the right edge
                 }
-
-                // Main content slides left to reveal the button
-                content
-                    .frame(width: geo.size.width)
-                    .offset(x: offset + dragOffset)
-                    .background(Color(uiColor: .systemBackground).opacity(0.001)) // ensures hit-testing
-                    .simultaneousGesture(swipeGesture)
-                    // Dismiss overlay: only active when revealed, so it never eats normal taps
-                    .overlay {
-                        if isRevealed {
-                            Color.clear
-                                .contentShape(Rectangle())
-                                .onTapGesture { dismiss() }
-                        }
-                    }
             }
-        }
-        .frame(minHeight: 1) // ensure GeometryReader proposes from content
-        .fixedSize(horizontal: false, vertical: true)
-        .clipped()
-        .onChange(of: coordinator.activeRowId) { _, activeId in
-            // Another row was swiped — close this one
-            if activeId != rowId && offset < 0 {
-                withAnimation(.spring(response: 0.25)) { offset = 0 }
+            .simultaneousGesture(swipeGesture)
+            .overlay {
+                // Dismiss overlay: only when revealed, never eats normal taps
+                if isRevealed {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { dismiss() }
+                }
             }
-        }
+            .clipped()
+            .onChange(of: coordinator.activeRowId) { _, activeId in
+                if activeId != rowId && offset < 0 {
+                    withAnimation(.spring(response: 0.25)) { offset = 0 }
+                }
+            }
     }
 
     private func dismiss() {
