@@ -218,7 +218,12 @@ final class DateDetectionService {
     func normalize(_ text: String) -> String {
         var s = text
 
-        // ── 0. Strip "due" before date phrases ──────────────────────────────
+        // ── 0. Ordinal day expansion FIRST (before stripping "due") ──────────
+        // Must run before "due" stripping because "due on 20" needs the "on" preposition
+        // to identify "20" as a day number, not a random number.
+        s = expandOrdinalDays(in: s)
+
+        // ── 0b. Strip "due" before date phrases ─────────────────────────────
         // NSDataDetector misinterprets "due tomorrow" as TODAY (a known Apple bug).
         // Removing "due on/by/at/before" lets the actual date word parse correctly.
         s = s.replacingOccurrences(of: #"(?i)\bdue\s+(?:on|by|at|before|for)?\s*"#,
@@ -443,6 +448,79 @@ final class DateDetectionService {
                                      to: cal.date(from: cal.dateComponents([.year, .month], from: now))!) {
             let eom = cal.date(bySettingHour: 17, minute: 0, second: 0, of: endOfMonth) ?? endOfMonth
             replacePatternWithTime(#"(?i)\b(?:end\s+of\s+(?:the\s+)?month|EOM)\b"#, with: eom, in: &result)
+        }
+
+        return result
+    }
+
+    /// Resolves bare ordinal and numeric day references:
+    /// - With suffix: "the 22nd", "on the 21st", "by the 30th", "due 15th"
+    /// - Bare number after preposition: "due on 20", "by 15", "on 22", "before 30"
+    /// Converts to "Month Day Year" format using current month if the day hasn't passed,
+    /// otherwise next month.
+    private func expandOrdinalDays(in text: String) -> String {
+        var result = text
+
+        // ── Pattern 1: Ordinal suffixes (1st, 2nd, 3rd, 4th–31st) ───────────
+        // "the 22nd", "on the 22nd", "by 21st", "due 15th"
+        // Negative lookbehind for month names — "April 22nd" is already valid.
+        let monthNames = "January|February|March|April|May|June|July|August|September|October|November|December"
+        let pattern = "(?i)(?<!(?:\(monthNames))\\s)\\b(?:(?:on|by|before|for|until|due)\\s+)?(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)\\b"
+        result = expandDayPattern(pattern, in: result)
+
+        // ── Pattern 2: Bare number after date preposition ────────────────────
+        // "due on 20", "by 15", "on 22", "before 30"
+        // Requires a preposition to avoid false positives on random numbers.
+        let barePattern = #"(?i)\b(?:on|by|before|for|until|due)\s+(?:on\s+|by\s+)?(\d{1,2})\b(?!\s*(?:st|nd|rd|th|am|pm|:|/|\.))"#
+        result = expandDayPattern(barePattern, in: result)
+
+        return result
+    }
+
+    /// Shared logic: match a day-number pattern and replace with "Month Day Year".
+    private func expandDayPattern(_ pattern: String, in text: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
+
+        var result = text
+        let cal = Calendar.current
+        let now = Date()
+        let currentMonth = cal.component(.month, from: now)
+        let currentYear = cal.component(.year, from: now)
+        let currentDay = cal.component(.day, from: now)
+
+        let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
+        for match in matches.reversed() {
+            guard let dayRange = Range(match.range(at: 1), in: result),
+                  let fullRange = Range(match.range, in: result) else { continue }
+            let day = Int(result[dayRange]) ?? 0
+            guard (1...31).contains(day) else { continue }
+
+            // Use current month if the day is still ahead, otherwise next month
+            var month = currentMonth
+            var year = currentYear
+            if day <= currentDay {
+                month += 1
+                if month > 12 { month = 1; year += 1 }
+            }
+
+            // Validate the day exists in that month — if not, try subsequent months
+            // (e.g. "the 31st" in April → skips to May 31)
+            var target: Date? = nil
+            for attempt in 0..<12 {
+                let tryMonth = ((month - 1 + attempt) % 12) + 1
+                let tryYear = year + ((month - 1 + attempt) / 12)
+                let comps = DateComponents(year: tryYear, month: tryMonth, day: day)
+                if let candidate = cal.date(from: comps),
+                   cal.component(.day, from: candidate) == day {  // verify day didn't roll over
+                    target = candidate
+                    break
+                }
+            }
+            guard let target else { continue }
+
+            let replacement = formatAbsoluteDateOnly(target)
+            result = result.replacingCharacters(in: fullRange, with: replacement)
+            log.debug("expandDayPattern: '\(String(text[fullRange]))' → '\(replacement)'")
         }
 
         return result
