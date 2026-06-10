@@ -5,18 +5,18 @@
 **Free on the App Store · No paywall · No subscription**
 
 [![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/app/dhakira/id6761504745)  
-🌐 [dhakira.app](https://dhakira.app)
+[dhakira.app](https://dhakira.app)
 
 ---
 
 ## Screenshots
 
 <p align="center">
-  <img src="app-store-screenshots-v2/final/01-auto-calendar-clean-light-iphone-1320x2868.png" width="19%" alt="Auto Calendar"/>
-  <img src="app-store-screenshots-v2/final/02-priority-clean-light-iphone-1320x2868.png" width="19%" alt="Priority Flags"/>
-  <img src="app-store-screenshots-v2/final/03-overview-clean-light-iphone-1320x2868.png" width="19%" alt="Overview"/>
-  <img src="app-store-screenshots-v2/final/04-writing-clean-light-iphone-1320x2868.png" width="19%" alt="Rich Editor"/>
-  <img src="app-store-screenshots-v2/final/05-folders-clean-light-iphone-1320x2868.png" width="19%" alt="Folders"/>
+  <img src="app-store-screenshots-v2/01-auto-calendar-clean-light-iphone-1320x2868.png" width="19%" alt="Auto Calendar"/>
+  <img src="app-store-screenshots-v2/02-priority-clean-light-iphone-1320x2868.png" width="19%" alt="Priority Flags"/>
+  <img src="app-store-screenshots-v2/03-overview-clean-light-iphone-1320x2868.png" width="19%" alt="Overview"/>
+  <img src="app-store-screenshots-v2/04-writing-clean-light-iphone-1320x2868.png" width="19%" alt="Rich Editor"/>
+  <img src="app-store-screenshots-v2/05-folders-clean-light-iphone-1320x2868.png" width="19%" alt="Folders"/>
 </p>
 
 ---
@@ -77,9 +77,9 @@ Dhakira/
 
 | Platform | Supported |
 |---|---|
-| iPhone | ✅ iOS 17+ |
-| iPad | ✅ iPadOS 17+ |
-| Mac | ✅ macOS 14+ (Mac Catalyst) |
+| iPhone | iOS 17+ |
+| iPad | iPadOS 17+ |
+| Mac | macOS 14+ (Mac Catalyst) |
 
 ---
 
