@@ -1,0 +1,23 @@
+# Xcode
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.xcarchive
+build/
+
+# macOS
+.DS_Store
+**/.DS_Store
+._*
+
+# Claude Code / AI dev tooling
+CLAUDE.md
+.claude/
+.agents/
+.playwright-mcp/
+skills-lock.json
+PRELAUNCH-REQUIREMENTS.md
